@@ -9,7 +9,7 @@ export interface InventoryItem {
   remarks?: string;
 
   // Reorder Tracking Fields
-  reorderStatus?: 'Pending' | 'Order Placed' | 'Other';
+  reorderStatus?: 'Pending' | 'Order Placed' | 'Received' | 'Other';
   reorderCompany?: string;
   reorderQty?: number;
   reorderDate?: string;
@@ -74,6 +74,8 @@ export interface StockTransaction {
   
   // Reorder Fields
   expectedDeliveryDate?: string;
+  receivedDate?: string; // New field for Received Date
+  receivedQty?: number;
 
   // Common
   remarks?: string;

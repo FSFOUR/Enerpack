@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
 import { X, Save } from 'lucide-react';
@@ -49,7 +50,7 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
     cuttingSize: '',
     status: type === 'OUT' ? 'Cutting' : '', // Default status for OUT
     priority: type === 'OUT' ? 'Medium' : '', // Default priority for OUT
-    vehicle: 'KL65S7466' // Default based on sample
+    vehicle: '' 
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -252,28 +253,10 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
                         ))}
                     </select>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Vehicle</label>
-                    <input 
-                        type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
-                        value={formData.vehicle}
-                        onChange={e => setFormData({...formData, vehicle: e.target.value})}
-                    />
-                </div>
+                {/* Vehicle Removed */}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Destination/Loc (CAPS)</label>
-                    <input 
-                        type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white uppercase"
-                        value={formData.storageLocation} // Reusing field name for Location
-                        onChange={e => setFormData({...formData, storageLocation: e.target.value.toUpperCase()})}
-                    />
-                </div>
-              </div>
+              {/* Location Removed for OUT */}
             </>
           )}
 

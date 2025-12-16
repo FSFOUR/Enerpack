@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { StockTransaction } from '../types';
-import { Download, ArrowLeft, Search, Filter } from 'lucide-react';
+import { Download, ArrowLeft, Search } from 'lucide-react';
 
 interface TransactionHistoryProps {
   type: 'IN' | 'OUT' | 'REORDER';
@@ -11,7 +11,6 @@ interface TransactionHistoryProps {
 
 const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transactions, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
 
   // Filter based on type and status
   const filteredByType = transactions
@@ -19,13 +18,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
         if (type === 'IN') return t.type === 'IN';
         if (type === 'REORDER') return t.type === 'REORDER';
         
-        // For OUT, show ALL by default, unless filtered
+        // For OUT, show ONLY Delivered
         if (type === 'OUT') {
-           if (t.type !== 'OUT') return false;
-           if (statusFilter === 'All') return true;
-           if (statusFilter === 'Delivered') return t.status === 'Delivered';
-           if (statusFilter === 'Pending') return t.status !== 'Delivered';
-           return true;
+           return t.type === 'OUT' && t.status === 'Delivered';
         }
         return false;
     })
@@ -44,7 +39,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
   const getTitle = () => {
       switch(type) {
           case 'IN': return 'STOCK IN LOGS';
-          case 'OUT': return 'STOCK OUT LOGS';
+          case 'OUT': return 'STOCK OUT LOGS (DELIVERED)';
           case 'REORDER': return 'REORDER HISTORY';
           default: return 'LOGS';
       }
@@ -100,6 +95,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                 WORK_NAME: t.workName,
                 UNIT: t.unit,
                 CUT_SIZE: t.cuttingSize,
+                SHEETS: t.unit === 'GROSS' ? t.quantity * 144 : t.quantity,
                 STATUS: t.status,
                 VEHICLE: t.vehicle,
                 LOCATION: t.storageLocation,
@@ -114,8 +110,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                 GSM: t.gsm,
                 QUANTITY: t.quantity,
                 COMPANY: t.company,
-                EXPECTED_DELIVERY: t.expectedDeliveryDate,
-                STATUS: t.status,
+                RECEIVED_DATE: t.receivedDate || '-',
+                RECEIVED_QTY: t.receivedQty || 0,
                 REMARKS: t.remarks
             };
         }
@@ -143,21 +139,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             
-            {type === 'OUT' && (
-                <div className="relative flex items-center">
-                    <Filter className="absolute left-2 h-3 w-3 text-gray-500" />
-                    <select 
-                        className="pl-7 pr-2 py-1.5 rounded-md border border-gray-300 text-xs focus:ring-2 focus:ring-blue-500 bg-gray-50 font-bold text-gray-700"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                        <option value="All">All Status</option>
-                        <option value="Delivered">Delivered Only</option>
-                        <option value="Pending">Pending/Other</option>
-                    </select>
-                </div>
-            )}
-
             <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
                 <input 
@@ -204,6 +185,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">WORK NAME</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">UNIT</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">CUT SIZE</th>
+                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">SHEETS</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">STATUS</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">VEHICLE</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">LOCATION</th>
@@ -218,8 +200,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">GSM</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">QUANTITY</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">COMPANY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">EXP DELIVERY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">STATUS</th>
+                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">RECEIVED DATE</th>
+                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">REC QTY</th>
                                 <th className="p-2 border border-white/20 text-center whitespace-nowrap">REMARKS</th>
                             </tr>
                         )}
@@ -252,6 +234,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.workName}>{t.workName}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.unit}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.cuttingSize}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-blue-700 whitespace-nowrap">
+                                            {t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity}
+                                        </td>
                                         <td className={`p-2 border border-gray-300 font-bold whitespace-nowrap ${t.status === 'Delivered' ? 'text-green-600' : 'text-orange-600'}`}>{t.status}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.vehicle}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.storageLocation}</td>
@@ -266,8 +251,12 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.gsm}</td>
                                         <td className="p-2 border border-gray-300 font-bold text-purple-700 whitespace-nowrap">{t.quantity}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.expectedDeliveryDate}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.status}</td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap font-bold text-green-700">
+                                            {t.receivedDate || '-'}
+                                        </td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap text-gray-700 font-medium">
+                                            {t.receivedQty !== undefined ? t.receivedQty : '-'}
+                                        </td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.remarks}>{t.remarks}</td>
                                     </>
                                 )}

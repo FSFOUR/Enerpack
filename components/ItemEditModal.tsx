@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { InventoryItem } from '../types';
 import { X, Save } from 'lucide-react';
@@ -8,7 +9,7 @@ interface ItemEditModalProps {
   onSave: (updatedItem: InventoryItem) => void;
 }
 
-const SECTION_ORDER = ["280", "200", "150", "140", "GYT"];
+const SECTION_ORDER = ["280", "250", "230", "200", "150", "140", "140GYT", "130", "130GYT", "100", "GYT"];
 
 const ItemEditModal: React.FC<ItemEditModalProps> = ({ item, onClose, onSave }) => {
   const [formData, setFormData] = useState({

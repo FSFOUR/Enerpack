@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
 import { StockTransaction } from '../types';
-import { ArrowLeft, Clock, Search, Lock } from 'lucide-react';
+import { ArrowLeft, Clock, Search, Save, Truck, Download } from 'lucide-react';
 
 interface PendingWorksProps {
   transactions: StockTransaction[];
   onBack: () => void;
-  onUpdateStatus: (id: string, newStatus: string) => void;
+  onUpdateTransaction: (id: string, updates: Partial<StockTransaction>) => void;
   onUpdatePriority: (id: string, newPriority: string) => void;
   isAdmin: boolean;
 }
@@ -41,8 +41,11 @@ const getPriorityColor = (priority?: string) => {
     }
 };
 
-const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpdateStatus, onUpdatePriority, isAdmin }) => {
+const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpdateTransaction, onUpdatePriority, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // State for delivery completion popup
+  const [deliveryModal, setDeliveryModal] = useState<{id: string, vehicle: string, location: string} | null>(null);
 
   // Filter for Stock OUT items that are NOT "Delivered"
   const pendingTransactions = transactions
@@ -66,8 +69,97 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
     (t.remarks || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleStatusChange = (t: StockTransaction, newStatus: string) => {
+      if (newStatus === 'Delivered') {
+          // Open Modal to ask for details
+          setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' });
+      } else {
+          // Normal update
+          onUpdateTransaction(t.id, { status: newStatus });
+      }
+  };
+
+  const confirmDelivery = () => {
+      if (!deliveryModal) return;
+      onUpdateTransaction(deliveryModal.id, { 
+          status: 'Delivered', 
+          vehicle: deliveryModal.vehicle, 
+          storageLocation: deliveryModal.location 
+      });
+      setDeliveryModal(null);
+  };
+
+  const handleExport = () => {
+    if (typeof (window as any).XLSX === 'undefined') {
+       alert("Excel library not loaded. Please check your internet connection and refresh.");
+       return;
+    }
+    const wb = (window as any).XLSX.utils.book_new();
+    const ws = (window as any).XLSX.utils.json_to_sheet(displayedTransactions.map(t => ({
+        DATE: t.date,
+        SIZE: t.size,
+        GSM: t.gsm,
+        QTY: t.quantity,
+        COMPANY: t.company,
+        WORK_NAME: t.workName,
+        CUT_SIZE: t.cuttingSize,
+        PRIORITY: t.priority,
+        STATUS: t.status,
+        REMARKS: t.remarks
+    })));
+    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Pending Works");
+    (window as any).XLSX.writeFile(wb, `Pending_Works_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
+      
+      {/* Delivery Details Modal */}
+      {deliveryModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <div className="bg-green-600 text-white p-4 font-bold flex items-center gap-2">
+                      <Truck className="w-5 h-5" /> Mark as Delivered
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vehicle Number</label>
+                          <input 
+                              type="text" 
+                              className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none uppercase"
+                              value={deliveryModal.vehicle}
+                              onChange={e => setDeliveryModal({...deliveryModal, vehicle: e.target.value})}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Location</label>
+                          <input 
+                              type="text" 
+                              className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none uppercase"
+                              placeholder="e.g. AKP"
+                              value={deliveryModal.location}
+                              onChange={e => setDeliveryModal({...deliveryModal, location: e.target.value})}
+                          />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                          <button 
+                            onClick={() => setDeliveryModal(null)}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                            onClick={confirmDelivery}
+                            className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded text-sm font-bold shadow-md"
+                          >
+                              Complete Delivery
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm bg-orange-50 gap-3 md:gap-0">
         <div className="flex items-center gap-4 w-full md:w-auto">
             <button 
@@ -95,6 +187,9 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded-full text-sm shadow hover:bg-green-700 flex items-center gap-2 font-bold whitespace-nowrap">
+                <Download className="w-4 h-4" /> Export
+            </button>
             <div className="text-sm text-orange-800 font-semibold bg-orange-100 px-3 py-1 rounded-full whitespace-nowrap">
             Count: {displayedTransactions.length}
             </div>
@@ -114,9 +209,8 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                             <th className="p-2 border border-orange-500 text-center whitespace-nowrap">COMPANY</th>
                             <th className="p-2 border border-orange-500 text-center whitespace-nowrap">WORK NAME</th>
                             <th className="p-2 border border-orange-500 text-center whitespace-nowrap">CUT SIZE</th>
-                            <th className="p-2 border border-orange-500 text-center whitespace-nowrap">CURRENT STATUS</th>
                             <th className="p-2 border border-orange-500 text-center whitespace-nowrap">PRIORITY</th>
-                            <th className="p-2 border border-orange-500 text-center whitespace-nowrap">VEHICLE</th>
+                            <th className="p-2 border border-orange-500 text-center whitespace-nowrap">CURRENT STATUS</th>
                             <th className="p-2 border border-orange-500 text-center whitespace-nowrap">REMARKS</th>
                         </tr>
                     </thead>
@@ -130,21 +224,6 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                 <td className="p-2 border border-gray-300 whitespace-nowrap font-bold uppercase">{t.company}</td>
                                 <td className="p-2 border border-gray-300 max-w-[200px] truncate whitespace-nowrap" title={t.workName}>{t.workName}</td>
                                 <td className="p-2 border border-gray-300 whitespace-nowrap">{t.cuttingSize}</td>
-                                <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
-                                    <select 
-                                        disabled={!isAdmin}
-                                        className={`w-full p-1 border rounded text-xs font-bold text-center ${
-                                            t.status === 'Out of Stock' ? 'text-red-600 bg-red-50' : 
-                                            t.status === 'Cutting' ? 'text-blue-600 bg-blue-50' : 'text-gray-800'
-                                        } ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                        value={t.status}
-                                        onChange={(e) => onUpdateStatus(t.id, e.target.value)}
-                                    >
-                                        {STATUS_OPTIONS.map(opt => (
-                                            <option key={opt} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                </td>
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <select 
                                         disabled={!isAdmin}
@@ -157,7 +236,21 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                         ))}
                                     </select>
                                 </td>
-                                <td className="p-2 border border-gray-300 whitespace-nowrap">{t.vehicle}</td>
+                                <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
+                                    <select 
+                                        disabled={!isAdmin}
+                                        className={`w-full p-1 border rounded text-xs font-bold text-center ${
+                                            t.status === 'Out of Stock' ? 'text-red-600 bg-red-50' : 
+                                            t.status === 'Cutting' ? 'text-blue-600 bg-blue-50' : 'text-gray-800'
+                                        } ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        value={t.status}
+                                        onChange={(e) => handleStatusChange(t, e.target.value)}
+                                    >
+                                        {STATUS_OPTIONS.map(opt => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                    </select>
+                                </td>
                                 <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
                             </tr>
                         ))}

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
-import { ArrowLeft, AlertTriangle, Search, Save, Lock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Search, Save, Lock, CheckCircle2, Download } from 'lucide-react';
 
 interface ReorderPageProps {
   items: InventoryItem[];
@@ -11,10 +11,14 @@ interface ReorderPageProps {
   isAdmin: boolean;
 }
 
-const REORDER_STATUS_OPTIONS = ["Pending", "Order Placed", "Other"];
+const REORDER_STATUS_OPTIONS = ["Pending", "Order Placed", "Received", "Other"];
 
 const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, onRecordTransaction, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Modal state for receiving items
+  const [receivingItem, setReceivingItem] = useState<InventoryItem | null>(null);
+  const [receiveData, setReceiveData] = useState({ date: new Date().toISOString().split('T')[0], qty: 0 });
 
   // Filter items where stock is less than minStock
   const lowStockItems = items.filter(item => item.closingStock < (item.minStock || 0));
@@ -36,6 +40,17 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
   };
 
   const handleLogOrder = (item: InventoryItem) => {
+      // If status is received, trigger modal flow
+      if (item.reorderStatus === 'Received') {
+          setReceivingItem(item);
+          setReceiveData({
+              date: new Date().toISOString().split('T')[0],
+              qty: item.reorderQty || 0
+          });
+          return;
+      }
+
+      // Standard Order Placed Log
       if (!item.reorderQty || item.reorderQty <= 0) {
           alert("Please enter a valid Reorder Quantity.");
           return;
@@ -62,8 +77,104 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
       }
   };
 
+  const handleConfirmReceive = () => {
+      if (!receivingItem) return;
+      
+      onRecordTransaction({
+          type: 'REORDER',
+          date: receivingItem.reorderDate || receiveData.date, // Order Date
+          month: new Date(receiveData.date).toLocaleString('default', { month: 'long' }),
+          itemId: receivingItem.id,
+          size: receivingItem.size,
+          gsm: receivingItem.gsm,
+          quantity: receiveData.qty, // Actual Received Qty
+          company: receivingItem.reorderCompany || 'Unknown',
+          remarks: receivingItem.reorderRemarks,
+          expectedDeliveryDate: receivingItem.expectedDeliveryDate,
+          status: 'Received',
+          receivedDate: receiveData.date,
+          receivedQty: receiveData.qty
+      });
+      
+      alert("Order Received logged to history!");
+      setReceivingItem(null);
+  };
+
+  const handleExport = () => {
+    if (typeof (window as any).XLSX === 'undefined') {
+       alert("Excel library not loaded.");
+       return;
+    }
+    const wb = (window as any).XLSX.utils.book_new();
+    const ws = (window as any).XLSX.utils.json_to_sheet(filteredItems.map(item => ({
+        SIZE: item.size,
+        GSM: item.gsm,
+        MIN_STOCK: item.minStock,
+        CURRENT_STOCK: item.closingStock,
+        SHORTAGE: ((item.minStock || 0) - item.closingStock).toFixed(1),
+        SUPPLIER: item.reorderCompany,
+        REORDER_QTY: item.reorderQty,
+        ORDER_DATE: item.reorderDate,
+        EXP_DELIVERY: item.expectedDeliveryDate,
+        STATUS: item.reorderStatus,
+        REMARKS: item.reorderRemarks
+    })));
+    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Reorder Alerts");
+    (window as any).XLSX.writeFile(wb, `Reorder_Alerts_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
+      
+      {/* Receive Order Modal */}
+      {receivingItem && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-green-200">
+                  <div className="bg-green-600 text-white p-4 font-bold flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5" /> Confirm Receipt
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <p className="text-sm text-gray-600 font-medium border-b pb-2">
+                          Item: <span className="text-black font-bold">{receivingItem.size} ({receivingItem.gsm})</span>
+                      </p>
+                      
+                      <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Received Date</label>
+                          <input 
+                              type="date" 
+                              className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none"
+                              value={receiveData.date}
+                              onChange={e => setReceiveData({...receiveData, date: e.target.value})}
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Received Quantity</label>
+                          <input 
+                              type="number" 
+                              className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg"
+                              value={receiveData.qty}
+                              onChange={e => setReceiveData({...receiveData, qty: Number(e.target.value)})}
+                          />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                          <button 
+                            onClick={() => setReceivingItem(null)}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                          >
+                              Cancel
+                          </button>
+                          <button 
+                            onClick={handleConfirmReceive}
+                            className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded text-sm font-bold shadow-md"
+                          >
+                              Confirm & Log
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm bg-red-50 gap-3 md:gap-0">
         <div className="flex items-center gap-4 w-full md:w-auto">
             <button 
@@ -91,6 +202,9 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded-full text-sm shadow hover:bg-green-700 flex items-center gap-2 font-bold whitespace-nowrap">
+                <Download className="w-4 h-4" /> Export
+            </button>
             <div className="text-sm text-red-800 font-semibold bg-red-100 px-3 py-1 rounded-full whitespace-nowrap">
             Items: {filteredItems.length}
             </div>
@@ -108,11 +222,11 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">MIN</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">CURR</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">SHORT</th>
-                            <th className="p-2 border border-red-500 text-center whitespace-nowrap">STATUS</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">COMPANY</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">ORD QTY</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">ORD DATE</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">EXP DELIVERY</th>
+                            <th className="p-2 border border-red-500 text-center whitespace-nowrap">STATUS</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">REMARKS</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">LOG</th>
                         </tr>
@@ -128,20 +242,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     {((item.minStock || 0) - item.closingStock).toFixed(1)}
                                 </td>
                                 
-                                {/* REORDER STATUS */}
-                                <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
-                                    <select 
-                                        disabled={!isAdmin}
-                                        className={`w-full p-1 border rounded text-xs text-center ${!isAdmin ? 'bg-gray-100' : ''}`}
-                                        value={item.reorderStatus || 'Pending'}
-                                        onChange={(e) => handleUpdate(item, 'reorderStatus', e.target.value)}
-                                    >
-                                        {REORDER_STATUS_OPTIONS.map(opt => (
-                                            <option key={opt} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                </td>
-
                                 {/* COMPANY */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
@@ -188,6 +288,24 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
+                                {/* REORDER STATUS - Moved Here */}
+                                <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
+                                    <select 
+                                        disabled={!isAdmin}
+                                        className={`w-full p-1 border rounded text-xs text-center font-bold
+                                            ${item.reorderStatus === 'Received' ? 'text-green-700 bg-green-50' : 
+                                              item.reorderStatus === 'Order Placed' ? 'text-blue-700 bg-blue-50' : 
+                                              'bg-white text-gray-700'} 
+                                            ${!isAdmin ? 'bg-gray-100' : ''}`}
+                                        value={item.reorderStatus || 'Pending'}
+                                        onChange={(e) => handleUpdate(item, 'reorderStatus', e.target.value)}
+                                    >
+                                        {REORDER_STATUS_OPTIONS.map(opt => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                        ))}
+                                    </select>
+                                </td>
+
                                 {/* REMARKS */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
                                     <input 
@@ -205,8 +323,9 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     {isAdmin ? (
                                         <button 
                                             onClick={() => handleLogOrder(item)}
-                                            className="p-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-                                            title="Save to History Log"
+                                            className={`p-1.5 text-white rounded transition-colors shadow-sm
+                                                ${item.reorderStatus === 'Received' ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+                                            title={item.reorderStatus === 'Received' ? "Receive Order" : "Save to History Log"}
                                         >
                                             <Save className="w-4 h-4" />
                                         </button>
