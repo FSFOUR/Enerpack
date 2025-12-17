@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2897/2897785.png" />
 
-    <!-- CDNs kept for Tailwind and Utils to maintain current functionality without full refactor -->
+    <!-- CDNs kept for Tailwind and Utils (XLSX, HTML2PDF) to maintain functionality -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r98B5R2nSHyWaWqyq017YbA81rpHbKP0yIG38b42CVs23v8h32Ywcsx8mXipG6wAajSE5l7s8/k3bW0FXW2eSA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -49,13 +49,13 @@
 <script type="importmap">
 {
   "imports": {
-    "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3"
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
