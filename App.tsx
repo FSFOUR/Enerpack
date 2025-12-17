@@ -2,16 +2,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import InventoryTable from './components/InventoryTable';
 import JobCardGenerator from './components/JobCardGenerator';
+import Dashboard from './components/Dashboard';
 import TransactionHistory from './components/TransactionHistory';
 import PendingWorks from './components/PendingWorks';
 import ReorderPage from './components/ReorderPage';
 import PaperCalculator from './components/PaperCalculator';
 import ForecastPage from './components/ForecastPage';
-import Dashboard from './components/Dashboard';
 import { InventoryItem, ViewMode, StockTransaction, AppNotification } from './types';
-import { ClipboardList, LayoutGrid, Archive, History, Clock, AlertTriangle, FileClock, Calculator, TrendingUp, LayoutDashboard, Menu, X, Lock, Unlock, Bell } from 'lucide-react';
+import { ClipboardList, LayoutGrid, Archive, History, Clock, AlertTriangle, FileClock, Calculator, TrendingUp, LayoutDashboard, Menu, X, Lock, Unlock, Bell, LogOut, ChevronRight, User, Key, ShieldCheck } from 'lucide-react';
 
 // Seed data
+// ... (Seed data unchanged) ...
 const INITIAL_DATA: InventoryItem[] = [
   // --- 280 GSM Single Sizes ---
   { id: '1', size: '54', gsm: '280', closingStock: 1459, minStock: 0, remarks: '' },
@@ -226,39 +227,95 @@ const INITIAL_DATA: InventoryItem[] = [
   { id: '192', size: '114', gsm: '100', closingStock: 0, minStock: 0, remarks: '' },
 ];
 
+const LogoIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} xmlns="http://www.w3.org/2000/svg" fill="none">
+    {/* Colors: Using a solid blue #0056b3 from the image */}
+    
+    {/* Top Face (Lid) */}
+    <path d="M50 15 L88 34 L50 53 L12 34 Z" fill="#0056b3" />
+    
+    {/* Left Face */}
+    <path d="M12 39 L50 58 V92 L12 73 Z" fill="#0056b3" />
+
+    {/* Right Face */}
+    <path d="M50 58 L88 39 V73 L50 92 Z" fill="#0056b3" />
+
+    {/* Letter E (Left Face - Slopes Down) */}
+    <text 
+      x="31" 
+      y="76" 
+      fontFamily="Arial, sans-serif" 
+      fontWeight="900" 
+      fontSize="36" 
+      fill="white" 
+      textAnchor="middle"
+      style={{ transform: 'skewY(26.5deg)', transformBox: 'fill-box', transformOrigin: 'center' }}
+    >
+      E
+    </text>
+
+    {/* Letter P (Right Face - Slopes Up) */}
+    <text 
+      x="69" 
+      y="60" 
+      fontFamily="Arial, sans-serif" 
+      fontWeight="900" 
+      fontSize="36" 
+      fill="white" 
+      textAnchor="middle"
+      style={{ transform: 'skewY(-26.5deg)', transformBox: 'fill-box', transformOrigin: 'center' }}
+    >
+      P
+    </text>
+
+    {/* Stack Lines (Right Face - Slopes Up) */}
+    <g style={{ transform: 'skewY(-26.5deg)', transformBox: 'fill-box', transformOrigin: 'center' }}>
+      <rect x="58" y="72" width="22" height="2" fill="white" />
+      <rect x="58" y="78" width="22" height="2" fill="white" />
+      <rect x="58" y="84" width="22" height="2" fill="white" />
+    </g>
+  </svg>
+);
+
 const App: React.FC = () => {
-  // Initialize ViewMode from local storage or default to DASHBOARD
+  // ... state declarations ...
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const savedMode = localStorage.getItem('enerpack_view_mode');
     return (savedMode as ViewMode) || ViewMode.DASHBOARD;
   });
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // Admin Logic
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    // Check local storage for persistent login
+    return localStorage.getItem('enerpack_is_admin') === 'true';
+  });
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
   
-  // Notifications
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  // Login & Change Password States
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isChangePasswordMode, setIsChangePasswordMode] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newUsernameInput, setNewUsernameInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
 
-  // Real-time Sync Channel
+  const [adminCredentials, setAdminCredentials] = useState(() => {
+    try {
+        const saved = localStorage.getItem('enerpack_admin_creds');
+        return saved ? JSON.parse(saved) : { username: 'admin', password: 'admin' };
+    } catch {
+        return { username: 'admin', password: 'admin' };
+    }
+  });
+
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const channelRef = useRef<BroadcastChannel | null>(null);
 
-  // State for Inventory
+  // ... (Data loading and sync logic remains same) ...
   const [inventory, setInventory] = useState<InventoryItem[]>(() => {
     try {
       const saved = localStorage.getItem('enerpack_inventory_v6'); 
       if (saved) return JSON.parse(saved);
-      
-      // Migration from older versions
-      const savedV5 = localStorage.getItem('enerpack_inventory_v5');
-      if (savedV5) {
-         // We force update to V6 this time
-      }
-      
-      // Default to Demo/Initial Data if storage is empty
       return INITIAL_DATA;
     } catch (e) {
       console.error("Failed to load inventory from storage", e);
@@ -266,7 +323,6 @@ const App: React.FC = () => {
     }
   });
 
-  // State for Transactions
   const [transactions, setTransactions] = useState<StockTransaction[]>(() => {
     try {
       const saved = localStorage.getItem('enerpack_transactions');
@@ -277,30 +333,19 @@ const App: React.FC = () => {
     }
   });
 
-  // --- Persistence & Sync ---
-
   useEffect(() => {
-    // Initialize Broadcast Channel
     channelRef.current = new BroadcastChannel('enerpack_updates');
-    
     channelRef.current.onmessage = (event) => {
       const { type, message } = event.data;
-      
       if (type === 'REFRESH_DATA') {
-        // Reload data from local storage
         const savedInv = localStorage.getItem('enerpack_inventory_v6');
         if (savedInv) setInventory(JSON.parse(savedInv));
-
         const savedTrans = localStorage.getItem('enerpack_transactions');
         if (savedTrans) setTransactions(JSON.parse(savedTrans));
-
         if (message) addNotification(message, 'info');
       }
     };
-
-    return () => {
-      channelRef.current?.close();
-    };
+    return () => { channelRef.current?.close(); };
   }, []);
 
   useEffect(() => {
@@ -311,13 +356,9 @@ const App: React.FC = () => {
     localStorage.setItem('enerpack_transactions', JSON.stringify(transactions));
   }, [transactions]);
 
-  // --- Helper Functions ---
-
+  // ... helper functions ...
   const notifyPeers = (message: string) => {
-    channelRef.current?.postMessage({
-      type: 'REFRESH_DATA',
-      message
-    });
+    channelRef.current?.postMessage({ type: 'REFRESH_DATA', message });
     addNotification(message, 'success');
   };
 
@@ -331,23 +372,54 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === 'admin') {
+    if (usernameInput === adminCredentials.username && passwordInput === adminCredentials.password) {
       setIsAdmin(true);
+      // Persist login
+      localStorage.setItem('enerpack_is_admin', 'true');
       setShowLoginModal(false);
       setPasswordInput('');
+      setUsernameInput('');
       addNotification("Logged in as Admin", 'success');
     } else {
-      alert("Incorrect password");
+      alert("Invalid username or password");
     }
+  };
+
+  const handleChangeCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (currentPasswordInput !== adminCredentials.password) {
+        alert("Current password is incorrect.");
+        return;
+    }
+    if (!newUsernameInput.trim() || !newPasswordInput.trim()) {
+        alert("Username and Password cannot be empty.");
+        return;
+    }
+    
+    const newCreds = { username: newUsernameInput, password: newPasswordInput };
+    setAdminCredentials(newCreds);
+    localStorage.setItem('enerpack_admin_creds', JSON.stringify(newCreds));
+    
+    addNotification("Credentials updated successfully", 'success');
+    setIsChangePasswordMode(false);
+    setCurrentPasswordInput('');
+    setNewUsernameInput('');
+    setNewPasswordInput('');
   };
 
   const handleLogout = () => {
     setIsAdmin(false);
+    localStorage.removeItem('enerpack_is_admin');
     addNotification("Logged out", 'info');
+    setIsMobileMenuOpen(false); // Close menu on logout
   };
 
-  // --- Data Handlers ---
+  const handleShowLogin = () => {
+    setShowLoginModal(true);
+    setIsMobileMenuOpen(false); // Close menu on open modal
+  };
 
+  // ... Transaction Handlers ...
   const handleUpdateStock = (id: string, delta: number) => {
     setInventory(prev => {
       const newData = prev.map(item => {
@@ -369,6 +441,19 @@ const App: React.FC = () => {
       return newData;
     });
     setTimeout(() => notifyPeers(`Item ${updatedItem.size} updated`), 50);
+  };
+
+  const handleDeleteItem = (id: string) => {
+    const itemToDelete = inventory.find(i => i.id === id);
+    if (!itemToDelete) return;
+    if (confirm(`Delete item "${itemToDelete.size} (${itemToDelete.gsm})"? This cannot be undone.`)) {
+      setInventory(prev => {
+        const newData = prev.filter(item => item.id !== id);
+        localStorage.setItem('enerpack_inventory_v6', JSON.stringify(newData));
+        return newData;
+      });
+      setTimeout(() => notifyPeers(`Item deleted`), 50);
+    }
   };
 
   const handleAddItem = (newItem: Omit<InventoryItem, 'id'>) => {
@@ -396,7 +481,6 @@ const App: React.FC = () => {
     });
   };
 
-  // Generalized update function to handle status, vehicle, location etc.
   const handleUpdateTransaction = (id: string, updates: Partial<StockTransaction>) => {
     setTransactions(prev => {
       const newData = prev.map(t => t.id === id ? { ...t, ...updates } : t);
@@ -406,162 +490,274 @@ const App: React.FC = () => {
     setTimeout(() => notifyPeers("Work details updated"), 50);
   };
 
-  // Kept for backward compatibility if needed, but redirects to general handler
-  const handleUpdateTransactionStatus = (id: string, newStatus: string) => {
-    handleUpdateTransaction(id, { status: newStatus });
-  };
-
   const handleUpdateTransactionPriority = (id: string, newPriority: string) => {
     handleUpdateTransaction(id, { priority: newPriority });
   };
 
   const handleNavigate = (mode: ViewMode) => {
     setViewMode(mode);
-    localStorage.setItem('enerpack_view_mode', mode); // Persist view mode
+    localStorage.setItem('enerpack_view_mode', mode);
     setIsMobileMenuOpen(false);
   };
 
-  // Count alerts
   const alertCount = inventory.filter(i => i.closingStock < (i.minStock || 0)).length;
 
   const NavButton = ({ mode, icon: Icon, label, alertCount }: { mode: ViewMode, icon: any, label: string, alertCount?: number }) => (
     <button 
       onClick={() => handleNavigate(mode)}
-      className={`p-3 rounded-xl transition-all duration-300 group relative flex items-center justify-center md:block w-full md:w-auto
+      className={`flex items-center w-full p-3 rounded-xl transition-all duration-200 gap-3 group
         ${viewMode === mode 
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50 scale-105' 
-          : 'text-slate-400 hover:text-white hover:bg-enerpack-800'}`}
+          ? 'bg-white/10 text-white shadow-md' 
+          : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
       title={label}
     >
       <div className="relative">
-        <Icon className="w-6 h-6" />
+        <Icon className={`w-5 h-5 ${viewMode === mode ? 'text-enerpack-500' : 'text-slate-400 group-hover:text-white'}`} />
         {alertCount !== undefined && alertCount > 0 && (
-           <span className="absolute -top-2 -right-2 bg-white text-red-600 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-red-500 shadow-sm">
+           <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-enerpack-900">
              {alertCount}
            </span>
         )}
       </div>
-      <span className="ml-3 md:ml-0 md:absolute md:left-16 md:bg-slate-900 md:text-white md:text-xs md:px-2 md:py-1 md:rounded md:opacity-0 md:group-hover:opacity-100 md:transition-opacity md:pointer-events-none md:whitespace-nowrap md:z-50 md:shadow-md font-bold md:font-normal block md:hidden">
+      <span className={`text-sm font-medium ${viewMode === mode ? 'text-white' : ''}`}>
         {label}
       </span>
+      {viewMode === mode && <ChevronRight className="w-4 h-4 ml-auto text-enerpack-500" />}
     </button>
   );
 
   const SidebarContent = () => (
-    <div className="flex flex-col items-center gap-2 md:gap-6 w-full">
-        <div className="text-white font-black text-xl md:text-xs text-center leading-tight mb-6 md:mb-4 tracking-wider py-4 md:py-0 border-b border-white/10 md:border-none w-full md:w-auto">
-          ENER<br className="hidden md:block"/>PACK
+    <div className="flex flex-col h-full bg-enerpack-900 border-r border-white/5">
+        <div className="p-6 flex items-center gap-3 border-b border-white/10 shrink-0">
+          <div className="w-10 h-10 bg-white/10 rounded-xl p-1 flex items-center justify-center shadow-lg">
+             <LogoIcon className="w-full h-full" />
+          </div>
+          <div>
+             <h1 className="text-white font-bold text-lg tracking-wide leading-none">Ener Pack</h1>
+             <p className="text-slate-400 text-xs font-medium mt-1">Operation System</p>
+          </div>
         </div>
         
-        <div className="flex flex-col gap-2 w-full px-4 md:px-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-hide">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3 mt-2">Main Menu</p>
           <NavButton mode={ViewMode.DASHBOARD} icon={LayoutDashboard} label="Dashboard" />
           <NavButton mode={ViewMode.INVENTORY} icon={LayoutGrid} label="Inventory" />
+          
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3 mt-6">Transactions</p>
           <NavButton mode={ViewMode.STOCK_IN_LOGS} icon={Archive} label="Stock In Logs" />
           <NavButton mode={ViewMode.STOCK_OUT_LOGS} icon={History} label="Stock Out Logs" />
-
-          <div className="h-px bg-white/10 my-1 w-full"></div>
-
           <NavButton mode={ViewMode.PENDING_WORKS} icon={Clock} label="Pending Works" />
+
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3 mt-6">Planning</p>
           <NavButton mode={ViewMode.REORDER_ALERTS} icon={AlertTriangle} label="Reorder Alerts" alertCount={alertCount} />
           <NavButton mode={ViewMode.REORDER_LOGS} icon={FileClock} label="Reorder History" />
           <NavButton mode={ViewMode.FORECAST} icon={TrendingUp} label="Forecast" />
 
-          <div className="h-px bg-white/10 my-1 w-full"></div>
-
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3 mt-6">Tools</p>
           <NavButton mode={ViewMode.JOB_CARDS} icon={ClipboardList} label="Job Cards" />
           <NavButton mode={ViewMode.PAPER_CALCULATOR} icon={Calculator} label="Paper Calculator" />
-          
-          <div className="h-px bg-white/10 my-1 w-full"></div>
-          
+        </div>
+
+        <div className="p-4 border-t border-white/10 shrink-0">
           <button 
-            onClick={() => isAdmin ? handleLogout() : setShowLoginModal(true)}
-            className={`p-3 rounded-xl transition-all duration-300 w-full md:w-auto flex items-center justify-center
-              ${isAdmin ? 'text-green-400 hover:text-green-300' : 'text-slate-500 hover:text-white'}`}
-            title={isAdmin ? "Logout Admin" : "Admin Login"}
+            onClick={() => isAdmin ? handleLogout() : handleShowLogin()}
+            className={`w-full p-3 rounded-xl flex items-center justify-between transition-colors
+              ${isAdmin ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
           >
-             {isAdmin ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
-             <span className="ml-3 md:hidden font-bold">{isAdmin ? 'Logout' : 'Admin'}</span>
+             <div className="flex items-center gap-3">
+               {isAdmin ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+               <span className="text-sm font-bold">{isAdmin ? 'Logout' : 'Admin Login'}</span>
+             </div>
+             {isAdmin && <LogOut className="w-4 h-4" />}
           </button>
         </div>
     </div>
   );
 
   return (
-    <div className="h-screen w-screen bg-slate-100 flex flex-col md:flex-row overflow-hidden font-sans print:overflow-visible print:h-auto print:block relative">
-      
-      {/* Toast Notifications Container */}
+    <div className="h-screen w-full bg-slate-50 flex overflow-hidden font-sans text-slate-800 print:block print:h-auto">
+      {/* Toast Notifications */}
       <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
           {notifications.map(n => (
               <div 
                 key={n.id} 
-                className={`px-4 py-3 rounded shadow-lg text-sm font-bold animate-in slide-in-from-right fade-in duration-300 pointer-events-auto flex items-center gap-2
-                  ${n.type === 'success' ? 'bg-green-600 text-white' : 
-                    n.type === 'warning' ? 'bg-amber-500 text-white' : 'bg-slate-800 text-white'}`}
+                className={`px-4 py-3 rounded-2xl shadow-lg text-sm font-bold animate-in slide-in-from-right fade-in duration-300 pointer-events-auto flex items-center gap-3 border
+                  ${n.type === 'success' ? 'bg-white border-green-200 text-green-700' : 
+                    n.type === 'warning' ? 'bg-white border-amber-200 text-amber-700' : 'bg-white border-slate-200 text-slate-700'}`}
               >
-                  {n.type === 'success' && <CheckCircle2 className="w-4 h-4" />}
-                  {n.type === 'warning' && <AlertTriangle className="w-4 h-4" />}
-                  {n.type === 'info' && <Bell className="w-4 h-4" />}
+                  {n.type === 'success' && <div className="p-1 bg-green-100 rounded-full"><CheckCircle2 className="w-4 h-4" /></div>}
+                  {n.type === 'warning' && <div className="p-1 bg-amber-100 rounded-full"><AlertTriangle className="w-4 h-4" /></div>}
+                  {n.type === 'info' && <div className="p-1 bg-slate-100 rounded-full"><Bell className="w-4 h-4" /></div>}
                   {n.message}
               </div>
           ))}
       </div>
 
-      {/* Mobile Header */}
-      <div className="md:hidden bg-enerpack-900 text-white p-3 flex justify-between items-center shadow-md z-50 print:hidden">
-         <div className="font-black tracking-wider">ENERPACK</div>
-         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-         </button>
-      </div>
+      {/* Admin Login / Change Password Modal - MOVED TO ROOT LEVEL AND FIXED */}
+      {showLoginModal && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-sm animate-in zoom-in-95 duration-200">
+               
+               {!isChangePasswordMode ? (
+                 <>
+                   <div className="flex justify-center mb-6">
+                      <div className="w-16 h-16 bg-enerpack-50 rounded-full flex items-center justify-center shadow-inner">
+                          <Lock className="w-8 h-8 text-enerpack-600" />
+                      </div>
+                   </div>
+                   <h2 className="text-2xl font-bold text-slate-800 mb-2 text-center">Admin Access</h2>
+                   <p className="text-slate-500 text-sm text-center mb-6">Enter your credentials to manage inventory.</p>
+                   
+                   <form onSubmit={handleLogin}>
+                     <div className="space-y-3 mb-6">
+                       <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                          <input 
+                            type="text" 
+                            autoFocus
+                            placeholder="Username" 
+                            className="w-full border border-slate-300 rounded-2xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-enerpack-500 focus:border-enerpack-500 outline-none transition-all shadow-sm"
+                            value={usernameInput}
+                            onChange={e => setUsernameInput(e.target.value)}
+                          />
+                       </div>
+                       <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                          <input 
+                            type="password" 
+                            placeholder="Password" 
+                            className="w-full border border-slate-300 rounded-2xl pl-10 pr-4 py-3 focus:ring-2 focus:ring-enerpack-500 focus:border-enerpack-500 outline-none transition-all shadow-sm"
+                            value={passwordInput}
+                            onChange={e => setPasswordInput(e.target.value)}
+                          />
+                       </div>
+                     </div>
+                     
+                     <div className="flex flex-col gap-3">
+                       <button 
+                        type="submit" 
+                        className="w-full py-3 bg-enerpack-600 text-white rounded-2xl font-bold hover:bg-enerpack-700 shadow-lg shadow-enerpack-200 transition-all active:scale-95"
+                       >
+                         Login
+                       </button>
+                       <button 
+                        type="button" 
+                        onClick={() => setShowLoginModal(false)} 
+                        className="w-full py-3 text-slate-500 hover:text-slate-700 font-medium"
+                       >
+                         Cancel
+                       </button>
+                     </div>
+                   </form>
+                   
+                   <div className="mt-6 text-center border-t pt-4">
+                      <button 
+                        onClick={() => setIsChangePasswordMode(true)}
+                        className="text-xs font-bold text-enerpack-600 hover:underline"
+                      >
+                        Change Password
+                      </button>
+                   </div>
+                 </>
+               ) : (
+                 <>
+                   <div className="flex justify-center mb-6">
+                      <div className="w-16 h-16 bg-enerpack-50 rounded-full flex items-center justify-center shadow-inner">
+                          <ShieldCheck className="w-8 h-8 text-enerpack-600" />
+                      </div>
+                   </div>
+                   <h2 className="text-xl font-bold text-slate-800 mb-2 text-center">Change Credentials</h2>
+                   <p className="text-slate-500 text-xs text-center mb-6">Update your admin username and password.</p>
+                   
+                   <form onSubmit={handleChangeCredentials}>
+                     <div className="space-y-3 mb-6">
+                       <div>
+                          <label className="text-xs font-bold text-slate-500 ml-1">Current Password</label>
+                          <input 
+                            type="password" 
+                            autoFocus
+                            placeholder="Verify Current Password" 
+                            className="w-full border border-slate-300 rounded-2xl px-4 py-2 mt-1 focus:ring-2 focus:ring-enerpack-500 outline-none shadow-sm"
+                            value={currentPasswordInput}
+                            onChange={e => setCurrentPasswordInput(e.target.value)}
+                          />
+                       </div>
+                       <div className="border-t border-slate-100 my-2 pt-2">
+                          <label className="text-xs font-bold text-slate-500 ml-1">New Username</label>
+                          <input 
+                            type="text" 
+                            placeholder="New Username" 
+                            className="w-full border border-slate-300 rounded-2xl px-4 py-2 mt-1 focus:ring-2 focus:ring-enerpack-500 outline-none shadow-sm"
+                            value={newUsernameInput}
+                            onChange={e => setNewUsernameInput(e.target.value)}
+                          />
+                       </div>
+                       <div>
+                          <label className="text-xs font-bold text-slate-500 ml-1">New Password</label>
+                          <input 
+                            type="password" 
+                            placeholder="New Password" 
+                            className="w-full border border-slate-300 rounded-2xl px-4 py-2 mt-1 focus:ring-2 focus:ring-enerpack-500 outline-none shadow-sm"
+                            value={newPasswordInput}
+                            onChange={e => setNewPasswordInput(e.target.value)}
+                          />
+                       </div>
+                     </div>
+                     
+                     <div className="flex flex-col gap-3">
+                       <button 
+                        type="submit" 
+                        className="w-full py-3 bg-enerpack-600 text-white rounded-2xl font-bold hover:bg-enerpack-700 shadow-lg shadow-enerpack-200 transition-all active:scale-95"
+                       >
+                         Update Credentials
+                       </button>
+                       <button 
+                        type="button" 
+                        onClick={() => {
+                            setIsChangePasswordMode(false);
+                            setCurrentPasswordInput('');
+                            setNewUsernameInput('');
+                            setNewPasswordInput('');
+                        }} 
+                        className="w-full py-3 text-slate-500 hover:text-slate-700 font-medium"
+                       >
+                         Back to Login
+                       </button>
+                     </div>
+                   </form>
+                 </>
+               )}
 
-      {/* Sidebar Navigation */}
-      <div className={`
-        fixed inset-0 z-40 bg-enerpack-900/95 backdrop-blur-sm transition-transform duration-300 md:translate-x-0 md:relative md:inset-auto md:w-20 md:hover:w-20 md:bg-enerpack-900 md:shadow-xl flex flex-col py-6 md:py-8 overflow-y-auto
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-        print:hidden
-      `}>
-          <SidebarContent />
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-hidden relative print:overflow-visible">
-        
-        {/* Admin Login Modal */}
-        {showLoginModal && (
-          <div className="absolute inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
-               <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                 <Lock className="w-5 h-5 text-indigo-600" /> Admin Access
-               </h2>
-               <form onSubmit={handleLogin}>
-                 <input 
-                   type="password" 
-                   autoFocus
-                   placeholder="Enter Password" 
-                   className="w-full border rounded p-2 mb-4 focus:ring-2 focus:ring-indigo-500 outline-none"
-                   value={passwordInput}
-                   onChange={e => setPasswordInput(e.target.value)}
-                 />
-                 <div className="flex justify-end gap-2">
-                   <button 
-                    type="button" 
-                    onClick={() => setShowLoginModal(false)} 
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded"
-                   >
-                     Cancel
-                   </button>
-                   <button 
-                    type="submit" 
-                    className="px-4 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700"
-                   >
-                     Login
-                   </button>
-                 </div>
-               </form>
             </div>
           </div>
         )}
 
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-enerpack-900 text-white p-3 flex justify-between items-center shadow-md z-50 print:hidden">
+         <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white rounded-full p-1 flex items-center justify-center">
+               <LogoIcon className="w-full h-full" />
+            </div>
+            <span className="font-bold tracking-wide">Ener Pack</span>
+         </div>
+         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded hover:bg-white/10">
+           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+         </button>
+      </div>
+
+      {/* Responsive Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-64 bg-enerpack-900 shadow-2xl transform transition-transform duration-300 ease-in-out print:hidden
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0 md:static md:shadow-none shrink-0
+      `}>
+          <SidebarContent />
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-slate-50 pt-14 md:pt-0 print:pt-0">
+        
+        {/* View Router */}
         {viewMode === ViewMode.DASHBOARD && (
             <Dashboard 
                 items={inventory} 
@@ -579,6 +775,7 @@ const App: React.FC = () => {
             onRecordTransaction={handleRecordTransaction}
             onBulkUpdate={handleBulkUpdate}
             onUpdateItem={handleUpdateItem}
+            onDeleteItem={handleDeleteItem}
             isAdmin={isAdmin}
           />
         )}
@@ -629,18 +826,25 @@ const App: React.FC = () => {
 
         {viewMode === ViewMode.FORECAST && (
             <ForecastPage 
-                items={inventory}
+                items={inventory} 
                 transactions={transactions}
                 onBack={() => handleNavigate(ViewMode.DASHBOARD)}
             />
         )}
 
-      </div>
+      </main>
+      
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        ></div>
+      )}
     </div>
   );
 };
 
-// Simple Icon for notifications
 const CheckCircle2 = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />

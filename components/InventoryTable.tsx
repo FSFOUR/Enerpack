@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
-import { Plus, Minus, Search, Save, Download, Upload, Pencil, Printer, Lock, ChevronDown, ChevronRight, List, Layers } from 'lucide-react';
+import { Plus, Minus, Search, Save, Download, Upload, Pencil, Printer, Lock, ChevronDown, ChevronRight, List, Layers, Trash2 } from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
 
@@ -13,12 +13,13 @@ interface InventoryTableProps {
   onRecordTransaction: (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => void;
   onBulkUpdate: (items: InventoryItem[]) => void;
   onUpdateItem: (item: InventoryItem) => void;
+  onDeleteItem: (id: string) => void;
   isAdmin: boolean;
 }
 
 const SECTION_ORDER = ["280", "250", "230", "200", "150", "140", "140GYT", "130", "130GYT", "100", "GYT"];
 
-const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, onUpdateStock, onAddItem, onRecordTransaction, onBulkUpdate, onUpdateItem, isAdmin }) => {
+const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, onUpdateStock, onAddItem, onRecordTransaction, onBulkUpdate, onUpdateItem, onDeleteItem, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [modalOpen, setModalOpen] = useState<{type: 'IN' | 'OUT', item: InventoryItem} | null>(null);
@@ -257,14 +258,14 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
     // Check for custom header flag (injected during render preparation)
     if ((item as any).isHeader) {
         return (
-            <td colSpan={5} className={`px-2 py-1 text-center font-black bg-gray-100 text-gray-700 text-[10px] md:text-xs border-y border-gray-300 print:bg-gray-300 print:border-black print:text-black uppercase tracking-wider ${isRightBorder ? 'border-r border-gray-300' : ''}`}>
+            <td colSpan={5} className="px-2 py-1 text-center font-black bg-gray-100 text-gray-700 text-[10px] md:text-xs border border-gray-300 print:bg-gray-300 print:border-black print:text-black uppercase tracking-wider">
                 {(item as any).size}
             </td>
         );
     }
 
     const isLowStock = item.closingStock < (item.minStock || 0);
-    const cellClass = `px-2 py-2 print:py-0.5 print:px-1 whitespace-nowrap ${isLowStock ? 'bg-red-50' : ''} ${isRightBorder ? 'border-r border-gray-300' : ''}`;
+    const cellClass = `px-2 py-1.5 text-sm border border-gray-300 print:py-0.5 print:px-1 whitespace-nowrap ${isLowStock ? 'bg-red-50' : ''}`;
     
     return (
         <>
@@ -273,36 +274,49 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
             <td className={`${cellClass} text-center font-bold ${isLowStock ? 'text-red-600 animate-pulse print:animate-none' : 'text-blue-900'}`}>
                 {item.closingStock}
             </td>
-            <td className={`${cellClass} flex justify-center gap-1 items-center print:hidden`}>
-                {isAdmin ? (
-                    <>
-                        <button onClick={() => handleOpenModal('IN', item)} className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-600 hover:text-white transition-colors" title="Stock In">
-                            <Plus className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => handleOpenModal('OUT', item)} className="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-600 hover:text-white transition-colors" title="Stock Out">
-                            <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="w-[1px] h-4 bg-gray-300 mx-1"></div>
-                        <button onClick={() => handleEditItem(item)} className="p-1.5 bg-gray-100 text-gray-600 rounded hover:bg-blue-600 hover:text-white transition-colors" title="Edit">
-                            <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                    </>
-                ) : (
-                    <Lock className="w-4 h-4 text-gray-300" />
-                )}
+            {/* Action Cell - Reduced Width, Centered Content */}
+            <td className={`p-1 text-center border border-gray-300 w-1 print:hidden ${isLowStock ? 'bg-red-50' : ''}`}>
+                <div className="flex justify-center gap-1 items-center w-full">
+                    {isAdmin ? (
+                        <>
+                            <button onClick={() => handleOpenModal('IN', item)} className="p-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-600 hover:text-white transition-colors" title="Stock In">
+                                <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleOpenModal('OUT', item)} className="p-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-600 hover:text-white transition-colors" title="Stock Out">
+                                <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="w-[1px] h-3 bg-gray-300 mx-0.5"></div>
+                            <button onClick={() => handleEditItem(item)} className="p-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id); }} 
+                                className="p-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition-colors" 
+                                title="Delete"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        </>
+                    ) : (
+                        <Lock className="w-4 h-4 text-gray-300" />
+                    )}
+                </div>
             </td>
-            <td className={`${cellClass} text-xs text-gray-500 truncate max-w-[150px] print:max-w-none print:whitespace-normal`}>{item.remarks}</td>
+            {/* Remarks Cell - Expanded Width */}
+            <td className={`${cellClass} text-xs text-gray-500 min-w-[200px] max-w-[300px] truncate hover:whitespace-normal hover:break-words hover:overflow-visible hover:relative hover:z-10 hover:bg-white hover:shadow-lg`}>
+                {item.remarks}
+            </td>
         </>
     );
   };
 
-  const renderEmptyCells = (isRightBorder: boolean) => (
+  const renderEmptyCells = () => (
       <>
-          <td className={`px-2 py-2 print:py-0.5 ${isRightBorder ? 'border-r border-gray-300' : ''} print:border-none`}></td>
-          <td className={`px-2 py-2 print:py-0.5 ${isRightBorder ? 'border-r border-gray-300' : ''} print:border-none`}></td>
-          <td className={`px-2 py-2 print:py-0.5 ${isRightBorder ? 'border-r border-gray-300' : ''} print:border-none`}></td>
-          <td className={`px-2 py-2 print:py-0.5 ${isRightBorder ? 'border-r border-gray-300' : ''} print:hidden print:border-none`}></td>
-          <td className={`px-2 py-2 print:py-0.5 ${isRightBorder ? 'border-r border-gray-300' : ''} print:border-none`}></td>
+          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
+          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
+          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
+          <td className="px-2 py-2 border border-gray-300 print:hidden print:border-none"></td>
+          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
       </>
   );
 
@@ -311,33 +325,41 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
     if (sectionItems.length === 0) return null;
     return (
         <div className="mb-0">
-             <div className="bg-slate-100 text-slate-700 text-xs font-bold uppercase px-4 py-2 border-y border-slate-200 tracking-wider flex items-center justify-center gap-2 text-center">
+             <div className="bg-slate-100 text-slate-700 text-xs font-bold uppercase px-4 py-2 border-y border-slate-200 tracking-wider flex items-center justify-center gap-2 text-center rounded-t-lg">
                  {title === 'Single Sizes' ? <List className="w-3 h-3"/> : <Layers className="w-3 h-3"/>}
                  {title}
              </div>
-             <table className="w-full text-sm">
-                 <thead className="bg-white border-b border-gray-200">
+             <table className="w-full text-sm border-collapse border border-gray-200 rounded-b-lg overflow-hidden">
+                 <thead className="bg-white">
                      <tr>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border-r border-gray-100">Size</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border-r border-gray-100 w-16">GSM</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold">Stock</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold w-24">Action</th>
+                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200">Size</th>
+                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200 w-16">GSM</th>
+                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200">Stock</th>
+                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200 w-24">Action</th>
                      </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-300">
+                 <tbody>
                      {sectionItems.map((item, idx) => {
                          const isLowStock = item.closingStock < (item.minStock || 0);
                          return (
                              <tr key={item.id} className={isLowStock ? 'bg-red-50' : 'bg-white'}>
-                                 <td className="px-2 py-3 font-bold text-gray-800 text-center border-r border-gray-100">{item.size}</td>
-                                 <td className="px-2 py-3 text-center text-gray-600 border-r border-gray-100">{item.gsm}</td>
-                                 <td className={`px-2 py-3 text-center font-bold ${isLowStock ? 'text-red-600' : 'text-blue-900'}`}>{item.closingStock}</td>
-                                 <td className="px-2 py-3">
+                                 <td className="px-2 py-3 font-bold text-gray-800 text-center border border-gray-200">{item.size}</td>
+                                 <td className="px-2 py-3 text-center text-gray-600 border border-gray-200">{item.gsm}</td>
+                                 <td className={`px-2 py-3 text-center font-bold border border-gray-200 ${isLowStock ? 'text-red-600' : 'text-blue-900'}`}>{item.closingStock}</td>
+                                 <td className="px-2 py-3 border border-gray-200">
                                       <div className="flex justify-center gap-1 items-center">
                                           {isAdmin ? (
                                             <>
-                                                <button onClick={() => handleOpenModal('IN', item)} className="p-2 bg-green-50 text-green-700 rounded-lg shadow-sm border border-green-100 active:scale-95"><Plus className="w-4 h-4"/></button>
-                                                <button onClick={() => handleOpenModal('OUT', item)} className="p-2 bg-red-50 text-red-700 rounded-lg shadow-sm border border-red-100 active:scale-95"><Minus className="w-4 h-4"/></button>
+                                                <button onClick={() => handleOpenModal('IN', item)} className="p-2 bg-green-50 text-green-700 rounded-xl shadow-sm border border-green-100 active:scale-95"><Plus className="w-4 h-4"/></button>
+                                                <button onClick={() => handleOpenModal('OUT', item)} className="p-2 bg-red-50 text-red-700 rounded-xl shadow-sm border border-red-100 active:scale-95"><Minus className="w-4 h-4"/></button>
+                                                <div className="w-px h-5 bg-gray-200 mx-1"></div>
+                                                <button onClick={() => handleEditItem(item)} className="p-2 bg-gray-50 text-gray-600 rounded-xl shadow-sm border border-gray-100 active:scale-95"><Pencil className="w-4 h-4"/></button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id); }} 
+                                                    className="p-2 bg-red-50 text-red-600 rounded-xl shadow-sm border border-red-100 active:scale-95"
+                                                >
+                                                    <Trash2 className="w-4 h-4"/>
+                                                </button>
                                             </>
                                           ) : <Lock className="w-4 h-4 text-gray-300 mx-auto"/>}
                                       </div>
@@ -352,7 +374,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col h-full relative print:shadow-none print:h-auto print:overflow-visible">
+    <div className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col h-full relative print:shadow-none print:h-auto print:overflow-visible">
       {/* Modals */}
       {modalOpen && (
           <StockOperationModal 
@@ -385,7 +407,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
             {/* Mobile Only: Add New Button Compact */}
             <div className="md:hidden flex gap-2">
                  {isAdmin && (
-                    <button onClick={() => setIsAdding(!isAdding)} className="bg-green-600 p-2 rounded-lg shadow text-white">
+                    <button onClick={() => setIsAdding(!isAdding)} className="bg-green-600 p-2 rounded-xl shadow text-white">
                         <Plus className="w-5 h-5" />
                     </button>
                  )}
@@ -401,7 +423,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
                 <input 
                   type="search" 
                   placeholder="Search Size..." 
-                  className="pl-9 pr-4 py-2 rounded-lg text-black text-sm w-full md:w-48 focus:outline-none focus:ring-2 focus:ring-enerpack-400 shadow-sm transition-all bg-white"
+                  className="pl-9 pr-4 py-2 rounded-xl text-black text-sm w-full md:w-48 focus:outline-none focus:ring-2 focus:ring-enerpack-400 shadow-sm transition-all bg-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -411,15 +433,15 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
              <div className="flex gap-2 w-full md:w-auto justify-end">
                   <div className="hidden md:flex gap-1">
                       {isAdmin && (
-                        <label className="cursor-pointer bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
+                        <label className="cursor-pointer bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
                             <Upload className="w-3.5 h-3.5" /> Import
                             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
                         </label>
                       )}
-                      <button onClick={handleExcelExport} className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
+                      <button onClick={handleExcelExport} className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
                           <Download className="w-3.5 h-3.5" /> Export
                       </button>
-                      <button onClick={handlePrint} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs flex items-center gap-1 font-bold shadow-sm transition-colors ml-1">
+                      <button onClick={handlePrint} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors ml-1">
                           <Printer className="w-3.5 h-3.5" /> Print
                       </button>
                    </div>
@@ -428,7 +450,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
                    {isAdmin && (
                        <button 
                         onClick={() => setIsAdding(!isAdding)}
-                        className="hidden md:block bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors whitespace-nowrap"
+                        className="hidden md:block bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap"
                        >
                          + New
                        </button>
@@ -448,12 +470,12 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
         <div className="bg-enerpack-50 p-3 border-b border-enerpack-200 grid grid-cols-2 md:grid-cols-6 gap-2 items-end print:hidden animate-in slide-in-from-top-2">
           <div className="col-span-1">
             <label className="text-xs font-bold text-gray-600">Size</label>
-            <input type="text" className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.size} onChange={e => setNewItem({...newItem, size: e.target.value})} />
+            <input type="text" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.size} onChange={e => setNewItem({...newItem, size: e.target.value})} />
           </div>
           <div className="col-span-1">
             <label className="text-xs font-bold text-gray-600">GSM</label>
              <select 
-                className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-enerpack-500 outline-none"
+                className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none"
                 value={newItem.gsm}
                 onChange={e => setNewItem({...newItem, gsm: e.target.value})}
              >
@@ -463,17 +485,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
           </div>
           <div className="col-span-1">
             <label className="text-xs font-bold text-gray-600">Min Qty</label>
-            <input type="number" className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.minStock} onChange={e => setNewItem({...newItem, minStock: Number(e.target.value)})} />
+            <input type="number" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.minStock} onChange={e => setNewItem({...newItem, minStock: Number(e.target.value)})} />
           </div>
           <div className="col-span-1">
             <label className="text-xs font-bold text-gray-600">Initial Stock</label>
-            <input type="number" className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.closingStock} onChange={e => setNewItem({...newItem, closingStock: Number(e.target.value)})} />
+            <input type="number" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.closingStock} onChange={e => setNewItem({...newItem, closingStock: Number(e.target.value)})} />
           </div>
           <div className="col-span-2 md:col-span-1">
              <label className="text-xs font-bold text-gray-600">Remarks</label>
-             <input type="text" className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.remarks} onChange={e => setNewItem({...newItem, remarks: e.target.value})} />
+             <input type="text" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.remarks} onChange={e => setNewItem({...newItem, remarks: e.target.value})} />
           </div>
-          <button onClick={handleAddItem} className="col-span-2 md:col-span-1 bg-enerpack-600 text-white p-2 rounded h-[38px] flex items-center justify-center hover:bg-enerpack-700 text-sm font-bold shadow-sm">
+          <button onClick={handleAddItem} className="col-span-2 md:col-span-1 bg-enerpack-600 text-white p-2 rounded-xl h-[38px] flex items-center justify-center hover:bg-enerpack-700 text-sm font-bold shadow-sm">
             <Save className="w-4 h-4 mr-1" /> Add
           </button>
         </div>
@@ -493,8 +515,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
             const mobileSection = organizedData[gsmKey];
 
             return (
-                <div key={gsmKey} className="bg-white border rounded-md shadow-sm overflow-hidden mb-4 md:mb-8 print:shadow-none print:border-black print:mb-2 print:break-inside-auto">
-                     <div className="bg-slate-200 text-slate-800 px-3 md:px-4 py-2 font-black text-center text-sm md:text-lg border-b border-slate-300 print:bg-gray-200 print:border-black print:text-black print:py-1 print:text-sm sticky top-0 md:static z-10">
+                <div key={gsmKey} className="bg-white border border-gray-300 rounded-xl shadow-sm overflow-hidden mb-4 md:mb-8 print:shadow-none print:border-black print:mb-2 print:break-inside-auto">
+                     <div className="bg-slate-200 text-slate-800 px-3 md:px-4 py-2 font-black text-center text-sm md:text-lg border-b border-slate-300 print:bg-gray-200 print:border-black print:text-black print:py-1 print:text-sm sticky top-0 md:static z-10 rounded-t-xl">
                         {gsmKey} GSM SECTION
                      </div>
                      
@@ -513,29 +535,29 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
                           <thead>
                              <tr>
                                {hasSingle && (
-                                 <th colSpan={5} className={`w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border-b print:bg-gray-100 print:text-black print:border-black ${hasDouble ? 'border-r border-gray-300' : ''}`}>Single Sizes</th>
+                                 <th colSpan={5} className="w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border border-gray-300 print:bg-gray-100 print:text-black print:border-black">Single Sizes</th>
                                )}
                                {hasDouble && (
-                                 <th colSpan={5} className="w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border-b print:bg-gray-100 print:text-black print:border-black">Double Sizes</th>
+                                 <th colSpan={5} className="w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border border-gray-300 print:bg-gray-100 print:text-black print:border-black">Double Sizes</th>
                                )}
                              </tr>
-                             <tr className="bg-gray-100 text-xs text-gray-500 border-b print:bg-gray-50 print:text-black print:border-black">
+                             <tr className="bg-gray-100 text-xs text-gray-500 print:bg-gray-50 print:text-black print:border-black">
                                 {hasSingle && (
                                   <>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">Size</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">GSM</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">Stock</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:hidden">Action</th>
-                                    <th className={`px-2 py-1 whitespace-nowrap print:px-1 ${hasDouble ? 'border-r border-gray-300' : ''}`}>Remarks</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Size</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">GSM</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Stock</th>
+                                    <th className="px-1 py-2 text-center whitespace-nowrap border border-gray-300 w-1 print:hidden">Action</th>
+                                    <th className="px-2 py-2 whitespace-nowrap border border-gray-300 min-w-[200px] print:px-1">Remarks</th>
                                   </>
                                 )}
                                 {hasDouble && (
                                   <>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">Size</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">GSM</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:px-1">Stock</th>
-                                    <th className="px-2 py-1 text-center whitespace-nowrap print:hidden">Action</th>
-                                    <th className="px-2 py-1 whitespace-nowrap print:px-1">Remarks</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Size</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">GSM</th>
+                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Stock</th>
+                                    <th className="px-1 py-2 text-center whitespace-nowrap border border-gray-300 w-1 print:hidden">Action</th>
+                                    <th className="px-2 py-2 whitespace-nowrap border border-gray-300 min-w-[200px] print:px-1">Remarks</th>
                                   </>
                                 )}
                              </tr>
@@ -545,17 +567,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, on
                                  const sItem = section.single[idx];
                                  const dItem = section.double[idx];
                                  return (
-                                     <tr key={idx} className="hover:bg-yellow-50 border-b print:border-gray-300">
+                                     <tr key={idx} className="hover:bg-yellow-50">
                                          {hasSingle && (
-                                             sItem ? renderCells(sItem, hasDouble) : renderEmptyCells(hasDouble)
+                                             sItem ? renderCells(sItem, hasDouble) : renderEmptyCells()
                                          )}
                                          {hasDouble && (
-                                             dItem ? renderCells(dItem, false) : renderEmptyCells(false)
+                                             dItem ? renderCells(dItem, false) : renderEmptyCells()
                                          )}
                                      </tr>
                                  )
                              })}
-                             {maxRows === 0 && <tr><td colSpan={10} className="p-4 text-center text-gray-400 text-xs">- Empty -</td></tr>}
+                             {maxRows === 0 && <tr><td colSpan={10} className="p-4 text-center text-gray-400 text-xs border border-gray-300">- Empty -</td></tr>}
                           </tbody>
                        </table>
                      </div>

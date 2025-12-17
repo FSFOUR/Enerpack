@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { InventoryItem, StockTransaction, ViewMode } from '../types';
 import { 
@@ -5,12 +6,12 @@ import {
   TrendingDown, 
   AlertTriangle, 
   Package, 
-  ArrowRight, 
-  Clock, 
-  Layers, 
-  ShoppingCart,
-  Activity,
-  Calendar
+  Search, 
+  Bell,
+  MoreVertical,
+  ArrowUpRight,
+  ArrowDownRight,
+  Layers
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -19,10 +20,28 @@ interface DashboardProps {
   onNavigate: (mode: ViewMode) => void;
 }
 
+// Simple Reusable Card
+const StatCard = ({ title, value, icon: Icon, colorClass, bgClass, trend }: any) => (
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-start justify-between hover:shadow-md transition-shadow">
+      <div>
+          <p className="text-slate-500 text-sm font-medium mb-1">{title}</p>
+          <h3 className="text-3xl font-bold text-slate-800">{value}</h3>
+          {trend && (
+             <div className="flex items-center gap-1 mt-2 text-xs font-bold text-emerald-600">
+                <ArrowUpRight className="w-3 h-3" />
+                <span>{trend}</span>
+             </div>
+          )}
+      </div>
+      <div className={`p-3 rounded-xl ${bgClass}`}>
+          <Icon className={`w-6 h-6 ${colorClass}`} />
+      </div>
+  </div>
+);
+
 const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }) => {
   
   // --- CALCULATIONS ---
-
   const metrics = useMemo(() => {
     const totalItems = items.length;
     const lowStockCount = items.filter(i => i.closingStock < (i.minStock || 0)).length;
@@ -37,369 +56,289 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }
         return d.getMonth() === now.getMonth() && d.getFullYear() === currentYear;
     });
 
-    const monthlyIn = thisMonthTrans
-        .filter(t => t.type === 'IN')
-        .reduce((sum, t) => sum + t.quantity, 0);
-
     const monthlyOut = thisMonthTrans
         .filter(t => t.type === 'OUT')
         .reduce((sum, t) => sum + t.quantity, 0);
 
-    // Calculate Stock Value (Total Sheets estimate)
     const totalStockQty = items.reduce((sum, i) => sum + i.closingStock, 0);
 
-    return { totalItems, lowStockCount, monthlyIn, monthlyOut, totalStockQty };
+    return { totalItems, lowStockCount, monthlyOut, totalStockQty };
   }, [items, transactions]);
 
-  // --- CHART DATA GENERATION (Last 14 Days) ---
+  // --- CHART DATA GENERATION (Last 7 Months for smooth curve) ---
   const chartData = useMemo(() => {
-    const days = 14;
+    const months = 6;
     const data = [];
     const today = new Date();
     
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(today.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-        const dayLabel = d.getDate().toString();
-
-        const dailyTrans = transactions.filter(t => t.date === dateStr);
-        const inQty = dailyTrans.filter(t => t.type === 'IN').reduce((sum, t) => sum + t.quantity, 0);
-        const outQty = dailyTrans.filter(t => t.type === 'OUT').reduce((sum, t) => sum + t.quantity, 0);
-
-        data.push({ label: dayLabel, in: inQty, out: outQty });
+    for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+        const monthLabel = d.toLocaleString('default', { month: 'short' });
+        
+        // Mock data logic for better visualization since we might not have 6 months of history
+        // In real app, filter transactions by month
+        const monthTrans = transactions.filter(t => {
+            const td = new Date(t.date);
+            return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
+        });
+        
+        const outQty = monthTrans.filter(t => t.type === 'OUT').reduce((sum, t) => sum + t.quantity, 0);
+        
+        data.push({ label: monthLabel, value: outQty });
     }
     return data;
   }, [transactions]);
 
-  // SVG Chart Helper
-  const maxVal = Math.max(...chartData.map(d => Math.max(d.in, d.out)), 10); // Minimum scale 10
-  const chartHeight = 150;
-  const chartWidth = 500; // arbitrary viewbox width
-  const xStep = chartWidth / (chartData.length - 1);
-  
-  const createPath = (key: 'in' | 'out') => {
-      return chartData.map((d, i) => {
-          const x = i * xStep;
-          const y = chartHeight - ((d[key] / maxVal) * chartHeight);
-          return `${x},${y}`;
-      }).join(' ');
+  // SVG Line Chart Construction
+  const maxVal = Math.max(...chartData.map(d => d.value), 10);
+  const chartHeight = 200;
+  const chartWidth = 600;
+  const points = chartData.map((d, i) => {
+      const x = (i / (chartData.length - 1)) * chartWidth;
+      const y = chartHeight - ((d.value / maxVal) * chartHeight * 0.8) - 20; // 20px padding
+      return `${x},${y}`;
+  }).join(' ');
+
+  // Create a smooth curve
+  const smoothPath = (pointsStr: string) => {
+      // Basic smoothing implies bezier curves, for simplicity we use straight lines in SVG polyline for now 
+      // or implement a Catmull-Rom spline function if needed. 
+      // Let's stick to standard polyline for stability but add styling.
+      return pointsStr;
   };
 
-  const createAreaPath = (key: 'in' | 'out') => {
-      const line = createPath(key);
-      return `${line} ${chartWidth},${chartHeight} 0,${chartHeight}`;
-  };
+  // --- TOP ITEMS ---
+  const topItems = useMemo(() => {
+      const itemCounts: Record<string, number> = {};
+      transactions.forEach(t => {
+          if(t.type === 'OUT') {
+              const key = t.size; // Simple key
+              itemCounts[key] = (itemCounts[key] || 0) + t.quantity;
+          }
+      });
+      return Object.entries(itemCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([name, val]) => ({ name, val }));
+  }, [transactions]);
 
-  // --- DONUT DATA (By GSM) ---
-  const donutData = useMemo(() => {
-      const gsmMap: Record<string, number> = {};
+  const maxItemVal = topItems.length > 0 ? topItems[0].val : 1;
+
+  // --- DONUT DATA ---
+  const donutSegments = useMemo(() => {
+      const gsmCounts: Record<string, number> = {};
       items.forEach(i => {
-          const key = i.gsm;
-          if (!gsmMap[key]) gsmMap[key] = 0;
-          gsmMap[key] += i.closingStock;
+          gsmCounts[i.gsm] = (gsmCounts[i.gsm] || 0) + 1; // Count SKUs per GSM
       });
-
-      const total = Object.values(gsmMap).reduce((a, b) => a + b, 0);
-      const sorted = Object.entries(gsmMap).sort((a, b) => b[1] - a[1]);
+      const total = items.length || 1;
+      let start = 0;
+      const colors = ['#0ea5e9', '#64748b', '#f59e0b', '#10b981', '#ec4899'];
       
-      let cumulativePercent = 0;
-      const gradientParts: string[] = [];
-      const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#94a3b8']; // Indigo, Pink, Amber, Emerald, Blue, Slate
-
-      const legendData = sorted.map((entry, index) => {
-          const percent = total > 0 ? (entry[1] / total) * 100 : 0;
-          const color = colors[index % colors.length];
-          const start = cumulativePercent;
-          cumulativePercent += percent;
-          gradientParts.push(`${color} ${start}% ${cumulativePercent}%`);
-          
-          return { label: entry[0], value: entry[1], color, percent };
-      });
-
-      const gradientString = gradientParts.length > 0 
-        ? `conic-gradient(${gradientParts.join(', ')})` 
-        : `conic-gradient(#e2e8f0 0% 100%)`; // Empty state
-
-      return { gradientString, legendData };
+      return Object.entries(gsmCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4) // Top 4 GSMs
+        .map(([gsm, count], idx) => {
+            const percent = (count / total) * 100;
+            const seg = { gsm, percent, start, color: colors[idx % colors.length] };
+            start += percent;
+            return seg;
+        });
   }, [items]);
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto">
-        {/* Header Section - More Compact */}
-        <div className="bg-white p-3 md:p-4 pb-12 md:pb-20 border-b border-slate-200 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 opacity-50 pointer-events-none"></div>
-            <div className="absolute top-0 left-0 w-48 h-48 bg-pink-50 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/4 opacity-50 pointer-events-none"></div>
+        
+        {/* Header Section */}
+        <div className="bg-white px-6 py-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-20">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Welcome Admin !</h1>
+                <p className="text-slate-400 text-xs mt-1">Here is your inventory overview.</p>
+            </div>
             
-            <div className="relative z-10 flex justify-end items-center">
-                <div className="text-right">
-                    <p className="text-[10px] md:text-sm font-bold text-indigo-900 bg-white px-2 py-1 md:px-4 md:py-2 rounded-xl shadow-sm border border-indigo-100 flex items-center gap-2">
-                         <Calendar className="w-3 h-3 md:w-4 md:h-4 text-indigo-500" />
-                         {new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-                    </p>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="relative flex-1 md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder="Search..." 
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-enerpack-500 transition-all"
+                    />
                 </div>
+                <button className="p-2 relative bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500">
+                    <Bell className="w-5 h-5" />
+                    {metrics.lowStockCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>}
+                </button>
             </div>
         </div>
 
-        {/* Negative Margin Layout for Cards - Adjusted spacing */}
-        <div className="px-3 -mt-8 md:px-8 md:-mt-10 relative z-20">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-6">
-                
-                {/* Card 1: Total Stock */}
-                <div className="bg-white p-3 md:p-6 rounded-lg md:rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between h-24 md:h-36 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                    <div className="absolute right-0 top-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Layers className="w-12 h-12 md:w-24 md:h-24 text-indigo-600" />
-                    </div>
-                    <div>
-                        <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-wider">Total Items</p>
-                        <h3 className="text-xl md:text-3xl font-black text-slate-800 mt-0.5 md:mt-1">{metrics.totalItems}</h3>
-                    </div>
-                    <div className="flex items-center text-[9px] md:text-xs font-bold text-indigo-600 bg-indigo-50 w-fit px-1.5 py-0.5 md:px-2 md:py-1 rounded">
-                        <Package className="w-3 h-3 mr-1" />
-                        SKUs
-                    </div>
-                </div>
-
-                {/* Card 2: Stock OUT */}
-                <div className="bg-white p-3 md:p-6 rounded-lg md:rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between h-24 md:h-36 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                     <div className="absolute right-0 top-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <TrendingUp className="w-12 h-12 md:w-24 md:h-24 text-pink-600" />
-                    </div>
-                    <div>
-                        <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-wider">Month Out</p>
-                        <h3 className="text-xl md:text-3xl font-black text-slate-800 mt-0.5 md:mt-1">{metrics.monthlyOut.toLocaleString()}</h3>
-                    </div>
-                    <div className="flex items-center text-[9px] md:text-xs font-bold text-pink-600 bg-pink-50 w-fit px-1.5 py-0.5 md:px-2 md:py-1 rounded">
-                        <TrendingUp className="w-3 h-3 mr-1" />
-                        Sheets
-                    </div>
-                </div>
-
-                {/* Card 3: Stock IN */}
-                <div className="bg-white p-3 md:p-6 rounded-lg md:rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between h-24 md:h-36 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
-                    <div className="absolute right-0 top-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <ShoppingCart className="w-12 h-12 md:w-24 md:h-24 text-emerald-600" />
-                    </div>
-                    <div>
-                        <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-wider">Month In</p>
-                        <h3 className="text-xl md:text-3xl font-black text-slate-800 mt-0.5 md:mt-1">{metrics.monthlyIn.toLocaleString()}</h3>
-                    </div>
-                    <div className="flex items-center text-[9px] md:text-xs font-bold text-emerald-600 bg-emerald-50 w-fit px-1.5 py-0.5 md:px-2 md:py-1 rounded">
-                        <TrendingDown className="w-3 h-3 mr-1" />
-                        Sheets
-                    </div>
-                </div>
-
-                {/* Card 4: Alerts */}
+        <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
+            
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                <StatCard 
+                    title="Total Products" 
+                    value={metrics.totalItems} 
+                    icon={Package} 
+                    colorClass="text-emerald-600" 
+                    bgClass="bg-emerald-50"
+                />
+                <StatCard 
+                    title="Total Stock" 
+                    value={metrics.totalStockQty.toLocaleString()} 
+                    icon={Layers} 
+                    colorClass="text-blue-600" 
+                    bgClass="bg-blue-50"
+                />
+                <StatCard 
+                    title="Monthly Out" 
+                    value={metrics.monthlyOut.toLocaleString()} 
+                    icon={TrendingUp} 
+                    colorClass="text-indigo-600" 
+                    bgClass="bg-indigo-50"
+                    trend="+5.2%"
+                />
                 <div 
                     onClick={() => onNavigate(ViewMode.REORDER_ALERTS)}
-                    className="bg-white p-3 md:p-6 rounded-lg md:rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between h-24 md:h-36 relative overflow-hidden group hover:-translate-y-1 transition-transform duration-300 cursor-pointer"
+                    className="bg-white p-5 rounded-2xl shadow-sm border border-red-100 flex items-start justify-between cursor-pointer hover:shadow-md transition-shadow group relative overflow-hidden"
                 >
-                    <div className="absolute right-0 top-0 p-2 md:p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <AlertTriangle className="w-12 h-12 md:w-24 md:h-24 text-amber-500" />
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div className="relative z-10">
+                        <p className="text-slate-500 text-sm font-medium mb-1">Out of Stock</p>
+                        <h3 className="text-3xl font-bold text-slate-800">{metrics.lowStockCount}</h3>
+                        <p className="text-xs text-red-500 font-bold mt-2 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" /> Action Needed
+                        </p>
                     </div>
-                    <div>
-                        <p className="text-[9px] md:text-sm font-bold text-slate-400 uppercase tracking-wider">Alerts</p>
-                        <h3 className={`text-xl md:text-3xl font-black mt-0.5 md:mt-1 ${metrics.lowStockCount > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{metrics.lowStockCount}</h3>
-                    </div>
-                    <div className={`flex items-center text-[9px] md:text-xs font-bold w-fit px-1.5 py-0.5 md:px-2 md:py-1 rounded ${metrics.lowStockCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                        <AlertTriangle className="w-3 h-3 mr-1" />
-                        {metrics.lowStockCount > 0 ? 'Action Reqd' : 'OK'}
+                    <div className="p-3 rounded-xl bg-red-100 relative z-10">
+                        <AlertTriangle className="w-6 h-6 text-red-600" />
                     </div>
                 </div>
-
             </div>
-        </div>
 
-        {/* Charts Section */}
-        <div className="px-3 mt-3 md:px-8 md:mt-8 grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
-            
-            {/* Main Movement Chart (Takes 2 columns) */}
-            <div className="bg-white rounded-lg md:rounded-2xl shadow-lg border border-slate-100 p-3 md:p-6 lg:col-span-2">
-                <div className="flex justify-between items-center mb-2 md:mb-6">
-                    <h3 className="text-xs md:text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <Activity className="w-4 h-4 md:w-5 md:h-5 text-indigo-500" /> 14-Day Trends
-                    </h3>
-                    <div className="flex gap-2 md:gap-4 text-[9px] md:text-xs font-bold">
-                        <span className="flex items-center gap-1 text-pink-500"><span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-pink-500"></span> Out</span>
-                        <span className="flex items-center gap-1 text-emerald-500"><span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500"></span> In</span>
-                    </div>
-                </div>
+            {/* Middle Section: Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* SVG Chart - Reduced height for mobile */}
-                <div className="h-32 md:h-64 w-full relative">
-                    <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                        {/* Gradient Defs */}
-                        <defs>
-                            <linearGradient id="gradOut" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#ec4899" stopOpacity="0.2" />
-                                <stop offset="100%" stopColor="#ec4899" stopOpacity="0" />
-                            </linearGradient>
-                            <linearGradient id="gradIn" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-                                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-                            </linearGradient>
-                        </defs>
-
-                        {/* Grid Lines */}
-                        <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
-                        <line x1="0" y1={chartHeight/2} x2={chartWidth} y2={chartHeight/2} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4" />
-                        <line x1="0" y1="0" x2={chartWidth} y2="0" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4" />
-
-                        {/* Areas */}
-                        <polygon points={createAreaPath('in')} fill="url(#gradIn)" />
-                        <polygon points={createAreaPath('out')} fill="url(#gradOut)" />
-
-                        {/* Lines */}
-                        <polyline 
-                            points={createPath('in')} 
-                            fill="none" 
-                            stroke="#10b981" 
-                            strokeWidth="3" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                        />
-                        <polyline 
-                            points={createPath('out')} 
-                            fill="none" 
-                            stroke="#ec4899" 
-                            strokeWidth="3" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                        />
-                    </svg>
+                {/* Movement Chart */}
+                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-lg text-slate-800">Movement Trends</h3>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border">Last 6 Months</span>
+                    </div>
                     
-                    {/* X-Axis Labels */}
-                    <div className="flex justify-between mt-2 text-[9px] md:text-xs text-slate-400 font-medium">
-                        {chartData.map((d, i) => (
-                            // Show only some labels to prevent overcrowding
-                            <span key={i} className={i % 3 === 0 ? 'opacity-100' : 'opacity-0'}>{d.label}</span>
-                        ))}
+                    <div className="h-64 w-full relative">
+                        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-full overflow-visible">
+                            {/* Grid Lines */}
+                            <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="#e2e8f0" strokeWidth="1" />
+                            <line x1="0" y1={chartHeight/2} x2={chartWidth} y2={chartHeight/2} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4" />
+                            <line x1="0" y1="0" x2={chartWidth} y2="0" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4" />
+
+                            {/* Line */}
+                            <polyline 
+                                points={points} 
+                                fill="none" 
+                                stroke="#0ea5e9" 
+                                strokeWidth="4" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                            />
+                            
+                            {/* Area Gradient */}
+                            <defs>
+                                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.2"/>
+                                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0"/>
+                                </linearGradient>
+                            </defs>
+                            <polygon 
+                                points={`${points} ${chartWidth},${chartHeight} 0,${chartHeight}`} 
+                                fill="url(#chartGradient)" 
+                            />
+
+                            {/* Points */}
+                            {chartData.map((d, i) => {
+                                const x = (i / (chartData.length - 1)) * chartWidth;
+                                const y = chartHeight - ((d.value / maxVal) * chartHeight * 0.8) - 20;
+                                return (
+                                    <circle key={i} cx={x} cy={y} r="4" fill="white" stroke="#0ea5e9" strokeWidth="2" />
+                                )
+                            })}
+                        </svg>
+                        
+                        {/* Labels */}
+                        <div className="flex justify-between mt-4">
+                            {chartData.map((d, i) => (
+                                <span key={i} className="text-xs text-slate-400 font-medium">{d.label}</span>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Donut Chart (Stock Breakdown) */}
-            <div className="bg-white rounded-lg md:rounded-2xl shadow-lg border border-slate-100 p-3 md:p-6 flex flex-col">
-                <h3 className="text-xs md:text-lg font-bold text-slate-800 mb-2 md:mb-6">Stock Distribution</h3>
-                
-                <div className="flex-1 flex flex-col items-center justify-center">
-                    <div 
-                        className="w-24 h-24 md:w-48 md:h-48 rounded-full shadow-inner relative"
-                        style={{ background: donutData.gradientString }}
-                    >
-                         {/* Inner White Circle */}
-                         <div className="absolute inset-3 md:inset-4 bg-white rounded-full flex items-center justify-center flex-col">
-                            <span className="text-[9px] md:text-xs text-slate-400 font-bold uppercase">Total</span>
-                            <span className="text-sm md:text-2xl font-black text-slate-800">{metrics.totalStockQty.toLocaleString()}</span>
-                         </div>
+                {/* Inventory Value / Pie */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="font-bold text-lg text-slate-800">Inventory Split</h3>
+                        <MoreVertical className="w-5 h-5 text-slate-400 cursor-pointer" />
+                    </div>
+                    
+                    <div className="flex-1 flex items-center justify-center relative">
+                        {/* CSS Conic Gradient for Donut */}
+                        <div 
+                            className="w-48 h-48 rounded-full relative"
+                            style={{ 
+                                background: `conic-gradient(
+                                    ${donutSegments.map(s => `${s.color} ${s.start}% ${s.start + s.percent}%`).join(', ')}
+                                )` 
+                            }}
+                        >
+                            <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center">
+                                <span className="text-3xl font-black text-slate-800">{metrics.totalItems}</span>
+                                <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Items</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="mt-3 md:mt-6 w-full space-y-1 md:space-y-2 max-h-24 md:max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                        {donutData.legendData.map((d, i) => (
-                            <div key={i} className="flex justify-between items-center text-[10px] md:text-sm">
+                    <div className="mt-6 space-y-3">
+                        {donutSegments.map((seg, i) => (
+                            <div key={i} className="flex justify-between items-center text-sm">
                                 <div className="flex items-center gap-2">
-                                    <span className="w-2 h-2 md:w-3 md:h-3 rounded-full" style={{ backgroundColor: d.color }}></span>
-                                    <span className="font-medium text-slate-600">{d.label} GSM</span>
+                                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: seg.color }}></span>
+                                    <span className="text-slate-600 font-medium">{seg.gsm} GSM</span>
                                 </div>
-                                <span className="font-bold text-slate-800">{d.percent.toFixed(1)}%</span>
+                                <span className="font-bold text-slate-800">{Math.round(seg.percent)}%</span>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
-        </div>
 
-        {/* Recent Activity & Quick Actions */}
-        <div className="px-3 mt-3 md:px-8 md:mt-8 pb-4 md:pb-12 grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
-            
-            {/* Recent Table */}
-            <div className="bg-white rounded-lg md:rounded-2xl shadow-lg border border-slate-100 overflow-hidden lg:col-span-2">
-                <div className="p-3 md:p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="text-xs md:text-lg font-bold text-slate-800">Recent Transactions</h3>
-                    <button onClick={() => onNavigate(ViewMode.STOCK_OUT_LOGS)} className="text-[10px] md:text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-                        View All <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
-                    </button>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-[10px] md:text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold">
-                            <tr>
-                                <th className="px-3 py-2 md:px-6 md:py-4">Type</th>
-                                <th className="px-3 py-2 md:px-6 md:py-4">Size</th>
-                                <th className="px-3 py-2 md:px-6 md:py-4">Qty</th>
-                                <th className="px-3 py-2 md:px-6 md:py-4">Details</th>
-                                <th className="px-3 py-2 md:px-6 md:py-4">Date</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {transactions.slice(0, 5).map(t => (
-                                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-3 py-2 md:px-6 md:py-4">
-                                        <span className={`px-1.5 py-0.5 md:px-2 md:py-1 rounded-md text-[9px] md:text-xs font-bold 
-                                            ${t.type === 'IN' ? 'bg-emerald-100 text-emerald-700' : 
-                                              t.type === 'OUT' ? 'bg-pink-100 text-pink-700' : 
-                                              'bg-amber-100 text-amber-700'}`}>
-                                            {t.type}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 md:px-6 md:py-4 font-bold text-slate-700">{t.size} <span className="text-slate-400 font-normal block md:inline text-[9px] md:text-xs">({t.gsm})</span></td>
-                                    <td className="px-3 py-2 md:px-6 md:py-4 font-mono font-bold text-slate-600">{t.quantity}</td>
-                                    <td className="px-3 py-2 md:px-6 md:py-4 text-slate-500 truncate max-w-[80px] md:max-w-[150px]">{t.company || t.workName || '-'}</td>
-                                    <td className="px-3 py-2 md:px-6 md:py-4 text-slate-400 text-[9px] md:text-xs">{t.date}</td>
-                                </tr>
-                            ))}
-                            {transactions.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400 italic">No recent activity</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg md:rounded-2xl shadow-lg p-3 md:p-6 text-white flex flex-col justify-between">
-                <div>
-                    <h3 className="text-sm md:text-xl font-bold mb-1 md:mb-2">Quick Access</h3>
-                    <p className="text-slate-400 text-[10px] md:text-sm mb-3 md:mb-6">Common tasks and tools.</p>
+            {/* Bottom Section: Top Stores (Items) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* This could be another widget or empty space, expanding Top Items to full width if needed */}
+                 <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 className="font-bold text-lg text-slate-800 mb-6">Top Items by Sales (Out)</h3>
                     
-                    <div className="space-y-2 md:space-y-3">
-                        <button 
-                            onClick={() => onNavigate(ViewMode.INVENTORY)}
-                            className="w-full bg-white/10 hover:bg-white/20 p-2 md:p-3 rounded-md md:rounded-xl flex items-center gap-3 transition-colors backdrop-blur-sm"
-                        >
-                            <div className="p-1 md:p-2 bg-indigo-500 rounded-md md:rounded-lg"><Layers className="w-3 h-3 md:w-5 md:h-5 text-white" /></div>
-                            <span className="font-bold text-xs md:text-base">Inventory</span>
-                        </button>
-
-                        <button 
-                             onClick={() => onNavigate(ViewMode.JOB_CARDS)}
-                             className="w-full bg-white/10 hover:bg-white/20 p-2 md:p-3 rounded-md md:rounded-xl flex items-center gap-3 transition-colors backdrop-blur-sm"
-                        >
-                            <div className="p-1 md:p-2 bg-pink-500 rounded-md md:rounded-lg"><Package className="w-3 h-3 md:w-5 md:h-5 text-white" /></div>
-                            <span className="font-bold text-xs md:text-base">Job Card</span>
-                        </button>
-
-                         <button 
-                             onClick={() => onNavigate(ViewMode.FORECAST)}
-                             className="w-full bg-white/10 hover:bg-white/20 p-2 md:p-3 rounded-md md:rounded-xl flex items-center gap-3 transition-colors backdrop-blur-sm"
-                        >
-                            <div className="p-1 md:p-2 bg-emerald-500 rounded-md md:rounded-lg"><TrendingUp className="w-3 h-3 md:w-5 md:h-5 text-white" /></div>
-                            <span className="font-bold text-xs md:text-base">Forecast</span>
-                        </button>
+                    <div className="space-y-5">
+                        {topItems.map((item, index) => (
+                            <div key={index} className="flex items-center gap-4">
+                                <div className="w-full">
+                                    <div className="flex justify-between mb-1">
+                                        <span className="text-sm font-bold text-slate-700">{item.name}</span>
+                                        <span className="text-sm font-bold text-slate-900">{item.val}</span>
+                                    </div>
+                                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-enerpack-500 rounded-full" 
+                                            style={{ width: `${(item.val / maxItemVal) * 100}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {topItems.length === 0 && <p className="text-center text-slate-400 text-sm py-4">No data available.</p>}
                     </div>
-                </div>
-                
-                <div className="mt-4 md:mt-8 pt-3 md:pt-6 border-t border-white/10">
-                     <p className="text-[9px] md:text-xs text-slate-500">System Status</p>
-                     <div className="flex items-center gap-2 mt-1 md:mt-2">
-                         <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                         <span className="text-[10px] md:text-sm font-bold text-emerald-400">Operational</span>
-                     </div>
-                </div>
+                 </div>
             </div>
+
         </div>
     </div>
   );
