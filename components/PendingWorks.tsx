@@ -181,7 +181,7 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
             </button>
             <h2 className="text-lg md:text-xl font-bold text-orange-700 flex items-center gap-2 border-l border-orange-200 pl-4 ml-2">
                 <Clock className="w-6 h-6" />
-                PENDING WORKS
+                PENDING WORKS {!isAdmin && <span className="text-[10px] font-black text-orange-400 bg-white/50 px-2 py-0.5 rounded ml-2 uppercase tracking-[0.15em] border border-orange-200 flex items-center gap-1"><Lock className="w-3 h-3" /> Locked</span>}
             </h2>
         </div>
         
@@ -251,19 +251,25 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                     </select>
                                 </td>
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
-                                    <select 
-                                        className={`w-full p-1 border rounded text-xs font-bold text-center disabled:opacity-50 ${
-                                            t.status === 'Out of Stock' ? 'text-red-600 bg-red-50' : 
-                                            t.status === 'Cutting' ? 'text-blue-600 bg-blue-50' : 'text-gray-800'
-                                        }`}
-                                        value={t.status}
-                                        onChange={(e) => handleStatusChange(t, e.target.value)}
-                                        disabled={!isAdmin}
-                                    >
-                                        {STATUS_OPTIONS.map(opt => (
-                                            <option key={opt} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
+                                    {isAdmin ? (
+                                      <select 
+                                          className={`w-full p-1 border rounded text-xs font-bold text-center disabled:opacity-50 ${
+                                              t.status === 'Out of Stock' ? 'text-red-600 bg-red-50' : 
+                                              t.status === 'Cutting' ? 'text-blue-600 bg-blue-50' : 'text-gray-800'
+                                          }`}
+                                          value={t.status}
+                                          onChange={(e) => handleStatusChange(t, e.target.value)}
+                                          disabled={!isAdmin}
+                                      >
+                                          {STATUS_OPTIONS.map(opt => (
+                                              <option key={opt} value={opt}>{opt}</option>
+                                          ))}
+                                      </select>
+                                    ) : (
+                                      <div className="flex items-center justify-center gap-2 text-slate-400 font-bold py-1">
+                                        <Lock className="w-3 h-3" /> {t.status}
+                                      </div>
+                                    )}
                                 </td>
                                 <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
                             </tr>

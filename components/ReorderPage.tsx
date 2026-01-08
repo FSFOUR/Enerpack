@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
 import { ArrowLeft, AlertTriangle, Search, Save, CheckCircle2, Download, Lock } from 'lucide-react';
@@ -16,14 +15,11 @@ const REORDER_STATUS_OPTIONS = ["Pending", "Order Placed", "Received", "Other"];
 const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, onRecordTransaction, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Modal state for receiving items
   const [receivingItem, setReceivingItem] = useState<InventoryItem | null>(null);
   const [receiveData, setReceiveData] = useState({ date: new Date().toISOString().split('T')[0], qty: 0 });
 
-  // Filter items where stock is less than minStock
   const lowStockItems = items.filter(item => item.closingStock < (item.minStock || 0));
 
-  // Apply search filter
   const filteredItems = lowStockItems.filter(item => 
     item.size.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.gsm.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,7 +38,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
 
   const handleLogOrder = (item: InventoryItem) => {
       if (!isAdmin) return;
-      // If status is received, trigger modal flow
       if (item.reorderStatus === 'Received') {
           setReceivingItem(item);
           setReceiveData({
@@ -52,7 +47,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
           return;
       }
 
-      // Standard Order Placed Log
       if (!item.reorderQty || item.reorderQty <= 0) {
           alert("Please enter a valid Reorder Quantity.");
           return;
@@ -84,12 +78,12 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
       
       onRecordTransaction({
           type: 'REORDER',
-          date: receivingItem.reorderDate || receiveData.date, // Order Date
+          date: receivingItem.reorderDate || receiveData.date, 
           month: new Date(receiveData.date).toLocaleString('default', { month: 'long' }),
           itemId: receivingItem.id,
           size: receivingItem.size,
           gsm: receivingItem.gsm,
-          quantity: receiveData.qty, // Actual Received Qty
+          quantity: receiveData.qty, 
           company: receivingItem.reorderCompany || 'Unknown',
           remarks: receivingItem.reorderRemarks,
           expectedDeliveryDate: receivingItem.expectedDeliveryDate,
@@ -128,7 +122,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
   return (
     <div className="flex flex-col h-full bg-white relative">
       
-      {/* Receive Order Modal */}
       {receivingItem && isAdmin && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-green-200">
@@ -155,7 +148,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                               type="number" 
                               className="w-full border rounded p-2 focus:ring-2 focus:ring-green-500 outline-none font-bold text-lg"
                               value={receiveData.qty}
-                              // Fixed: Added 'e' parameter to the onChange arrow function to handle the input change correctly
                               onChange={e => setReceiveData({...receiveData, qty: Number(e.target.value)})}
                           />
                       </div>
@@ -190,7 +182,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
             </button>
             <h2 className="text-lg md:text-xl font-bold text-red-700 flex items-center gap-2 border-l border-red-200 pl-4 ml-2">
                 <AlertTriangle className="w-6 h-6" />
-                REORDER ALERTS {!isAdmin && <span className="text-xs bg-white/50 px-2 py-0.5 rounded text-red-400 font-bold ml-2 uppercase tracking-widest">View Mode</span>}
+                REORDER ALERTS {!isAdmin && <span className="text-[10px] font-black text-red-400 bg-white/50 px-2 py-0.5 rounded ml-2 uppercase tracking-[0.15em] border border-red-200 flex items-center gap-1"><Lock className="w-3 h-3" /> Locked</span>}
             </h2>
         </div>
         
@@ -231,7 +223,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">EXP DELIVERY</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">STATUS</th>
                             <th className="p-2 border border-red-500 text-center whitespace-nowrap">REMARKS</th>
-                            {isAdmin && <th className="p-2 border border-red-500 text-center whitespace-nowrap">LOG</th>}
+                            <th className="p-2 border border-red-500 text-center whitespace-nowrap">LOG</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -245,7 +237,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     {((item.minStock || 0) - item.closingStock).toFixed(1)}
                                 </td>
                                 
-                                {/* COMPANY */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="text"
@@ -257,7 +248,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
-                                {/* REORDER QTY */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[80px]">
                                     <input 
                                         type="number"
@@ -269,7 +259,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
-                                {/* REORDER DATE */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="date"
@@ -280,7 +269,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
-                                {/* EXPECTED DELIVERY DATE */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="date"
@@ -291,7 +279,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
-                                {/* REORDER STATUS */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <select 
                                         className={`w-full p-1 border rounded text-xs text-center font-bold disabled:bg-slate-50 disabled:text-slate-400
@@ -308,7 +295,6 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     </select>
                                 </td>
 
-                                {/* REMARKS */}
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
                                     <input 
                                         type="text"
@@ -320,9 +306,8 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                     />
                                 </td>
 
-                                {/* ACTION */}
-                                {isAdmin && (
-                                  <td className="p-2 border border-gray-300 bg-white text-center whitespace-nowrap">
+                                <td className="p-2 border border-gray-300 bg-white text-center whitespace-nowrap">
+                                    {isAdmin ? (
                                       <button 
                                           onClick={() => handleLogOrder(item)}
                                           className={`p-1.5 text-white rounded transition-colors shadow-sm
@@ -331,8 +316,10 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                       >
                                           <Save className="w-4 h-4" />
                                       </button>
-                                  </td>
-                                )}
+                                    ) : (
+                                      <Lock className="w-4 h-4 text-slate-300 mx-auto" />
+                                    )}
+                                </td>
                             </tr>
                         ))}
                     </tbody>

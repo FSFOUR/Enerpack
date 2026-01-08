@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { InventoryItem, StockTransaction, ViewMode } from '../types';
+import { InventoryItem, StockTransaction, ViewMode, User } from '../types';
 import { 
   Package, 
   Layers,
@@ -8,13 +8,15 @@ import {
   Search,
   Bell,
   MoreVertical,
-  ArrowUpRight
+  ArrowUpRight,
+  Lock
 } from 'lucide-react';
 
 interface DashboardProps {
   items: InventoryItem[];
   transactions: StockTransaction[];
   onNavigate: (mode: ViewMode) => void;
+  user: User;
 }
 
 const StatCard = ({ title, value, icon: Icon, iconBg, trend, statusText, onClick }: any) => (
@@ -42,7 +44,7 @@ const StatCard = ({ title, value, icon: Icon, iconBg, trend, statusText, onClick
   </button>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, user }) => {
   
   const metrics = useMemo(() => {
     const totalProducts = items.length;
@@ -54,7 +56,6 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }
       .filter(t => t.type === 'OUT' && new Date(t.date).getMonth() === now.getMonth())
       .reduce((sum, t) => sum + t.quantity, 0);
 
-    // Grouping for the Doughnut Chart
     const gsmGroups = items.reduce((acc: Record<string, number>, item) => {
       const g = item.gsm;
       acc[g] = (acc[g] || 0) + 1;
@@ -70,7 +71,6 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }
     };
   }, [items, transactions]);
 
-  // Movement Trend Mock Data (Points)
   const trendPoints = [
     { x: 0, y: 150 },
     { x: 160, y: 150 },
@@ -83,14 +83,23 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }
   const polylinePoints = trendPoints.map(p => `${p.x},${p.y}`).join(' ');
   const areaPoints = `0,200 ${polylinePoints} 800,200`;
 
+  const isReadOnly = user.role === 'USER';
+
   return (
-    <div className="h-full bg-[#f8fafc] overflow-y-auto px-6 py-6 font-sans">
+    <div className="h-full bg-[#f8fafc] overflow-y-auto px-6 py-6 font-sans relative">
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Top Header Bar */}
         <div className="flex justify-between items-center mb-4">
-           <div>
-              <h1 className="text-2xl font-bold text-slate-800">Welcome Admin !</h1>
+           <div className="flex flex-col">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-slate-800">Welcome {user.name} !</h1>
+                {isReadOnly && (
+                  <div className="bg-slate-100 text-slate-400 px-3 py-1 rounded-full flex items-center gap-2 text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                    <Lock className="w-3 h-3" /> Read Only
+                  </div>
+                )}
+              </div>
               <p className="text-slate-400 text-sm">Here is your inventory overview.</p>
            </div>
            <div className="flex items-center gap-4">
@@ -153,7 +162,6 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate }
             </div>
             
             <div className="relative h-[250px] w-full">
-              {/* Horizontal Grid Lines */}
               <div className="absolute inset-0 flex flex-col justify-between py-2 pointer-events-none">
                 {[0, 1, 2, 3].map(i => <div key={i} className="w-full h-px border-b border-dashed border-slate-100"></div>)}
               </div>

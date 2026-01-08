@@ -258,7 +258,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-hidden print:overflow-visible print:h-auto print:block relative">
-          {viewMode === ViewMode.DASHBOARD && <Dashboard items={inventory} transactions={transactions} onNavigate={handleNavigate} />}
+          {viewMode === ViewMode.DASHBOARD && <Dashboard items={inventory} transactions={transactions} onNavigate={handleNavigate} user={currentUser} />}
           {viewMode === ViewMode.INVENTORY && <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={i => setInventory([ ...inventory, {...i, id: generateId()}])} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={u => setInventory(prev => prev.map(i => i.id === u.id ? u : i))} onDeleteItem={id => setInventory(prev => prev.filter(i => i.id !== id))} isAdmin={isEditor} />}
           {viewMode === ViewMode.JOB_CARD_GENERATOR && <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />}
           {viewMode === ViewMode.FORECAST && <ForecastPage items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />}
