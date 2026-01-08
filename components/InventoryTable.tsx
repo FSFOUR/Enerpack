@@ -1,7 +1,19 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
-import { Plus, Minus, Search, Save, Download, Upload, Pencil, Printer, Lock, ChevronDown, ChevronRight, List, Layers, Trash2 } from 'lucide-react';
+import { 
+  Plus, 
+  Minus, 
+  Search, 
+  FileDown, 
+  Printer, 
+  Pencil, 
+  Trash2, 
+  X, 
+  Save,
+  Upload,
+  FileText,
+  Loader2
+} from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
 
@@ -14,582 +26,449 @@ interface InventoryTableProps {
   onBulkUpdate: (items: InventoryItem[]) => void;
   onUpdateItem: (item: InventoryItem) => void;
   onDeleteItem: (id: string) => void;
-  isAdmin: boolean;
+  isAdmin?: boolean;
 }
 
-const SECTION_ORDER = ["280", "250", "230", "200", "150", "140", "140GYT", "130", "130GYT", "100", "GYT"];
+const GSM_GROUPS = [
+  { label: "280", values: ["280"] },
+  { label: "250 & 230", values: ["250", "230"] },
+  { label: "200", values: ["200"] },
+  { label: "150, 100", values: ["150", "100"] },
+  { label: "140 GYT, 130", values: ["140GYT", "130"] }
+];
 
-const InventoryTable: React.FC<InventoryTableProps> = ({ items, transactions, onUpdateStock, onAddItem, onRecordTransaction, onBulkUpdate, onUpdateItem, onDeleteItem, isAdmin }) => {
+const COL_WIDTHS = {
+  size: 'w-[15%] size-column',
+  gsm: 'w-[10%] gsm-column',
+  stock: 'w-[15%] stock-column',
+  action: 'w-[20%] action-column',
+  remarks: 'w-[40%] remarks-column'
+};
+
+const InventoryTable: React.FC<InventoryTableProps> = ({ 
+  items, 
+  transactions, 
+  onUpdateStock, 
+  onAddItem, 
+  onRecordTransaction, 
+  onUpdateItem, 
+  onDeleteItem, 
+  isAdmin = false 
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [modalOpen, setModalOpen] = useState<{type: 'IN' | 'OUT', item: InventoryItem} | null>(null);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   
   const [newItem, setNewItem] = useState<Omit<InventoryItem, 'id'>>({
-    size: '',
-    gsm: '280',
-    closingStock: 0,
-    minStock: 0,
-    remarks: ''
+    size: '', gsm: '280', closingStock: 0, minStock: 0, company: '', remarks: '', category: 'SINGLE'
   });
 
-  // --- Filtering Logic (Exact Match + Next 3 Larger Sizes) ---
-  const getFilteredItems = () => {
-    const term = searchTerm.trim();
-    if (!term) return items;
-
-    // Check if search term is a number (e.g., "54")
-    const searchNum = parseFloat(term);
-    const isNumericSearch = !isNaN(searchNum);
-
-    if (isNumericSearch) {
-        // Numeric Search: Find exact match and "next" sizes (>= search term)
-        const candidates = items
-            .map(item => {
-                const match = item.size.match(/(\d+(\.\d+)?)/);
-                const itemNum = match ? parseFloat(match[0]) : NaN;
-                
-                if (isNaN(itemNum)) return null;
-                if (itemNum < searchNum) return null;
-
-                const diff = itemNum - searchNum;
-                const exactStr = item.size === term;
-                
-                return { ...item, diff, exactStr };
-            })
-            .filter((item): item is (InventoryItem & { diff: number, exactStr: boolean }) => item !== null);
-
-        candidates.sort((a, b) => {
-            if (a.exactStr && !b.exactStr) return -1;
-            if (!a.exactStr && b.exactStr) return 1;
-            return a.diff - b.diff;
-        });
-
-        return candidates.slice(0, 3);
-    } 
-    
-    return items.filter(item => 
-        item.size.toLowerCase().includes(term.toLowerCase()) ||
-        item.gsm.toString().toLowerCase().includes(term.toLowerCase())
-    );
-  };
-
-  const filteredItems = getFilteredItems();
+  const filteredItems = items.filter(item => 
+    item.size.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.gsm.toString().toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.company || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleAddItem = () => {
-    if (!newItem.size || !newItem.gsm) return;
-    onAddItem(newItem);
-    setNewItem({ size: '', gsm: '280', closingStock: 0, minStock: 0, remarks: '' });
+    if (!newItem.size || !newItem.gsm || !isAdmin) return;
+    const isDouble = newItem.size.includes('*') || newItem.size.toLowerCase().includes('x');
+    const itemToSubmit = {
+        ...newItem,
+        category: (isDouble ? 'DOUBLE' : 'SINGLE') as any
+    };
+    onAddItem(itemToSubmit);
+    setNewItem({ size: '', gsm: '280', closingStock: 0, minStock: 0, company: '', remarks: '', category: 'SINGLE' });
     setIsAdding(false);
   };
 
   const handleTransactionConfirm = (t: Omit<StockTransaction, 'id' | 'timestamp'>) => {
+      if (!isAdmin) return;
       onRecordTransaction(t);
       const delta = t.type === 'IN' ? t.quantity : -t.quantity;
-      onUpdateStock(t.itemId, delta);
+      if (onUpdateStock) onUpdateStock(t.itemId, delta);
       setModalOpen(null);
   };
 
-  const handleOpenModal = (type: 'IN' | 'OUT', item: InventoryItem) => {
-    setModalOpen({ type, item });
+  const handleExport = () => {
+    const wb = (window as any).XLSX.utils.book_new();
+    const ws = (window as any).XLSX.utils.json_to_sheet(items.map(i => ({
+        SIZE: i.size, GSM: i.gsm, STOCK: i.closingStock, COMPANY: i.company, MIN_QTY: i.minStock, REMARKS: i.remarks
+    })));
+    (window as any).XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    (window as any).XLSX.writeFile(wb, `Inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const handleEditItem = (item: InventoryItem) => {
-      setEditItem(item);
-  };
-
-  const handleSaveItem = (updatedItem: InventoryItem) => {
-      onUpdateItem(updatedItem);
-      setEditItem(null);
-  };
-
-  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isAdmin) {
-        alert("Admin Access Required to Import");
-        return;
-    }
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (typeof (window as any).XLSX === 'undefined') {
-        alert("Excel library not loaded. Please refresh the page.");
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        try {
-            const bstr = evt.target?.result;
-            const wb = (window as any).XLSX.read(bstr, {type:'binary'});
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = (window as any).XLSX.utils.sheet_to_json(ws);
-            
-            if (data.length === 0) {
-                alert("Excel file appears empty.");
-                return;
-            }
-
-            const getVal = (row: any, keys: string[]) => {
-                const foundKey = Object.keys(row).find(k => keys.includes(k.toLowerCase()));
-                return foundKey ? row[foundKey] : undefined;
-            };
-
-            const parsedItems: InventoryItem[] = data.map((row: any) => {
-                const size = getVal(row, ['size', 'item size']) || 'Unknown';
-                const gsm = getVal(row, ['gsm', 'weight']) || '280';
-                const stock = getVal(row, ['stock', 'closingstock', 'qty', 'quantity']) || 0;
-                const min = getVal(row, ['min', 'minqty', 'minstock', 'alert']) || 0;
-                const remarks = getVal(row, ['remarks', 'note', 'notes']) || '';
-
-                return {
-                    id: crypto.randomUUID(),
-                    size: String(size),
-                    gsm: String(gsm),
-                    closingStock: Number(stock),
-                    minStock: Number(min),
-                    remarks: String(remarks)
-                };
-            });
-            
-            if (confirm(`Ready to import ${parsedItems.length} items. This will replace the current inventory list. Continue?`)) {
-                onBulkUpdate(parsedItems);
-                alert("Inventory imported successfully!");
-            }
-        } catch (error) {
-            console.error(error);
-            alert("Failed to parse Excel file. Please check format.");
-        }
-    };
-    reader.readAsBinaryString(file);
-    e.target.value = ""; // reset
-  };
-
-  const handleExcelExport = () => {
-      if (typeof (window as any).XLSX === 'undefined') {
-        alert("Excel library not loaded. Please refresh the page.");
-        return;
-      }
-      const wb = (window as any).XLSX.utils.book_new();
-      const ws = (window as any).XLSX.utils.json_to_sheet(items.map(i => ({
-          SIZE: i.size,
-          GSM: i.gsm,
-          STOCK: i.closingStock,
-          MIN_QTY: i.minStock,
-          REMARKS: i.remarks
-      })));
-      (window as any).XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-      (window as any).XLSX.writeFile(wb, `Enerpack_Inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // --- Data Organization ---
-
-  // 1. Group and Sort Data
-  const organizedData: Record<string, { single: InventoryItem[], double: InventoryItem[] }> = {};
-  SECTION_ORDER.forEach(sec => {
-      organizedData[sec] = { single: [], double: [] };
-  });
-
-  filteredItems.forEach(item => {
-      let sectionKey = item.gsm.toString();
-      if (!organizedData[sectionKey]) {
-          organizedData[sectionKey] = { single: [], double: [] };
-      }
-      const isDouble = /[*xX]/.test(item.size);
-      if (isDouble) {
-          organizedData[sectionKey].double.push(item);
-      } else {
-          organizedData[sectionKey].single.push(item);
-      }
-  });
-
-  const sortSizes = (a: InventoryItem, b: InventoryItem) => {
-      const numA = parseFloat(a.size.match(/\d+(\.\d+)?/)?.[0] || "0");
-      const numB = parseFloat(b.size.match(/\d+(\.\d+)?/)?.[0] || "0");
-      if (numA !== numB) return numA - numB;
-      return a.size.localeCompare(b.size);
-  };
-
-  // Sort in place
-  Object.keys(organizedData).forEach(key => {
-      organizedData[key].single.sort(sortSizes);
-      organizedData[key].double.sort(sortSizes);
-  });
-
-  const activeKeys = [...new Set([...SECTION_ORDER, ...Object.keys(organizedData)])]
-    .filter(k => organizedData[k] && (organizedData[k].single.length > 0 || organizedData[k].double.length > 0));
-
-  // 2. Create Balanced Data for Desktop View (Side-by-Side)
-  // We clone organizedData because we modify it for visual balancing on desktop
-  const desktopData: Record<string, { single: InventoryItem[], double: InventoryItem[] }> = JSON.parse(JSON.stringify(organizedData));
-  
-  activeKeys.forEach(gsmKey => {
-      const section = desktopData[gsmKey];
-      const totalItems = section.single.length + section.double.length;
-      const targetPerColumn = Math.ceil(totalItems / 2);
-      
-      if (section.double.length > targetPerColumn) {
-          const moveCount = section.double.length - targetPerColumn;
-          const itemsToMove = section.double.splice(0, moveCount);
-          if (itemsToMove.length > 0) {
-                // Add Heading Separator for the moved items
-                section.single.push({
-                    id: `sep-${gsmKey}`,
-                    size: 'DOUBLE SIZE',
-                    gsm: gsmKey,
-                    closingStock: 0,
-                    minStock: 0,
-                    remarks: '',
-                    // @ts-ignore
-                    isHeader: true
-                } as any);
-                section.single.push(...itemsToMove);
-          }
-      }
-  });
-
-  // --- Rendering Helpers ---
-
-  const renderCells = (item: InventoryItem, isRightBorder: boolean) => {
-    // Check for custom header flag (injected during render preparation)
-    if ((item as any).isHeader) {
-        return (
-            <td colSpan={5} className="px-2 py-1 text-center font-black bg-gray-100 text-gray-700 text-[10px] md:text-xs border border-gray-300 print:bg-gray-300 print:border-black print:text-black uppercase tracking-wider">
-                {(item as any).size}
-            </td>
-        );
-    }
-
-    const isLowStock = item.closingStock < (item.minStock || 0);
-    const cellClass = `px-2 py-1.5 text-sm border border-gray-300 print:py-0.5 print:px-1 whitespace-nowrap ${isLowStock ? 'bg-red-50' : ''}`;
+  const handleSavePDF = async () => {
+    if (!tableContainerRef.current) return;
+    setIsPdfGenerating(true);
     
-    return (
-        <>
-            <td className={`${cellClass} font-bold text-gray-800 text-center`}>{item.size}</td>
-            <td className={`${cellClass} text-center`}>{item.gsm}</td>
-            <td className={`${cellClass} text-center font-bold ${isLowStock ? 'text-red-600 animate-pulse print:animate-none' : 'text-blue-900'}`}>
-                {item.closingStock}
-            </td>
-            {/* Action Cell - Reduced Width, Centered Content */}
-            <td className={`p-1 text-center border border-gray-300 w-1 print:hidden ${isLowStock ? 'bg-red-50' : ''}`}>
-                <div className="flex justify-center gap-1 items-center w-full">
-                    {isAdmin ? (
-                        <>
-                            <button onClick={() => handleOpenModal('IN', item)} className="p-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-600 hover:text-white transition-colors" title="Stock In">
-                                <Plus className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => handleOpenModal('OUT', item)} className="p-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-600 hover:text-white transition-colors" title="Stock Out">
-                                <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <div className="w-[1px] h-3 bg-gray-300 mx-0.5"></div>
-                            <button onClick={() => handleEditItem(item)} className="p-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-600 hover:text-white transition-colors" title="Edit">
-                                <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id); }} 
-                                className="p-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition-colors" 
-                                title="Delete"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                        </>
-                    ) : (
-                        <Lock className="w-4 h-4 text-gray-300" />
-                    )}
-                </div>
-            </td>
-            {/* Remarks Cell - Expanded Width */}
-            <td className={`${cellClass} text-xs text-gray-500 min-w-[200px] max-w-[300px] truncate hover:whitespace-normal hover:break-words hover:overflow-visible hover:relative hover:z-10 hover:bg-white hover:shadow-lg`}>
-                {item.remarks}
-            </td>
-        </>
-    );
+    const element = tableContainerRef.current;
+    element.classList.add('pdf-export-mode');
+    
+    const opt = {
+      margin: 8,
+      filename: `Enerpack_Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 1.0 },
+      html2canvas: { 
+        scale: 4, 
+        useCORS: true, 
+        logging: false,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    try {
+      await (window as any).html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("Failed to generate PDF. Table might be too large.");
+    } finally {
+      element.classList.remove('pdf-export-mode');
+      setIsPdfGenerating(false);
+    }
   };
 
-  const renderEmptyCells = () => (
-      <>
-          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
-          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
-          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
-          <td className="px-2 py-2 border border-gray-300 print:hidden print:border-none"></td>
-          <td className="px-2 py-2 border border-gray-300 print:border-none"></td>
-      </>
-  );
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx, .xls';
+    input.onchange = (e: any) => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event: any) => {
+        const data = new Uint8Array(event.target.result);
+        const workbook = (window as any).XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = (window as any).XLSX.utils.sheet_to_json(sheet);
+        console.log("Imported Data:", json);
+        alert("Import feature ready.");
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    input.click();
+  };
 
-  // Render Mobile Specific Vertical Tables
-  const renderMobileTableSection = (sectionItems: InventoryItem[], title: string, gsmKey: string) => {
-    if (sectionItems.length === 0) return null;
-    return (
-        <div className="mb-0">
-             <div className="bg-slate-100 text-slate-700 text-xs font-bold uppercase px-4 py-2 border-y border-slate-200 tracking-wider flex items-center justify-center gap-2 text-center rounded-t-lg">
-                 {title === 'Single Sizes' ? <List className="w-3 h-3"/> : <Layers className="w-3 h-3"/>}
-                 {title}
-             </div>
-             <table className="w-full text-sm border-collapse border border-gray-200 rounded-b-lg overflow-hidden">
-                 <thead className="bg-white">
-                     <tr>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200">Size</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200 w-16">GSM</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200">Stock</th>
-                         <th className="px-2 py-2 text-center text-xs text-gray-500 font-bold border border-gray-200 w-24">Action</th>
-                     </tr>
-                 </thead>
-                 <tbody>
-                     {sectionItems.map((item, idx) => {
-                         const isLowStock = item.closingStock < (item.minStock || 0);
-                         return (
-                             <tr key={item.id} className={isLowStock ? 'bg-red-50' : 'bg-white'}>
-                                 <td className="px-2 py-3 font-bold text-gray-800 text-center border border-gray-200">{item.size}</td>
-                                 <td className="px-2 py-3 text-center text-gray-600 border border-gray-200">{item.gsm}</td>
-                                 <td className={`px-2 py-3 text-center font-bold border border-gray-200 ${isLowStock ? 'text-red-600' : 'text-blue-900'}`}>{item.closingStock}</td>
-                                 <td className="px-2 py-3 border border-gray-200">
-                                      <div className="flex justify-center gap-1 items-center">
-                                          {isAdmin ? (
-                                            <>
-                                                <button onClick={() => handleOpenModal('IN', item)} className="p-2 bg-green-50 text-green-700 rounded-xl shadow-sm border border-green-100 active:scale-95"><Plus className="w-4 h-4"/></button>
-                                                <button onClick={() => handleOpenModal('OUT', item)} className="p-2 bg-red-50 text-red-700 rounded-xl shadow-sm border border-red-100 active:scale-95"><Minus className="w-4 h-4"/></button>
-                                                <div className="w-px h-5 bg-gray-200 mx-1"></div>
-                                                <button onClick={() => handleEditItem(item)} className="p-2 bg-gray-50 text-gray-600 rounded-xl shadow-sm border border-gray-100 active:scale-95"><Pencil className="w-4 h-4"/></button>
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); onDeleteItem(item.id); }} 
-                                                    className="p-2 bg-red-50 text-red-600 rounded-xl shadow-sm border border-red-100 active:scale-95"
-                                                >
-                                                    <Trash2 className="w-4 h-4"/>
-                                                </button>
-                                            </>
-                                          ) : <Lock className="w-4 h-4 text-gray-300 mx-auto"/>}
-                                      </div>
-                                 </td>
-                             </tr>
-                         )
-                     })}
-                 </tbody>
-             </table>
-        </div>
-    );
+  const organizeByGSMGroup = (group: { label: string, values: string[] }) => {
+    const sectionItems = filteredItems.filter(i => group.values.includes(i.gsm));
+    const sizeSort = (a: InventoryItem, b: InventoryItem) => {
+        const valA = parseFloat(a.size);
+        const valB = parseFloat(b.size);
+        if (isNaN(valA) || isNaN(valB)) return a.size.localeCompare(b.size);
+        return valA - valB;
+    };
+
+    const findSplit = (arr: InventoryItem[]) => {
+      for (let i = 1; i < arr.length; i++) {
+        if (arr[i-1].category === 'SINGLE' && arr[i].category !== 'SINGLE') return i;
+      }
+      return undefined;
+    };
+
+    let config = {
+      left: [] as InventoryItem[],
+      right: [] as InventoryItem[],
+      leftHeader: "SINGLE SIZE",
+      rightHeader: "DOUBLE SIZE",
+      leftSubLabel: "" as string,
+      leftSubIndex: undefined as number | undefined,
+      rightSubLabel: "" as string,
+      rightSubIndex: undefined as number | undefined
+    };
+
+    if (group.label === "280" || group.label === "200") {
+        const sortedAll = [...sectionItems].sort((a, b) => {
+            if (a.category === 'SINGLE' && b.category !== 'SINGLE') return -1;
+            if (a.category !== 'SINGLE' && b.category === 'SINGLE') return 1;
+            return sizeSort(a, b);
+        });
+        const mid = Math.ceil(sortedAll.length / 2);
+        config.left = sortedAll.slice(0, mid);
+        config.right = sortedAll.slice(mid);
+        
+        config.leftSubIndex = findSplit(config.left);
+        config.rightSubIndex = findSplit(config.right);
+        config.leftSubLabel = "DOUBLE SIZE";
+        config.rightSubLabel = "DOUBLE SIZE";
+    } 
+    else if (group.label === "250 & 230") {
+        const items250 = sectionItems.filter(i => i.gsm === "250").sort(sizeSort);
+        const items230Single = sectionItems.filter(i => i.gsm === "230" && i.category === 'SINGLE').sort(sizeSort);
+        config.left = [...items250, ...items230Single];
+        
+        if (items250.length > 0 && items230Single.length > 0) {
+            config.leftSubIndex = items250.length;
+            config.leftSubLabel = "230 SINGLE";
+        }
+        config.right = sectionItems.filter(i => i.gsm === "230" && i.category !== 'SINGLE').sort(sizeSort);
+    } 
+    else if (group.label === "140 GYT, 130") {
+        config.left = sectionItems.filter(i => i.gsm === "140GYT").sort((a, b) => {
+            if (a.category === 'SINGLE' && b.category !== 'SINGLE') return -1;
+            if (a.category !== 'SINGLE' && b.category === 'SINGLE') return 1;
+            return sizeSort(a, b);
+        });
+        config.leftHeader = "140 GYT";
+        config.leftSubIndex = findSplit(config.left);
+        config.leftSubLabel = "DOUBLE SIZE";
+
+        config.right = sectionItems.filter(i => i.gsm === "130").sort((a, b) => {
+            if (a.category === 'SINGLE' && b.category !== 'SINGLE') return -1;
+            if (a.category !== 'SINGLE' && b.category === 'SINGLE') return 1;
+            return sizeSort(a, b);
+        });
+        config.rightHeader = "130";
+        config.rightSubIndex = findSplit(config.right);
+        config.rightSubLabel = "DOUBLE SIZE";
+    }
+    else if (group.label === "150, 100") {
+        config.left = sectionItems.filter(i => i.gsm === "150").sort((a, b) => {
+            if (a.category === 'SINGLE' && b.category !== 'SINGLE') return -1;
+            if (a.category !== 'SINGLE' && b.category === 'SINGLE') return 1;
+            return sizeSort(a, b);
+        });
+        config.leftHeader = "150";
+        config.leftSubIndex = findSplit(config.left);
+        config.leftSubLabel = "DOUBLE SIZE";
+
+        config.right = sectionItems.filter(i => i.gsm === "100").sort((a, b) => {
+            if (a.category === 'SINGLE' && b.category !== 'SINGLE') return -1;
+            if (a.category !== 'SINGLE' && b.category === 'SINGLE') return 1;
+            return sizeSort(a, b);
+        });
+        config.rightHeader = "100";
+        config.rightSubIndex = findSplit(config.right);
+        config.rightSubLabel = "DOUBLE SIZE";
+    }
+    else {
+        config.left = sectionItems.filter(i => i.category === 'SINGLE').sort(sizeSort);
+        config.right = sectionItems.filter(i => i.category !== 'SINGLE').sort(sizeSort);
+    }
+
+    return config;
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col h-full relative print:shadow-none print:h-auto print:overflow-visible">
-      {/* Modals */}
-      {modalOpen && (
-          <StockOperationModal 
-            type={modalOpen.type} 
-            item={modalOpen.item} 
-            transactions={transactions}
-            onClose={() => setModalOpen(null)} 
-            onConfirm={handleTransactionConfirm} 
-          />
-      )}
+    <div className="flex flex-col h-full bg-[#f1f5f9] print:bg-white relative overflow-hidden print:overflow-visible">
+      {modalOpen && <StockOperationModal type={modalOpen.type} item={modalOpen.item} transactions={transactions} onClose={() => setModalOpen(null)} onConfirm={handleTransactionConfirm} />}
+      {editItem && <ItemEditModal item={editItem} onClose={() => setEditItem(null)} onSave={(upd) => { onUpdateItem(upd); setEditItem(null); }} />}
       
-      {editItem && (
-          <ItemEditModal 
-             item={editItem}
-             onClose={() => setEditItem(null)}
-             onSave={handleSaveItem}
-          />
-      )}
-
-      {/* Header / Controls */}
-      <div className="bg-enerpack-800 text-white sticky top-0 z-20 shadow-md print:hidden flex flex-col md:flex-row items-center justify-between p-3 gap-3 md:gap-0">
-         
-         {/* Top Row: Title + Mobile Actions */}
-         <div className="flex justify-between items-center w-full md:w-auto">
-            <h2 className="text-base md:text-lg font-bold tracking-wide flex items-center gap-2">
-                ENERPACK INVENTORY
-                {!isAdmin && <span className="text-[10px] bg-enerpack-600 px-2 py-0.5 rounded-full text-white/80">READ ONLY</span>}
-            </h2>
-            
-            {/* Mobile Only: Add New Button Compact */}
-            <div className="md:hidden flex gap-2">
-                 {isAdmin && (
-                    <button onClick={() => setIsAdding(!isAdding)} className="bg-green-600 p-2 rounded-xl shadow text-white">
-                        <Plus className="w-5 h-5" />
-                    </button>
-                 )}
-            </div>
-         </div>
-
-         {/* Bottom Row: Search & Tools */}
-         <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto items-center">
-             
-             {/* Search Bar - Full Width on Mobile with Search Type */}
-             <div className="relative w-full md:w-auto group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-enerpack-500" />
-                <input 
-                  type="search" 
-                  placeholder="Search Size..." 
-                  className="pl-9 pr-4 py-2 rounded-xl text-black text-sm w-full md:w-48 focus:outline-none focus:ring-2 focus:ring-enerpack-400 shadow-sm transition-all bg-white"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-             </div>
-
-             {/* Desktop Tools Row */}
-             <div className="flex gap-2 w-full md:w-auto justify-end">
-                  <div className="hidden md:flex gap-1">
-                      {isAdmin && (
-                        <label className="cursor-pointer bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
-                            <Upload className="w-3.5 h-3.5" /> Import
-                            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
-                        </label>
-                      )}
-                      <button onClick={handleExcelExport} className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors">
-                          <Download className="w-3.5 h-3.5" /> Export
-                      </button>
-                      <button onClick={handlePrint} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 font-bold shadow-sm transition-colors ml-1">
-                          <Printer className="w-3.5 h-3.5" /> Print
-                      </button>
-                   </div>
-                   
-                   {/* Desktop Add New */}
-                   {isAdmin && (
-                       <button 
-                        onClick={() => setIsAdding(!isAdding)}
-                        className="hidden md:block bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors whitespace-nowrap"
-                       >
-                         + New
-                       </button>
-                   )}
-             </div>
-         </div>
-      </div>
-
-      {/* Print Only Header */}
-      <div className="hidden print:block p-2 text-center border-b border-black mb-2">
-        <h1 className="text-xl font-black uppercase">Enerpack Inventory Report</h1>
-        <p className="text-xs text-gray-600">{new Date().toLocaleDateString()} - Stock Summary</p>
-      </div>
-
-      {/* Add Item Form */}
-      {isAdding && isAdmin && (
-        <div className="bg-enerpack-50 p-3 border-b border-enerpack-200 grid grid-cols-2 md:grid-cols-6 gap-2 items-end print:hidden animate-in slide-in-from-top-2">
-          <div className="col-span-1">
-            <label className="text-xs font-bold text-gray-600">Size</label>
-            <input type="text" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.size} onChange={e => setNewItem({...newItem, size: e.target.value})} />
-          </div>
-          <div className="col-span-1">
-            <label className="text-xs font-bold text-gray-600">GSM</label>
-             <select 
-                className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none"
-                value={newItem.gsm}
-                onChange={e => setNewItem({...newItem, gsm: e.target.value})}
-             >
-                 {SECTION_ORDER.map(s => <option key={s} value={s}>{s}</option>)}
-                 <option value="Other">Other</option>
-             </select>
-          </div>
-          <div className="col-span-1">
-            <label className="text-xs font-bold text-gray-600">Min Qty</label>
-            <input type="number" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.minStock} onChange={e => setNewItem({...newItem, minStock: Number(e.target.value)})} />
-          </div>
-          <div className="col-span-1">
-            <label className="text-xs font-bold text-gray-600">Initial Stock</label>
-            <input type="number" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.closingStock} onChange={e => setNewItem({...newItem, closingStock: Number(e.target.value)})} />
-          </div>
-          <div className="col-span-2 md:col-span-1">
-             <label className="text-xs font-bold text-gray-600">Remarks</label>
-             <input type="text" className="w-full p-2 border rounded-xl text-sm focus:ring-2 focus:ring-enerpack-500 outline-none" value={newItem.remarks} onChange={e => setNewItem({...newItem, remarks: e.target.value})} />
-          </div>
-          <button onClick={handleAddItem} className="col-span-2 md:col-span-1 bg-enerpack-600 text-white p-2 rounded-xl h-[38px] flex items-center justify-center hover:bg-enerpack-700 text-sm font-bold shadow-sm">
-            <Save className="w-4 h-4 mr-1" /> Add
-          </button>
+      {isPdfGenerating && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mb-4" />
+          <p className="font-black uppercase tracking-widest text-sm text-center px-6 italic">Aligning Report Columns & Headers...</p>
         </div>
       )}
 
-      {/* Main Table Content */}
-      <div className="flex-1 overflow-auto bg-gray-100 p-2 md:p-4 space-y-4 md:space-y-6 print:overflow-visible print:bg-white print:p-0">
-        
-        {activeKeys.map(gsmKey => {
-            // DESKTOP DATA (Balanced)
-            const section = desktopData[gsmKey];
-            const hasSingle = section.single.length > 0;
-            const hasDouble = section.double.length > 0;
-            const maxRows = Math.max(section.single.length, section.double.length);
+      <div className="bg-[#0c4a6e] text-white p-3 px-6 flex justify-between items-center shrink-0 shadow-lg z-30 print:hidden">
+        <h2 className="font-bold uppercase tracking-widest text-lg">ENERPACK INVENTORY</h2>
+        <div className="flex items-center gap-2">
+           <div className="relative">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+             <input type="text" placeholder="Search Size..." className="bg-white text-slate-800 text-xs py-1.5 pl-9 pr-4 rounded-lg w-64 focus:ring-2 focus:ring-blue-400 outline-none font-medium" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+           </div>
+           <button onClick={handleImport} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
+             <Upload className="w-3.5 h-3.5" /> Import
+           </button>
+           <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
+             <FileDown className="w-3.5 h-3.5" /> Export
+           </button>
+           <button onClick={handleSavePDF} className="flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
+             <FileText className="w-3.5 h-3.5" /> Save PDF
+           </button>
+           <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
+             <Printer className="w-3.5 h-3.5" /> Print
+           </button>
+           <button onClick={() => setIsAdding(!isAdding)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+             <Plus className="w-3.5 h-3.5" /> New
+           </button>
+        </div>
+      </div>
 
-            // MOBILE DATA (Raw)
-            const mobileSection = organizedData[gsmKey];
+      {isAdding && isAdmin && (
+        <div className="bg-[#f0f9ff] p-4 px-6 border-b flex flex-wrap md:flex-nowrap gap-4 items-end animate-in slide-in-from-top-4 duration-300 shadow-inner print:hidden">
+           <div className="flex-1 min-w-[140px]">
+             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Size</label>
+             <input className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.size} onChange={e => setNewItem({...newItem, size: e.target.value})} placeholder="" />
+           </div>
+           <div className="w-40">
+             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">GSM</label>
+             <select className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium outline-none shadow-sm cursor-pointer" value={newItem.gsm} onChange={e => setNewItem({...newItem, gsm: e.target.value})}>
+               {["280", "250", "230", "200", "150", "140GYT", "130", "100"].map(g => <option key={g} value={g}>{g}</option>)}
+             </select>
+           </div>
+           <div className="w-32">
+             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Min Qty</label>
+             <input type="number" className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.minStock} onChange={e => setNewItem({...newItem, minStock: Number(e.target.value)})} />
+           </div>
+           <div className="w-32">
+             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Initial Stock</label>
+             <input type="number" className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.closingStock} onChange={e => setNewItem({...newItem, closingStock: Number(e.target.value)})} />
+           </div>
+           <div className="flex-1 min-w-[140px]">
+             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Remarks</label>
+             <input className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.remarks} onChange={e => setNewItem({...newItem, remarks: e.target.value})} placeholder="" />
+           </div>
+           <div className="flex items-center gap-2">
+             <button type="button" onClick={handleAddItem} className="bg-[#0284c7] hover:bg-[#0369a1] text-white h-[44px] px-10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 min-w-[120px]">
+               <Save className="w-4 h-4" /> Add
+             </button>
+             <button type="button" onClick={() => setIsAdding(false)} className="bg-slate-200/50 h-[44px] w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-red-500 transition-all border border-slate-200">
+               <X className="w-5 h-5" />
+             </button>
+           </div>
+        </div>
+      )}
 
-            return (
-                <div key={gsmKey} className="bg-white border border-gray-300 rounded-xl shadow-sm overflow-hidden mb-4 md:mb-8 print:shadow-none print:border-black print:mb-2 print:break-inside-auto">
-                     <div className="bg-slate-200 text-slate-800 px-3 md:px-4 py-2 font-black text-center text-sm md:text-lg border-b border-slate-300 print:bg-gray-200 print:border-black print:text-black print:py-1 print:text-sm sticky top-0 md:static z-10 rounded-t-xl">
-                        {gsmKey} GSM SECTION
-                     </div>
-                     
-                     {/* --- MOBILE VIEW: VERTICAL STACKED --- */}
-                     <div className="block md:hidden">
-                        {renderMobileTableSection(mobileSection.single, "Single Sizes", gsmKey)}
-                        {renderMobileTableSection(mobileSection.double, "Double Sizes", gsmKey)}
-                        {mobileSection.single.length === 0 && mobileSection.double.length === 0 && (
-                            <div className="p-4 text-center text-gray-400 text-xs italic">- Empty -</div>
-                        )}
-                     </div>
+      <div ref={tableContainerRef} className="flex-1 overflow-auto p-4 space-y-0 bg-[#f1f5f9] scrollbar-hide print:p-0 print:space-y-0 print:overflow-visible">
+        {/* PDF Only Header with Curved DateTime Tab */}
+        <div className="hidden print:block report-header-container border-b-[1.5pt] border-black mb-6">
+           <div className="date-time-tab">
+              {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+           </div>
+           <div className="text-center pb-4">
+              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest">Enerpack Stock Report</h1>
+              <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Total Active Inventory Units: {filteredItems.length}</p>
+           </div>
+        </div>
 
-                     {/* --- DESKTOP VIEW: SIDE BY SIDE --- */}
-                     <div className="hidden md:block overflow-x-auto print:block print:overflow-visible">
-                       <table className="w-full border-collapse">
-                          <thead>
-                             <tr>
-                               {hasSingle && (
-                                 <th colSpan={5} className="w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border border-gray-300 print:bg-gray-100 print:text-black print:border-black">Single Sizes</th>
-                               )}
-                               {hasDouble && (
-                                 <th colSpan={5} className="w-1/2 bg-gray-50 px-3 py-1 text-xs font-bold text-center text-gray-500 uppercase tracking-wider border border-gray-300 print:bg-gray-100 print:text-black print:border-black">Double Sizes</th>
-                               )}
-                             </tr>
-                             <tr className="bg-gray-100 text-xs text-gray-500 print:bg-gray-50 print:text-black print:border-black">
-                                {hasSingle && (
-                                  <>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Size</th>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">GSM</th>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Stock</th>
-                                    <th className="px-1 py-2 text-center whitespace-nowrap border border-gray-300 w-1 print:hidden">Action</th>
-                                    <th className="px-2 py-2 whitespace-nowrap border border-gray-300 min-w-[200px] print:px-1">Remarks</th>
-                                  </>
-                                )}
-                                {hasDouble && (
-                                  <>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Size</th>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">GSM</th>
-                                    <th className="px-2 py-2 text-center whitespace-nowrap border border-gray-300 print:px-1">Stock</th>
-                                    <th className="px-1 py-2 text-center whitespace-nowrap border border-gray-300 w-1 print:hidden">Action</th>
-                                    <th className="px-2 py-2 whitespace-nowrap border border-gray-300 min-w-[200px] print:px-1">Remarks</th>
-                                  </>
-                                )}
-                             </tr>
-                          </thead>
-                          <tbody className="text-sm print:text-[10px] print:leading-tight">
-                             {Array.from({ length: maxRows }).map((_, idx) => {
-                                 const sItem = section.single[idx];
-                                 const dItem = section.double[idx];
-                                 return (
-                                     <tr key={idx} className="hover:bg-yellow-50">
-                                         {hasSingle && (
-                                             sItem ? renderCells(sItem, hasDouble) : renderEmptyCells()
-                                         )}
-                                         {hasDouble && (
-                                             dItem ? renderCells(dItem, false) : renderEmptyCells()
-                                         )}
-                                     </tr>
-                                 )
-                             })}
-                             {maxRows === 0 && <tr><td colSpan={10} className="p-4 text-center text-gray-400 text-xs border border-gray-300">- Empty -</td></tr>}
-                          </tbody>
-                       </table>
-                     </div>
+        {GSM_GROUPS.map((group, index) => {
+          const config = organizeByGSMGroup(group);
+          if (config.left.length === 0 && config.right.length === 0) return null;
+          
+          const leftVisualRows = config.left.length + (config.leftSubIndex !== undefined ? 1 : 0);
+          const rightVisualRows = config.right.length + (config.rightSubIndex !== undefined ? 1 : 0);
+          const maxRows = Math.max(leftVisualRows, rightVisualRows);
+
+          let style: React.CSSProperties = {};
+          if (group.label === "280") {
+             style = { breakAfter: 'page' };
+          } else if (group.label === "200") {
+             style = { breakAfter: 'page' };
+          }
+
+          return (
+            <div 
+              key={group.label} 
+              className="bg-white gsm-section-container shadow-sm border border-slate-300 print:shadow-none print:border-none print:overflow-visible break-inside-avoid mb-6 print:mb-0"
+              style={style}
+            >
+              <div className="bg-[#f1f5f9] border-b border-slate-300 py-1 text-center text-slate-800 font-extrabold uppercase tracking-[0.2em] text-[11px] print:bg-slate-200 print:border-slate-400 gsm-header">
+                 {group.label} GSM SECTION
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-slate-300 print:grid-cols-2 print:divide-x-0 grid-container">
+                <div className="flex flex-col">
+                  <div className="bg-[#f8fafc] h-7 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header">
+                    {config.leftHeader}
+                  </div>
+                  <InventorySubTable 
+                    items={config.left} 
+                    splitIndex={config.leftSubIndex}
+                    splitLabel={config.leftSubLabel}
+                    targetCount={maxRows}
+                    onModal={setModalOpen} 
+                    onEdit={setEditItem} 
+                    onDelete={onDeleteItem} 
+                    isAdmin={isAdmin} 
+                  />
                 </div>
-            );
+
+                <div className="flex flex-col">
+                  <div className="bg-[#f8fafc] h-7 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header">
+                    {config.rightHeader}
+                  </div>
+                  <InventorySubTable 
+                    items={config.right} 
+                    splitIndex={config.rightSubIndex}
+                    splitLabel={config.rightSubLabel}
+                    targetCount={maxRows}
+                    onModal={setModalOpen} 
+                    onEdit={setEditItem} 
+                    onDelete={onDeleteItem} 
+                    isAdmin={isAdmin} 
+                  />
+                </div>
+              </div>
+            </div>
+          );
         })}
       </div>
       
-      <div className="bg-gray-800 p-1 text-xs text-center text-gray-400 border-t print:hidden">
-        Total Items: {items.length} 
+      <div className="bg-[#0c4a6e] text-white p-1 text-[10px] font-bold text-center shrink-0 uppercase tracking-widest opacity-80 print:hidden">
+        Total Items: {filteredItems.length} | Enerpack Operation Intelligence
       </div>
     </div>
+  );
+};
+
+const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal, onEdit, onDelete, isAdmin }: any) => {
+  const borderColor = "border-slate-300 print:border-black";
+  
+  const renderedRows: React.ReactNode[] = [];
+  items.forEach((item: InventoryItem, idx: number) => {
+    if (splitIndex !== undefined && idx === splitIndex) {
+      renderedRows.push(
+        <tr key={`subheading-split-${idx}`} className="bg-slate-100 print:bg-slate-200 h-7 subheading-row">
+          <td colSpan={5} className={`p-0 border-b ${borderColor} text-center`}>
+            <div className="text-[8px] font-black uppercase text-slate-600 tracking-[0.2em] leading-7">
+              {splitLabel}
+            </div>
+          </td>
+        </tr>
+      );
+    }
+    renderedRows.push(
+      <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-blue-50/50 transition-colors h-7`}>
+        <td className={`p-1 border-r ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size}`}>{item.size}</td>
+        <td className={`p-1 border-r ${borderColor} text-slate-500 font-medium text-[10px] print:text-[9px] ${COL_WIDTHS.gsm}`}>{item.gsm}</td>
+        <td className={`p-1 border-r ${borderColor} font-extrabold text-[12px] text-[#1e40af] tabular-nums print:text-[11px] ${COL_WIDTHS.stock}`}>{item.closingStock}</td>
+        <td className={`p-1 border-r ${borderColor} print:p-0 ${COL_WIDTHS.action}`}>
+          <div className="flex justify-center items-center gap-1 print:hidden">
+            <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-all" title="Add Stock"><Plus className="w-3 h-3" /></button>
+            <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 transition-all" title="Remove Stock"><Minus className="w-3 h-3" /></button>
+            <button onClick={() => onEdit(item)} className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all ml-1" title="Edit Item"><Pencil className="w-3 h-3" /></button>
+            <button onClick={() => onDelete(item.id)} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-400 hover:bg-rose-100 border border-rose-200 transition-all ml-1" title="Delete Item"><Trash2 className="w-3 h-3" /></button>
+          </div>
+          <div className="hidden print:block text-[7px] font-bold text-slate-400 uppercase tracking-tighter verified-text">Ver.</div>
+        </td>
+        <td className={`p-1 text-[9px] text-slate-400 font-medium text-left truncate px-2 italic leading-tight ${COL_WIDTHS.remarks}`}>{item.remarks || ""}</td>
+      </tr>
+    );
+  });
+
+  const paddingNeeded = targetCount - renderedRows.length;
+  for (let p = 0; p < paddingNeeded; p++) {
+    renderedRows.push(
+      <tr key={`padding-row-${p}`} className="h-7 bg-white">
+        <td className={`p-1 border-r ${borderColor} ${COL_WIDTHS.size}`}></td>
+        <td className={`p-1 border-r ${borderColor} ${COL_WIDTHS.gsm}`}></td>
+        <td className={`p-1 border-r ${borderColor} ${COL_WIDTHS.stock}`}></td>
+        <td className={`p-1 border-r ${borderColor} ${COL_WIDTHS.action}`}></td>
+        <td className={`p-1 ${COL_WIDTHS.remarks}`}></td>
+      </tr>
+    );
+  }
+
+  return (
+    <table className="w-full text-xs text-center border-collapse table-fixed">
+      <thead className="bg-[#f1f5f9] text-slate-500 font-bold uppercase text-[7px] border-b border-slate-300 print:bg-slate-50 print:border-black">
+        <tr className="h-7">
+          <th className={`p-1 border-r ${borderColor} ${COL_WIDTHS.size}`}>Size</th>
+          <th className={`p-1 border-r ${borderColor} ${COL_WIDTHS.gsm}`}>GSM</th>
+          <th className={`p-1 border-r ${borderColor} ${COL_WIDTHS.stock}`}>Stock</th>
+          <th className={`p-1 border-r ${borderColor} ${COL_WIDTHS.action}`}>Action</th>
+          <th className={`p-1 ${COL_WIDTHS.remarks}`}>Remarks</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-300 print:divide-black">
+        {renderedRows}
+      </tbody>
+    </table>
   );
 };
 

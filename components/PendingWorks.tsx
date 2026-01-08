@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StockTransaction } from '../types';
-import { ArrowLeft, Clock, Search, Save, Truck, Download } from 'lucide-react';
+import { ArrowLeft, Clock, Search, Truck, Download, Lock, FileText, Loader2 } from 'lucide-react';
 
 interface PendingWorksProps {
   transactions: StockTransaction[];
@@ -43,23 +42,20 @@ const getPriorityColor = (priority?: string) => {
 
 const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpdateTransaction, onUpdatePriority, isAdmin }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // State for delivery completion popup
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [deliveryModal, setDeliveryModal] = useState<{id: string, vehicle: string, location: string} | null>(null);
+  const pendingContainerRef = useRef<HTMLDivElement>(null);
 
-  // Filter for Stock OUT items that are NOT "Delivered"
   const pendingTransactions = transactions
     .filter(t => t.type === 'OUT' && t.status !== 'Delivered')
     .sort((a, b) => {
-        // Sort by Priority first (custom order), then date
         const priorityOrder: Record<string, number> = { "Very Urgent": 5, "Urgent": 4, "High": 3, "Medium": 2, "Low": 1, undefined: 0 };
         const pA = priorityOrder[a.priority || 'Medium'] || 0;
         const pB = priorityOrder[b.priority || 'Medium'] || 0;
-        if (pA !== pB) return pB - pA; // Higher priority first
+        if (pA !== pB) return pB - pA;
         return b.timestamp - a.timestamp;
     });
 
-  // Apply Search Filter
   const displayedTransactions = pendingTransactions.filter(t => 
     t.size.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (t.workName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -70,17 +66,16 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
   );
 
   const handleStatusChange = (t: StockTransaction, newStatus: string) => {
+      if (!isAdmin) return;
       if (newStatus === 'Delivered') {
-          // Open Modal to ask for details
           setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' });
       } else {
-          // Normal update
           onUpdateTransaction(t.id, { status: newStatus });
       }
   };
 
   const confirmDelivery = () => {
-      if (!deliveryModal) return;
+      if (!deliveryModal || !isAdmin) return;
       onUpdateTransaction(deliveryModal.id, { 
           status: 'Delivered', 
           vehicle: deliveryModal.vehicle, 
@@ -91,7 +86,7 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
 
   const handleExport = () => {
     if (typeof (window as any).XLSX === 'undefined') {
-       alert("Excel library not loaded. Please check your internet connection and refresh.");
+       alert("Excel library not loaded.");
        return;
     }
     const wb = (window as any).XLSX.utils.book_new();
@@ -111,12 +106,40 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
     (window as any).XLSX.writeFile(wb, `Pending_Works_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleDownloadPDF = async () => {
+    if (!pendingContainerRef.current) return;
+    setIsPdfGenerating(true);
+    
+    const element = pendingContainerRef.current;
+    const opt = {
+      margin: 10,
+      filename: `Pending_Works_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    try {
+      await (window as any).html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error("PDF Export Error:", err);
+      alert("Failed to generate PDF.");
+    } finally {
+      setIsPdfGenerating(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white relative">
+      {isPdfGenerating && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mb-4" />
+          <p className="font-black uppercase tracking-widest text-sm">Generating PDF Snapshot...</p>
+        </div>
+      )}
       
-      {/* Delivery Details Modal */}
-      {deliveryModal && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      {deliveryModal && isAdmin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
               <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                   <div className="bg-green-600 text-white p-4 font-bold flex items-center gap-2">
                       <Truck className="w-5 h-5" /> Mark as Delivered
@@ -142,33 +165,19 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                           />
                       </div>
                       <div className="flex justify-end gap-2 pt-2">
-                          <button 
-                            onClick={() => setDeliveryModal(null)}
-                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
-                          >
-                              Cancel
-                          </button>
-                          <button 
-                            onClick={confirmDelivery}
-                            className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded text-sm font-bold shadow-md"
-                          >
-                              Complete Delivery
-                          </button>
+                          <button onClick={() => setDeliveryModal(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium">Cancel</button>
+                          <button onClick={confirmDelivery} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded text-sm font-bold shadow-md">Complete Delivery</button>
                       </div>
                   </div>
               </div>
           </div>
       )}
 
-      <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm bg-orange-50 gap-3 md:gap-0">
+      <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm bg-orange-50 gap-3 md:gap-0 no-print">
         <div className="flex items-center gap-4 w-full md:w-auto">
-            <button 
-                onClick={onBack} 
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"
-                title="Back to Inventory"
-            >
+            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
-                <span className="font-bold text-sm">Back to Inventory</span>
+                <span className="font-bold text-sm">Back</span>
             </button>
             <h2 className="text-lg md:text-xl font-bold text-orange-700 flex items-center gap-2 border-l border-orange-200 pl-4 ml-2">
                 <Clock className="w-6 h-6" />
@@ -187,16 +196,21 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-3 py-1.5 rounded-full text-sm shadow hover:bg-rose-700 flex items-center gap-2 font-bold whitespace-nowrap">
+                <FileText className="w-4 h-4" /> PDF
+            </button>
             <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded-full text-sm shadow hover:bg-green-700 flex items-center gap-2 font-bold whitespace-nowrap">
                 <Download className="w-4 h-4" /> Export
             </button>
-            <div className="text-sm text-orange-800 font-semibold bg-orange-100 px-3 py-1 rounded-full whitespace-nowrap">
-            Count: {displayedTransactions.length}
-            </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div ref={pendingContainerRef} className="flex-1 overflow-auto p-4 bg-white">
+        <div className="hidden print:block mb-4 text-center">
+            <h1 className="text-xl font-black uppercase text-orange-700">Pending Operations Report</h1>
+            <p className="text-xs font-bold text-slate-400 mt-1">Outstanding Cutting & Delivery Status - {new Date().toLocaleDateString()}</p>
+        </div>
+
         <div className="overflow-x-auto rounded-lg border border-gray-300 shadow-md">
             <div className="min-w-max">
                 <table className="w-full text-xs text-center border-collapse">
@@ -226,10 +240,10 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                 <td className="p-2 border border-gray-300 whitespace-nowrap">{t.cuttingSize}</td>
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <select 
-                                        disabled={!isAdmin}
-                                        className={`w-full p-1 border rounded text-xs font-bold text-center ${getPriorityColor(t.priority || 'Medium')} ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        className={`w-full p-1 border rounded text-xs font-bold text-center disabled:opacity-50 ${getPriorityColor(t.priority || 'Medium')}`}
                                         value={t.priority || 'Medium'}
                                         onChange={(e) => onUpdatePriority(t.id, e.target.value)}
+                                        disabled={!isAdmin}
                                     >
                                         {PRIORITY_OPTIONS.map(opt => (
                                             <option key={opt} value={opt}>{opt}</option>
@@ -238,13 +252,13 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                 </td>
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
                                     <select 
-                                        disabled={!isAdmin}
-                                        className={`w-full p-1 border rounded text-xs font-bold text-center ${
+                                        className={`w-full p-1 border rounded text-xs font-bold text-center disabled:opacity-50 ${
                                             t.status === 'Out of Stock' ? 'text-red-600 bg-red-50' : 
                                             t.status === 'Cutting' ? 'text-blue-600 bg-blue-50' : 'text-gray-800'
-                                        } ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        }`}
                                         value={t.status}
                                         onChange={(e) => handleStatusChange(t, e.target.value)}
+                                        disabled={!isAdmin}
                                     >
                                         {STATUS_OPTIONS.map(opt => (
                                             <option key={opt} value={opt}>{opt}</option>

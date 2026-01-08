@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StockTransaction } from '../types';
-import { Download, ArrowLeft, Search } from 'lucide-react';
+import { Download, ArrowLeft, Search, FileText, Loader2 } from 'lucide-react';
 
 interface TransactionHistoryProps {
   type: 'IN' | 'OUT' | 'REORDER';
@@ -11,14 +10,13 @@ interface TransactionHistoryProps {
 
 const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transactions, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+  const logContainerRef = useRef<HTMLDivElement>(null);
 
-  // Filter based on type and status
   const filteredByType = transactions
     .filter(t => {
         if (type === 'IN') return t.type === 'IN';
         if (type === 'REORDER') return t.type === 'REORDER';
-        
-        // For OUT, show ONLY Delivered
         if (type === 'OUT') {
            return t.type === 'OUT' && t.status === 'Delivered';
         }
@@ -26,7 +24,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
     })
     .sort((a, b) => b.timestamp - a.timestamp);
 
-  // Apply Search Filter
   const displayedTransactions = filteredByType.filter(t => 
     t.size.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (t.company || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,9 +61,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
   };
 
   const handleExport = () => {
-    // Defensive check for XLSX availability
-     if (typeof (window as any).XLSX === 'undefined') {
-        alert("Excel library not loaded. Please refresh the page or check internet connection.");
+    if (typeof (window as any).XLSX === 'undefined') {
+        alert("Excel library not loaded.");
         return;
     }
     const wb = (window as any).XLSX.utils.book_new();
@@ -102,7 +98,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                 REMARKS: t.remarks
             };
         } else {
-            // REORDER
             return {
                 ORDER_DATE: t.date,
                 MONTH: t.month,
@@ -120,17 +115,43 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
     (window as any).XLSX.writeFile(wb, `History_${type}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleDownloadPDF = async () => {
+    if (!logContainerRef.current) return;
+    setIsPdfGenerating(true);
+    
+    const element = logContainerRef.current;
+    const opt = {
+      margin: 5,
+      filename: `Enerpack_Logs_${type}_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    try {
+      await (window as any).html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      alert("PDF generation failed.");
+    } finally {
+      setIsPdfGenerating(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0">
+    <div className="flex flex-col h-full bg-white relative">
+      {isPdfGenerating && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mb-4" />
+          <p className="font-black uppercase tracking-widest text-sm">Generating PDF Log...</p>
+        </div>
+      )}
+
+      <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0 no-print">
         <div className="flex items-center gap-4 w-full md:w-auto">
-            <button 
-                onClick={onBack} 
-                className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"
-                title="Back to Inventory"
-            >
+            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors">
                 <ArrowLeft className="w-5 h-5" />
-                <span className="font-bold text-sm">Back to Inventory</span>
+                <span className="font-bold text-sm">Back</span>
             </button>
             <h2 className={`text-lg md:text-xl font-bold pl-4 ml-2 border-l-2 ${getTitleColor()}`}>
                 {getTitle()}
@@ -138,7 +159,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            
             <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
                 <input 
@@ -149,13 +169,21 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-rose-700 flex items-center gap-2 font-medium">
+                <FileText className="w-4 h-4" /> PDF
+            </button>
             <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-green-700 flex items-center gap-2 font-medium">
-                <Download className="w-4 h-4" /> Export
+                <Download className="w-4 h-4" /> Excel
             </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
+      <div ref={logContainerRef} className="flex-1 overflow-auto p-4 bg-white">
+        <div className="hidden print:block mb-4 text-center">
+            <h1 className="text-xl font-black uppercase text-slate-800">{getTitle()} REPORT</h1>
+            <p className="text-xs font-bold text-slate-400 mt-1">Movement Logs Snapshot - {new Date().toLocaleDateString()}</p>
+        </div>
+
         <div className="overflow-x-auto rounded-lg border border-gray-300">
             <div className="min-w-max">
                 <table className="w-full text-xs text-center border-collapse">
@@ -219,7 +247,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.invoice}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.remarks}>{t.remarks}</td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'OUT' && (
@@ -231,7 +259,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className="p-2 border border-gray-300 font-bold text-red-700 whitespace-nowrap">{t.quantity}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.itemCode}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.workName}>{t.workName}</td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate" title={t.workName}>{t.workName}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.unit}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.cuttingSize}</td>
                                         <td className="p-2 border border-gray-300 font-bold text-blue-700 whitespace-nowrap">
@@ -240,7 +268,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className={`p-2 border border-gray-300 font-bold whitespace-nowrap ${t.status === 'Delivered' ? 'text-green-600' : 'text-orange-600'}`}>{t.status}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.vehicle}</td>
                                         <td className="p-2 border border-gray-300 whitespace-nowrap">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.remarks}>{t.remarks}</td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'REORDER' && (
@@ -257,7 +285,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                         <td className="p-2 border border-gray-300 whitespace-nowrap text-gray-700 font-medium">
                                             {t.receivedQty !== undefined ? t.receivedQty : '-'}
                                         </td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate hover:overflow-visible hover:whitespace-normal" title={t.remarks}>{t.remarks}</td>
+                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                             </tr>

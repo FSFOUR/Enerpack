@@ -1,592 +1,544 @@
-
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { parseJobOrderText } from '../services/geminiService';
 import { JobCardData } from '../types';
-import { Printer, Wand2, Trash2, FileText, X, Eye, Download, ArrowLeft, Info, Loader2 } from 'lucide-react';
+import { 
+  Printer, Wand2, Trash2, ArrowLeft, Loader2, 
+  Info, FileText, Download, ShieldCheck, Eye, EyeOff, Layout
+} from 'lucide-react';
 
-interface JobCardGeneratorProps {
-  onBack: () => void;
-}
+const formatToDDMMYYYY = (dateStr: string) => {
+  if (!dateStr) return new Date().toLocaleDateString('en-IN').replace(/\//g, '-');
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) return dateStr;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
-// --- Reusable Card Component ---
-const CardFace = ({ card, isBlank, updateCard, LOCATIONS, getGsmColor, onDelete }: any) => {
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+};
+
+const CardFace: React.FC<{ 
+  card: JobCardData, 
+  updateCard?: (id: string, field: keyof JobCardData, value: string) => void, 
+  isPrintView?: boolean
+}> = ({ card, updateCard, isPrintView = false }) => {
+  const borderStyle = "border-black";
+  
+  const cardWidth = isPrintView ? "w-[125mm]" : "w-full max-w-lg";
+  const cardHeight = isPrintView ? "h-[160mm]" : "h-auto";
+  const labelWidth = isPrintView ? "w-[42mm]" : "w-[140px]";
+  
+  const rowHeight = isPrintView ? "h-[14mm]" : "h-14";
+  const sigHeight = isPrintView ? "h-[34mm]" : "h-24";
+  const labelTextSize = isPrintView ? "text-[10px]" : "text-[11px]";
+  const valueTextSize = isPrintView ? "text-[13px]" : "text-[15px]";
+  
+  const fields = [
+    { label: "JOB CARD NO:", key: "jobCardNo" as keyof JobCardData },
+    { label: "DATE:", key: "date" as keyof JobCardData },
+    { label: "ITEM CODE:", key: "itemCode" as keyof JobCardData },
+    { label: "WORK NAME:", key: "workName" as keyof JobCardData },
+    { label: "SIZE:", key: "size" as keyof JobCardData },
+    { label: "GSM:", key: "gsm" as keyof JobCardData },
+    { label: "TOTAL GROSS:", key: "totalGross" as keyof JobCardData },
+    { label: "DELIVERY LOCATION:", key: "deliveryLocation" as keyof JobCardData },
+    { label: "LOADING DATE:", key: "loadingDate" as keyof JobCardData },
+  ];
+
+  const locations = ["EP", "AKP", "KKP", "FP", "Other"];
+
   return (
-    <div className={`relative group w-full h-full border border-black box-border flex flex-col p-0.5`}>
-      {/* Delete Button - Only for real cards */}
-      {!isBlank && onDelete && (
-        <div data-html2canvas-ignore="true" className="absolute right-1 top-1 z-10 print:hidden">
-          <button 
-            onClick={onDelete}
-            className="bg-red-500 text-white p-1 rounded-full shadow opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-            title="Delete Card"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      )}
-
-      {/* Card Content - Maximized Area, Font Family Calibri */}
-      <div className={`flex-1 flex flex-col text-black h-full text-calibri-18`} style={{ fontFamily: 'Calibri, sans-serif' }}>
-        
-        {/* Row 1: Job Card No - 8% */}
-        <div className="flex border-b border-black h-[8%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">JOB CARD NO</div>
-          <div className="w-[70%]">
-            <input 
-              className="w-full h-full font-black bg-transparent outline-none text-center placeholder-gray-300 text-[18pt]" 
-              value={card.jobCardNo}
-              onChange={(e) => !isBlank && updateCard(card.id, 'jobCardNo', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-        
-        {/* Row 2: Date - 8% */}
-        <div className="flex border-b border-black h-[8%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">DATE</div>
-          <div className="w-[70%]">
-            <input 
-              type={isBlank ? "text" : "date"}
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.date}
-              onChange={(e) => !isBlank && updateCard(card.id, 'date', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-        
-        {/* Row 3: Item Code - 8% */}
-        <div className="flex border-b border-black h-[8%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">ITEM CODE</div>
-          <div className="w-[70%]">
-            <input 
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.itemCode || ''}
-              onChange={(e) => !isBlank && updateCard(card.id, 'itemCode', e.target.value.toUpperCase())}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-
-        {/* Row 4: Work Name - 18% (Largest) */}
-        <div className="flex border-b border-black h-[18%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">WORK NAME</div>
-          <div className="w-[70%] h-full flex items-center justify-center p-1">
-            <textarea 
-              className="w-full bg-transparent outline-none text-center leading-tight uppercase whitespace-pre-wrap text-[18pt] resize-none overflow-hidden"
-              value={card.workName}
-              onChange={(e) => !isBlank && updateCard(card.id, 'workName', e.target.value)}
-              readOnly={isBlank}
-              rows={3}
-            />
-          </div>
-        </div>
-
-        {/* Row 5: Size - 8.2% */}
-        <div className="flex border-b border-black h-[8.2%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">SIZE</div>
-          <div className="w-[70%]">
-            <input 
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.size}
-              onChange={(e) => !isBlank && updateCard(card.id, 'size', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-
-        {/* Row 6: GSM - 8.2% - HIGHLIGHTED */}
-        <div className={`flex border-b border-black h-[8.2%] ${getGsmColor(card.gsm)}`}>
-          <div className="w-[30%] px-2 font-black border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt] bg-inherit">GSM</div>
-          <div className="w-[70%]">
-            <input 
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.gsm}
-              onChange={(e) => !isBlank && updateCard(card.id, 'gsm', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-
-        {/* Row 7: Total Gross - 8.2% */}
-        <div className="flex border-b border-black h-[8.2%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">TOTAL GROSS</div>
-          <div className="w-[70%]">
-            <input 
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.totalGross}
-              onChange={(e) => !isBlank && updateCard(card.id, 'totalGross', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-
-        {/* Row 8: Delivery Location - 8.2% */}
-        <div className="flex border-b border-black h-[8.2%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">DELIVERY LOCATION</div>
-          <div className="w-[70%] relative">
-            <input 
-              list={isBlank ? undefined : `locations-${card.id}`}
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.deliveryLocation}
-              onChange={(e) => !isBlank && updateCard(card.id, 'deliveryLocation', e.target.value)}
-              placeholder=""
-              readOnly={isBlank}
-            />
-            {!isBlank && (
-            <datalist id={`locations-${card.id}`}>
-              {LOCATIONS.map((loc: string) => (
-                <option key={loc} value={loc} />
-              ))}
-            </datalist>
-            )}
-          </div>
-        </div>
-
-        {/* Row 9: Loading Date - 8.2% */}
-        <div className="flex border-b border-black h-[8.2%]">
-          <div className="w-[30%] px-2 font-black bg-gray-100 print:bg-transparent border-r border-black flex items-center justify-start text-[14pt] print:text-[18pt]">LOADING DATE</div>
-          <div className="w-[70%]">
-            <input 
-              type="text"
-              className="w-full h-full font-black bg-transparent outline-none text-center uppercase text-[18pt]" 
-              value={card.loadingDate}
-              onChange={(e) => !isBlank && updateCard(card.id, 'loadingDate', e.target.value)}
-              readOnly={isBlank}
-            />
-          </div>
-        </div>
-
-        {/* Row 10: Signatures - 17% */}
-        <div className="flex h-[17%]">
-            <div className="w-1/2 border-r border-black flex flex-col">
-              <div className="bg-gray-100 print:bg-transparent border-b border-black font-black text-center p-1 text-[12pt] print:text-[14pt]">SUPERVISOR</div>
-              <div className="flex-1"></div>
+    <div className={`bg-white border-[3pt] ${borderStyle} flex flex-col box-border overflow-hidden ${cardWidth} ${cardHeight} ${isPrintView ? 'm-0 print:border-black' : 'shadow-xl mb-12 mx-auto transition-transform hover:scale-[1.01]'}`}>
+      <div className="flex-1 flex flex-col">
+        {fields.map((f, i) => (
+          <div key={i} className={`flex border-b-[2pt] ${borderStyle} ${rowHeight} items-stretch overflow-hidden print:border-black`}>
+            <div className={`${labelWidth} border-r-[2pt] ${borderStyle} flex items-center px-4 shrink-0 bg-slate-50 print:bg-slate-50 print:border-black`}>
+              <span className={`${labelTextSize} font-black uppercase text-black leading-none tracking-tight`}>{f.label}</span>
             </div>
-            <div className="w-1/2 flex flex-col">
-              <div className="bg-gray-100 print:bg-transparent border-b border-black font-black text-center p-1 text-[12pt] print:text-[14pt]">ACCOUNTANT</div>
-              <div className="flex-1"></div>
+            <div className="flex-1 flex items-center px-5 bg-white overflow-hidden">
+              {isPrintView ? (
+                <span className={`${valueTextSize} font-black uppercase text-black truncate leading-none`}>{card[f.key] || ''}</span>
+              ) : (
+                f.key === 'deliveryLocation' ? (
+                  <div className="flex gap-1 w-full overflow-x-auto scrollbar-hide py-1">
+                    <input 
+                      className="flex-1 min-w-[80px] bg-transparent border-none outline-none font-black uppercase text-black text-base placeholder:text-slate-200"
+                      value={card[f.key] || ''}
+                      onChange={(e) => updateCard?.(card.id, f.key, e.target.value)}
+                      placeholder="---"
+                    />
+                    <div className="flex gap-1">
+                      {locations.map(loc => (
+                        <button 
+                          key={loc}
+                          onClick={() => updateCard?.(card.id, f.key, loc)}
+                          className={`px-3 py-1 text-[10px] font-black rounded border-2 ${card[f.key] === loc ? 'bg-black text-white border-black' : 'bg-slate-100 text-slate-500 border-slate-200'} transition-all`}
+                        >
+                          {loc}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <input 
+                    className="w-full bg-transparent border-none outline-none font-black uppercase text-black text-base placeholder:text-slate-200"
+                    value={card[f.key] || ''}
+                    onChange={(e) => updateCard?.(card.id, f.key, e.target.value)}
+                    placeholder="---"
+                  />
+                )
+              )}
             </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className={`flex ${sigHeight} items-stretch overflow-hidden`}>
+        <div className={`flex-1 border-r-[2pt] ${borderStyle} flex flex-col print:border-black`}>
+          <div className={`h-[10mm] border-b-[1.5pt] ${borderStyle} flex items-center px-4 bg-slate-50 print:bg-slate-50 print:border-black`}>
+            <span className={`${isPrintView ? 'text-[9px]' : 'text-[9px]'} font-black uppercase text-black`}>SUPERVISOR SIGN</span>
+          </div>
+          <div className="flex-1 bg-white"></div>
         </div>
-
+        <div className="flex-1 flex flex-col">
+          <div className={`h-[10mm] border-b-[1.5pt] ${borderStyle} flex items-center px-4 bg-slate-50 print:bg-slate-50 print:border-black`}>
+            <span className={`${isPrintView ? 'text-[9px]' : 'text-[9px]'} font-black uppercase text-black`}>ACCOUNTANT SIGN</span>
+          </div>
+          <div className="flex-1 bg-white"></div>
+        </div>
       </div>
     </div>
   );
 };
 
-
-const JobCardGenerator: React.FC<JobCardGeneratorProps> = ({ onBack }) => {
+const JobCardGenerator: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [inputText, setInputText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [generatedCards, setGeneratedCards] = useState<JobCardData[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<'EP' | 'FP'>('EP');
-  const [showPreview, setShowPreview] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
-  const printContentRef = useRef<HTMLDivElement>(null);
+  
+  const bufferRef = useRef<HTMLDivElement>(null);
 
-  const LOCATIONS = ["EP", "AKP", "KKP", "FP", "Other"];
-
-  // Helper to calculate Financial Year (e.g., "24-25")
   const getFinancialYear = () => {
     const now = new Date();
-    const month = now.getMonth(); // 0-11
+    const month = now.getMonth();
     const year = now.getFullYear();
-    let startYear = year;
-    // Financial year starts in April (Month 3)
-    if (month < 3) {
-        startYear = year - 1;
-    }
-    const endYear = startYear + 1;
-    return `${startYear.toString().slice(-2)}-${endYear.toString().slice(-2)}`;
-  };
-
-  const getNextSerialNumbers = (count: number, cat: 'EP' | 'FP') => {
-    const fy = getFinancialYear();
-    const storageKey = 'enerpack_serial_counters_v1';
-    const stored = JSON.parse(localStorage.getItem(storageKey) || '{"fy": "", "EP": 0, "FP": 0}');
-    
-    // Reset if Financial Year changed
-    if (stored.fy !== fy) {
-      stored.fy = fy;
-      stored.EP = 0;
-      stored.FP = 0;
-    }
-
-    const startSerial = stored[cat] + 1;
-    const serials: string[] = [];
-    
-    for (let i = 0; i < count; i++) {
-       const current = startSerial + i;
-       // Format: EP/24-25/001
-       serials.push(`${cat}/${fy}/${current.toString().padStart(3, '0')}`);
-    }
-
-    // Update storage
-    stored[cat] = startSerial + count - 1;
-    localStorage.setItem(storageKey, JSON.stringify(stored));
-
-    return serials;
-  };
-
-  const getGsmColor = (gsm: string) => {
-      const g = gsm.trim();
-      if (g.includes('280')) return 'bg-blue-100 print:bg-blue-100'; // Light Blue
-      if (g.includes('200')) return 'bg-yellow-100 print:bg-yellow-100'; // Light Yellow
-      if (g.includes('150')) return 'bg-green-100 print:bg-green-100'; // Light Green
-      if (g.includes('140')) return 'bg-pink-100 print:bg-pink-100'; // Light Pink
-      if (g.includes('GYT')) return 'bg-gray-200 print:bg-gray-200'; // Gray
-      return 'bg-transparent';
+    let startYear = month < 3 ? year - 1 : year;
+    return `${startYear.toString().slice(-2)}-${(startYear + 1).toString().slice(-2)}`;
   };
 
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
     setIsProcessing(true);
-    setError(null);
     try {
       const results = await parseJobOrderText(inputText);
+      const fy = getFinancialYear();
+      const storageKey = 'enerpack_serial_v2';
+      const stored = JSON.parse(localStorage.getItem(storageKey) || '{"fy": "", "EP": 0, "FP": 0}');
       
-      // Get serials for this batch
-      const serials = getNextSerialNumbers(results.length, category);
+      if (stored.fy !== fy) { 
+        stored.fy = fy; 
+        stored.EP = 0; 
+        stored.FP = 0; 
+      }
 
-      const newCards = results.map((r, index) => ({
-        id: crypto.randomUUID(),
-        jobCardNo: serials[index],
-        date: r.date || new Date().toISOString().split('T')[0],
-        workName: r.workName || '',
-        itemCode: r.itemCode || '',
-        size: r.size || '',
-        gsm: r.gsm || '',
-        totalGross: r.totalGross || '',
-        deliveryLocation: r.deliveryLocation || '',
-        loadingDate: '',
-        supervisorSign: '',
-        accountantSign: ''
-      }));
+      const newCards = results.map((r: any) => {
+        const num = ++stored[category];
+        return {
+          id: generateId(),
+          jobCardNo: `${category}/${fy}/${num.toString().padStart(3, '0')}`,
+          date: formatToDDMMYYYY(r.date || ''),
+          workName: r.workName || '',
+          itemCode: r.itemCode || '',
+          size: r.size || '',
+          gsm: r.gsm || '',
+          totalGross: r.totalGross || '',
+          deliveryLocation: r.deliveryLocation || '',
+          loadingDate: '',
+          supervisorSign: '',
+          accountantSign: ''
+        };
+      });
+
+      localStorage.setItem(storageKey, JSON.stringify(stored));
       setGeneratedCards([...generatedCards, ...newCards]);
       setInputText('');
     } catch (err) {
-      setError("Failed to process text. Please ensure your API Key is valid and try again.");
+      alert("Interpretation failed. Check API key.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const updateCard = (id: string, field: keyof JobCardData, value: string) => {
-    setGeneratedCards(prev => prev.map(card => 
-      card.id === id ? { ...card, [field]: value } : card
-    ));
-  };
-
-  const removeCard = (id: string) => {
-    setGeneratedCards(prev => prev.filter(c => c.id !== id));
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownloadPDF = () => {
-    if (!printContentRef.current) return;
-    if (generatedCards.length === 0) return;
-
-    if (typeof (window as any).html2pdf === 'undefined') {
-        alert("PDF generator library not loaded. Please refresh the page.");
-        return;
+  const handleSavePDF = async () => {
+    if (!bufferRef.current || generatedCards.length === 0) return;
+    
+    const html2pdf = (window as any).html2pdf;
+    if (!html2pdf) {
+      alert("PDF library not loaded.");
+      return;
     }
 
     setIsPdfGenerating(true);
+    
+    const element = bufferRef.current;
+    
+    // Ensure fonts are loaded before starting PDF generation
+    try {
+      if ((document as any).fonts && (document as any).fonts.ready) {
+        await (document as any).fonts.ready;
+      }
+    } catch (e) {
+      console.warn("Font loading check failed, proceeding anyway.");
+    }
 
-    // Use timeout to allow UI to show spinner before freezing for generation
-    setTimeout(async () => {
-        try {
-            const element = printContentRef.current;
-            const opt = {
-              margin: 0,
-              filename: `JobCards_${category}_${new Date().toISOString().split('T')[0]}.pdf`,
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: { scale: 2, useCORS: true },
-              jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-            };
+    // Preparation for High Resolution Snapshot
+    // Temporarily bring the element into the viewport to ensure accurate calculation
+    const originalStyles = {
+      position: element.style.position,
+      left: element.style.left,
+      visibility: element.style.visibility,
+      zIndex: element.style.zIndex,
+      display: element.style.display,
+      opacity: element.style.opacity
+    };
 
-            await (window as any).html2pdf().set(opt).from(element).save();
-        } catch (err) {
-            console.error(err);
-            alert("Failed to generate PDF.");
-        } finally {
-            setIsPdfGenerating(false);
-        }
-    }, 100);
+    element.style.position = 'fixed';
+    element.style.left = '0';
+    element.style.top = '0';
+    element.style.visibility = 'visible';
+    element.style.opacity = '1';
+    element.style.zIndex = '9999999';
+    element.style.display = 'block';
+
+    // Wait for layout calculation and font rendering
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const opt = {
+      margin: 0,
+      filename: `Enerpack_JobCards_${category}_${new Date().toISOString().split('T')[0]}.pdf`,
+      image: { type: 'jpeg', quality: 1.0 },
+      html2canvas: { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 1122, // Approx 297mm at 96 DPI
+        windowWidth: 1122,
+        removeContainer: true
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
+      pagebreak: { mode: ['css', 'legacy'], after: '.pdf-page-wrapper' } 
+    };
+
+    try {
+      // Use the .from().toPdf().get() pattern if simple save() doesn't suffice
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error("PDF download failed:", error);
+      alert("Download failed. Please check your data or try 'System Print'.");
+    } finally {
+      // Revert styles to hide buffer
+      Object.assign(element.style, originalStyles);
+      setIsPdfGenerating(false);
+    }
   };
 
-  // Chunk cards into groups of 2 for A4 pages (Landscape now)
-  const chunkedCards = [];
+  const handleSystemPrint = () => {
+    if (generatedCards.length === 0) return;
+    window.print();
+  };
+
+  const chunkedCards: JobCardData[][] = [];
   for (let i = 0; i < generatedCards.length; i += 2) {
-    const chunk = generatedCards.slice(i, i + 2);
-    // Pad with blank cards if less than 2
-    const paddedChunk = [...chunk];
-    while (paddedChunk.length < 2) {
-      paddedChunk.push({
-        id: `blank-${i}-${paddedChunk.length}`,
-        jobCardNo: '',
-        date: '',
-        workName: '',
-        itemCode: '',
-        size: '',
-        gsm: '',
-        totalGross: '',
-        deliveryLocation: '',
-        loadingDate: '',
-        supervisorSign: '',
-        accountantSign: '',
-        isBlank: true 
-      } as any);
-    }
-    chunkedCards.push(paddedChunk);
+    chunkedCards.push(generatedCards.slice(i, i + 2));
   }
 
+  const updateCardField = (id: string, field: keyof JobCardData, value: string) => {
+    setGeneratedCards(prev => prev.map(c => c.id === id ? {...c, [field]: value} : c));
+  };
+
   return (
-    <div className="flex flex-col md:flex-row h-full bg-gray-50">
-      <style>{`
-        @media print {
-          @page { size: landscape; margin: 0mm; }
-          body { -webkit-print-color-adjust: exact; font-family: 'Calibri', sans-serif; }
-          input, textarea, select { font-family: 'Calibri', sans-serif; }
-          .page-break { page-break-after: always; }
-          .no-page-break { page-break-after: auto; }
-        }
-        .text-calibri-18 {
-           font-size: 18pt;
-           line-height: 1.2;
-        }
-      `}</style>
+    <div className={`flex h-screen overflow-hidden ${isPreviewMode ? 'bg-[#1e293b]' : 'bg-[#f1f5f9]'}`}>
       
-      {/* ----------------- INPUT INTERFACE ----------------- */}
-      <div className={`flex flex-col h-full w-full md:w-[450px] shrink-0 border-r border-gray-200 bg-white transition-all
-          ${showPreview ? 'hidden md:flex' : 'flex'} print:hidden z-10`}>
-          
-          {/* Header */}
-          <div className="bg-white p-3 border-b flex justify-between items-center shadow-sm shrink-0">
-              <div className="flex items-center gap-3">
-                  <button onClick={onBack} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors">
-                      <ArrowLeft className="w-5 h-5 text-gray-700"/>
-                  </button>
-                  <h2 className="text-lg font-bold text-gray-800">Job Card Generator</h2>
-              </div>
-              <button 
-                onClick={() => setShowInstructions(!showInstructions)} 
-                className={`p-2 rounded-full transition-colors ${showInstructions ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-              >
-                  <Info className="w-5 h-5" />
-              </button>
+      {isPdfGenerating && (
+        <div className="fixed inset-0 z-[11000000] bg-slate-900/95 backdrop-blur-2xl flex flex-col items-center justify-center text-white">
+          <div className="relative mb-12">
+            <Loader2 className="w-20 h-20 animate-spin text-blue-500" />
+            <ShieldCheck className="absolute inset-0 m-auto w-8 h-8 text-white" />
           </div>
-
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col p-3 gap-3 overflow-hidden">
-              
-              {/* Instructions Panel */}
-              {showInstructions && (
-                  <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-xs text-blue-900 shrink-0 animate-in slide-in-from-top-2">
-                     <p className="font-bold mb-1">How to use:</p>
-                     <ul className="list-disc pl-4 space-y-0.5">
-                        <li>Select Category <strong>EP</strong> or <strong>FP</strong>.</li>
-                        <li>Paste WhatsApp work orders text.</li>
-                        <li>Click Generate.</li>
-                     </ul>
-                  </div>
-              )}
-
-              {/* Input Card */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden relative">
-                   {/* Category Selector Bar */}
-                   <div className="flex items-center justify-between p-2 px-3 border-b bg-gray-50/50 shrink-0">
-                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Category</span>
-                       <div className="flex bg-white rounded-lg border border-gray-200 p-0.5">
-                          {['EP', 'FP'].map(c => (
-                              <button
-                                  key={c}
-                                  onClick={() => setCategory(c as any)}
-                                  className={`px-4 py-1 rounded-md text-xs font-bold transition-all ${category === c ? 'bg-enerpack-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}
-                              >
-                                  {c}
-                              </button>
-                          ))}
-                       </div>
-                   </div>
-
-                   <textarea 
-                      className="flex-1 w-full p-3 resize-none outline-none text-sm font-mono placeholder-gray-400 focus:bg-blue-50/10 transition-colors"
-                      placeholder="Paste orders here (e.g. Fw10057 Vkc pl3 50x81-200 gsm 70 gross...)"
-                      value={inputText}
-                      onChange={e => setInputText(e.target.value)}
-                   />
-                   
-                   {error && (
-                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-red-50 text-red-600 text-xs text-center border-t border-red-100 font-medium">
-                        {error}
-                      </div>
-                   )}
-              </div>
-
-              {/* Action Bar */}
-              <div className="shrink-0 space-y-3 pt-1">
-                   <button 
-                      onClick={handleGenerate}
-                      disabled={isProcessing || !inputText.trim()}
-                      className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95
-                        ${isProcessing || !inputText.trim() ? 'bg-slate-300 cursor-not-allowed text-slate-500' : 'bg-enerpack-600 hover:bg-enerpack-700'}`}
-                   >
-                       {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-                       {isProcessing ? 'Processing...' : 'Generate Cards'}
-                   </button>
-
-                   {/* Desktop: Actions in Preview Header. Mobile: Grid here. */}
-                   <div className="grid grid-cols-3 gap-3 md:hidden">
-                       <button 
-                          onClick={() => setShowPreview(true)}
-                          disabled={generatedCards.length === 0}
-                          className="flex flex-col items-center justify-center py-2 px-1 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-50 active:bg-gray-100"
-                       >
-                          <Eye className="w-5 h-5 text-indigo-600 mb-1" />
-                          <span className="text-[10px] font-bold text-gray-600">Preview ({generatedCards.length})</span>
-                       </button>
-                       <button 
-                          onClick={handleDownloadPDF}
-                          disabled={generatedCards.length === 0 || isPdfGenerating}
-                          className="flex flex-col items-center justify-center py-2 px-1 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-50 active:bg-gray-100"
-                       >
-                          {isPdfGenerating ? <Loader2 className="w-5 h-5 text-blue-600 mb-1 animate-spin" /> : <Download className="w-5 h-5 text-blue-600 mb-1" />}
-                          <span className="text-[10px] font-bold text-gray-600">{isPdfGenerating ? 'Saving...' : 'Save PDF'}</span>
-                       </button>
-                       <button 
-                          onClick={handlePrint}
-                          disabled={generatedCards.length === 0}
-                          className="flex flex-col items-center justify-center py-2 px-1 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-50 active:bg-gray-100"
-                       >
-                          <Printer className="w-5 h-5 text-slate-700 mb-1" />
-                          <span className="text-[10px] font-bold text-gray-600">Print</span>
-                       </button>
-                   </div>
-              </div>
+          <div className="text-center space-y-5">
+            <h2 className="text-2xl font-black uppercase tracking-[0.5em] text-white">Exporting to PDF</h2>
+            <p className="text-[11px] font-black text-blue-400 uppercase tracking-widest opacity-80 italic">Capturing High-Resolution Snapshot (2x Scale)...</p>
           </div>
-      </div>
+        </div>
+      )}
 
-      {/* ----------------- PREVIEW AREA (Split on Desktop, Modal on Mobile) ----------------- */}
-      <div className={`flex-1 flex flex-col h-full bg-gray-100 overflow-hidden relative
-           ${!showPreview ? 'hidden md:flex' : 'flex'}`}>
-        
-        {/* Desktop Toolbar */}
-        <div className="hidden md:flex bg-white border-b p-3 justify-between items-center shadow-sm z-10">
-             <span className="font-bold text-gray-700 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> 
-                {generatedCards.length > 0 ? `Live Preview (${chunkedCards.length} Pages)` : 'Live Preview'}
-             </span>
-             <div className="flex gap-2">
-                 <button 
-                    onClick={handleDownloadPDF} 
-                    disabled={generatedCards.length === 0 || isPdfGenerating}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                    {isPdfGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Save PDF
-                 </button>
-                 <button 
-                    onClick={handlePrint}
-                    disabled={generatedCards.length === 0}
-                    className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded flex items-center gap-2 text-sm font-bold shadow-sm disabled:opacity-50"
-                 >
-                    <Printer className="w-4 h-4" /> Print
-                 </button>
+      {!isPreviewMode && (
+        <aside className="w-[400px] border-r border-slate-200 bg-white flex flex-col relative z-20 shrink-0 shadow-2xl print:hidden animate-in slide-in-from-left duration-300">
+          <div className="p-6 border-b flex items-center justify-between bg-slate-50">
+             <div className="flex items-center gap-4">
+                <button onClick={onBack} className="p-2.5 hover:bg-slate-200 rounded-2xl transition-all text-slate-500 shadow-sm border bg-white">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <h1 className="text-xs font-black text-slate-900 tracking-[0.1em] uppercase">Job Card System</h1>
              </div>
-        </div>
-
-        {/* Mobile Preview Header */}
-        <div className="md:hidden bg-gray-800 text-white p-3 flex flex-row justify-between items-center sticky top-0 z-30 print:hidden shadow-lg">
-          <span className="font-bold flex items-center gap-2 text-sm">
-            <FileText className="w-4 h-4"/> 
-            Preview
-          </span>
-          <div className="flex gap-2">
-             {/* Mobile Actions */}
-             <button onClick={() => setShowPreview(false)} className="bg-gray-600 p-2 rounded hover:bg-gray-500 flex items-center gap-1 font-bold text-xs px-3">
-              <X className="w-4 h-4" /> Close
-            </button>
+             <Info className="w-5 h-5 text-blue-500" />
           </div>
-        </div>
 
-        {/* Scroll Content */}
-        <div className="flex-1 overflow-auto p-4 md:p-8 print:p-0 print:overflow-visible">
-            
-            {/* Empty State */}
-            {generatedCards.length === 0 && (
-               <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
-                  <FileText className="w-12 h-12 opacity-20" />
-                  <p>Generated job cards will appear here.</p>
-               </div>
-            )}
+          <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide">
+             <div className="bg-[#0c4a6e] p-6 rounded-[2rem] text-white shadow-xl">
+                <h4 className="font-black uppercase mb-3 flex items-center gap-3 text-blue-300">
+                  <ShieldCheck className="w-5 h-5" /> Workflow
+                </h4>
+                <ul className="space-y-3 text-[11px] font-bold uppercase tracking-widest leading-relaxed">
+                   <li className="flex gap-2"><span className="text-blue-400">01.</span> Select Series Category</li>
+                   <li className="flex gap-2"><span className="text-blue-400">02.</span> Paste Raw WhatsApp Order</li>
+                   <li className="flex gap-2"><span className="text-blue-400">03.</span> AI Extraction & Serializing</li>
+                   <li className="flex gap-2"><span className="text-blue-400">04.</span> Review, Edit & Export</li>
+                </ul>
+             </div>
 
-            {/* Mobile Stack View (Only visible on Mobile when preview is open) */}
-            {showPreview && generatedCards.length > 0 && (
-                <div className="md:hidden flex flex-col gap-6 pb-20">
-                    {generatedCards.map((card, i) => (
-                        <div key={card.id} className="w-full flex flex-col items-center">
-                            <div className="text-gray-400 text-xs font-bold mb-2">Card {i + 1} of {generatedCards.length}</div>
-                            <div 
-                                className="bg-white shadow-xl origin-top"
-                                style={{ 
-                                    width: '560px', 
-                                    height: '794px', 
-                                    transform: 'scale(0.55)', 
-                                    marginBottom: '-350px'
-                                }}
-                            >
-                                <CardFace 
-                                    card={card}
-                                    isBlank={false}
-                                    updateCard={updateCard}
-                                    LOCATIONS={LOCATIONS}
-                                    getGsmColor={getGsmColor}
-                                    onDelete={() => removeCard(card.id)}
-                                />
-                            </div>
-                        </div>
-                    ))}
+             <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Series Prefix</label>
+                  <div className="flex bg-slate-100 p-2 rounded-[1.5rem] border border-slate-200 gap-1 shadow-inner">
+                     {['EP', 'FP'].map(cat => (
+                       <button 
+                        key={cat}
+                        onClick={() => setCategory(cat as any)} 
+                        className={`flex-1 py-3 text-xs font-black uppercase rounded-2xl transition-all ${category === cat ? 'bg-white text-blue-600 shadow-md ring-2 ring-blue-500/10' : 'text-slate-400 hover:text-slate-600'}`}
+                       >
+                         {cat} Series
+                       </button>
+                     ))}
+                  </div>
                 </div>
-            )}
 
-            {/* Desktop/Print A4 View (Always in DOM for PDF, visible on Desktop) */}
-            <div ref={printContentRef} className={`max-w-[297mm] mx-auto print:w-full print:max-w-none transition-opacity duration-300
-                ${showPreview ? 'hidden md:block' : 'hidden md:block fixed left-[-10000px] md:static'}`}>
-                
-                {chunkedCards.map((pageBatch, pageIndex) => {
-                    const isLastPage = pageIndex === chunkedCards.length - 1;
-                    return (
-                    <div 
-                        key={pageIndex} 
-                        className={`bg-white shadow-xl print:shadow-none w-[297mm] h-[210mm] mx-auto p-[20mm] print:p-[20mm] relative grid grid-cols-2 gap-[20mm] overflow-hidden box-border mb-8 print:mb-0 ${isLastPage ? 'no-page-break' : 'page-break'}`}
-                        style={{ pageBreakAfter: isLastPage ? 'auto' : 'always' }}
-                    >
-                        {pageBatch.map((card) => {
-                            const isBlank = (card as any).isBlank;
-                            return (
-                                <CardFace 
-                                    key={card.id}
-                                    card={card}
-                                    isBlank={isBlank}
-                                    updateCard={updateCard}
-                                    LOCATIONS={LOCATIONS}
-                                    getGsmColor={getGsmColor}
-                                    onDelete={() => removeCard(card.id)}
-                                />
-                            )
-                        })}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Raw Order Text</label>
+                  <textarea 
+                    className="w-full h-80 p-5 rounded-[2rem] border border-slate-200 resize-none outline-none text-[13px] font-mono bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-inner"
+                    placeholder="Paste work order here..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                  />
+                </div>
+             </div>
+          </div>
+
+          <div className="p-6 border-t bg-slate-50">
+             <button 
+               onClick={handleGenerate}
+               disabled={isProcessing || !inputText.trim()}
+               className="w-full bg-[#0c4a6e] hover:bg-[#075985] text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-4 shadow-2xl disabled:opacity-30 active:scale-[0.98] transition-all"
+             >
+               {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5 text-blue-400" />}
+               AI Interpret
+             </button>
+          </div>
+        </aside>
+      )}
+
+      <main className="flex-1 flex flex-col overflow-hidden print:hidden relative">
+        <header className={`${isPreviewMode ? 'bg-[#0f172a] border-[#334155]' : 'bg-white border-slate-200'} border-b px-10 py-5 flex items-center justify-between shadow-sm z-30 transition-colors`}>
+           <div className="flex items-center gap-5">
+              <div className={`w-12 h-12 rounded-[1.25rem] flex items-center justify-center shadow-inner ${isPreviewMode ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                {isPreviewMode ? <Layout className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+              </div>
+              <div className="flex flex-col">
+                <h2 className={`text-sm font-black uppercase tracking-widest ${isPreviewMode ? 'text-white' : 'text-slate-900'}`}>
+                  {isPreviewMode ? 'Print Preview Mode' : 'Document Editor'}
+                </h2>
+                <p className={`text-[10px] font-bold uppercase tracking-widest leading-none mt-1 ${isPreviewMode ? 'text-blue-400/60' : 'text-slate-400'}`}>
+                  {isPreviewMode ? 'A4 Landscape Layout' : 'Live Job Card Preview'}
+                </p>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsPreviewMode(!isPreviewMode)}
+                disabled={generatedCards.length === 0}
+                className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-lg active:scale-95 transition-all disabled:opacity-30 ${isPreviewMode ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'}`}
+              >
+                 {isPreviewMode ? <><EyeOff className="w-4 h-4" /> Exit Preview</> : <><Eye className="w-4 h-4" /> Print Preview</>}
+              </button>
+              <button 
+                onClick={handleSavePDF}
+                disabled={generatedCards.length === 0 || isPdfGenerating}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-lg active:scale-95 transition-all disabled:opacity-30"
+              >
+                 {isPdfGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                 Save PDF
+              </button>
+              <button 
+                onClick={handleSystemPrint}
+                disabled={generatedCards.length === 0}
+                className="px-6 py-3 bg-slate-800 hover:bg-black text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-lg active:scale-95 transition-all disabled:opacity-30"
+              >
+                 <Printer className="w-4 h-4" /> System Print
+              </button>
+           </div>
+        </header>
+
+        <div className={`flex-1 overflow-y-auto p-12 scrollbar-hide transition-colors ${isPreviewMode ? 'bg-[#0f172a]' : 'bg-slate-100'}`}>
+          {generatedCards.length > 0 ? (
+            <div className={`mx-auto space-y-12 pb-32 transition-all ${isPreviewMode ? 'max-w-7xl' : 'max-w-4xl'}`}>
+              {isPreviewMode ? (
+                 <div className="flex flex-col items-center gap-20">
+                   {chunkedCards.map((batch, i) => (
+                      <div key={`preview-p-${i}`} className="bg-white p-[20mm] shadow-2xl flex justify-center items-center rounded-sm w-[297mm] h-[210mm] border border-slate-700 gap-[7mm] box-border">
+                        {batch.map(card => (
+                          <CardFace key={`pc-view-${card.id}`} card={card} isPrintView={true} />
+                        ))}
+                        {batch.length === 1 && <div className="w-[125mm]"></div>}
+                      </div>
+                   ))}
+                 </div>
+              ) : (
+                generatedCards.map(card => (
+                  <div key={card.id} className="relative group">
+                    <div className="absolute -left-20 top-0 flex flex-col gap-3 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                      <button 
+                        onClick={() => setGeneratedCards(prev => prev.filter(c => c.id !== card.id))} 
+                        className="p-5 bg-white border-2 border-slate-200 rounded-[2rem] text-rose-500 hover:bg-rose-50 hover:border-rose-200 shadow-2xl transition-all"
+                      >
+                        <Trash2 className="w-6 h-6" />
+                      </button>
                     </div>
-                    );
-                })}
+                    <CardFace 
+                      card={card} 
+                      updateCard={updateCardField}
+                    />
+                  </div>
+                ))
+              )}
             </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-8 opacity-40">
+               <div className="w-40 h-40 bg-white rounded-[3rem] shadow-sm flex items-center justify-center border-4 border-dashed border-slate-200">
+                 <FileText className="w-16 h-16" />
+               </div>
+               <div className="text-center">
+                 <p className="font-black text-slate-500 text-base uppercase tracking-[0.3em]">Workspace Ready</p>
+                 <p className="text-xs font-bold uppercase mt-2 tracking-widest">Interpret an order to begin</p>
+               </div>
+            </div>
+          )}
         </div>
-      </div>
+      </main>
+
+      {/* RENDER & PRINT BUFFER - Corrected sizing and styling for System Print */}
+      {createPortal(
+        <div 
+          ref={bufferRef} 
+          id="job-card-pdf-render-buffer"
+          className="job-card-print-system-container"
+          style={{ 
+            position: 'absolute', 
+            left: '-20000mm', 
+            top: '0', 
+            width: '297mm', 
+            background: '#ffffff',
+            zIndex: -1,
+            pointerEvents: 'none',
+            display: 'block'
+          }}
+        >
+          {chunkedCards.map((batch, i) => (
+            <div 
+              key={`pdf-page-${i}`} 
+              className="pdf-page-wrapper"
+              style={{ 
+                width: '297mm', 
+                height: '210mm', 
+                padding: '20mm',
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                gap: '7mm', 
+                boxSizing: 'border-box', 
+                background: '#ffffff',
+                pageBreakAfter: 'always',
+                breakAfter: 'page',
+                overflow: 'hidden'
+              }}
+            >
+              {batch.map(card => (
+                <CardFace 
+                  key={`pc-pdf-batch-${card.id}`}
+                  card={card} 
+                  isPrintView={true} 
+                />
+              ))}
+              {batch.length === 1 && <div style={{ width: '125mm' }}></div>}
+            </div>
+          ))}
+
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              /* Hide everything else */
+              body > *:not(.job-card-print-system-container) {
+                display: none !important;
+                height: 0 !important;
+                overflow: hidden !important;
+              }
+
+              @page {
+                size: landscape;
+                margin: 0;
+              }
+
+              html, body {
+                width: 297mm !important;
+                height: 210mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                background: white !important;
+              }
+
+              .job-card-print-system-container {
+                display: block !important;
+                position: relative !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 297mm !important;
+                height: auto !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 9999999 !important;
+                pointer-events: auto !important;
+                background-color: #ffffff !important;
+              }
+
+              .pdf-page-wrapper {
+                display: flex !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                height: 210mm !important;
+                width: 297mm !important;
+                margin: 0 !important;
+                padding: 20mm !important;
+              }
+            }
+          `}} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { InventoryItem, StockTransaction } from '../types';
 import { X, Save } from 'lucide-react';
@@ -99,31 +98,31 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className={`p-4 flex justify-between items-center text-white ${type === 'IN' ? 'bg-green-600' : 'bg-red-600'}`}>
+      <div className="bg-white rounded-[2rem] shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className={`p-4 px-6 flex justify-between items-center text-white ${type === 'IN' ? 'bg-green-600' : 'bg-red-600'}`}>
           <h2 className="text-lg md:text-xl font-bold">{type === 'IN' ? 'STOCK IN' : 'STOCK OUT'} - {item.size} ({item.gsm})</h2>
           <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1"><X className="w-6 h-6" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 md:p-6 overflow-y-auto flex-1 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 md:p-8 overflow-y-auto flex-1 space-y-4">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <label className="block text-sm font-medium text-gray-700 ml-1">Date</label>
               <input 
                 type="date" 
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                 value={formData.date}
                 onChange={e => setFormData({...formData, date: e.target.value})}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Month</label>
+              <label className="block text-sm font-medium text-gray-700 ml-1">Month</label>
               <input 
                 type="text" 
                 readOnly
-                className="mt-1 block w-full rounded-md bg-gray-100 border-gray-300 shadow-sm border p-2"
+                className="mt-1 block w-full rounded-2xl bg-gray-50 border-gray-200 shadow-sm border p-2.5 outline-none"
                 value={formData.month}
               />
             </div>
@@ -131,22 +130,22 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Company (CAPS)</label>
+              <label className="block text-sm font-medium text-gray-700 ml-1">Company (CAPS)</label>
               <input 
                 type="text" 
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white uppercase"
+                className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white uppercase focus:ring-2 focus:ring-blue-400 outline-none"
                 value={formData.company}
                 onChange={e => setFormData({...formData, company: e.target.value.toUpperCase()})}
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-900">Quantity ({type === 'IN' ? 'In' : 'Out'})</label>
+              <label className="block text-sm font-bold text-gray-900 ml-1">Quantity ({type === 'IN' ? 'In' : 'Out'})</label>
               <input 
                 type="number" 
                 min="1"
                 step="any"
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 font-bold text-lg bg-white"
+                className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 font-bold text-lg bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                 value={formData.quantity || ''}
                 onChange={e => setFormData({...formData, quantity: Number(e.target.value)})}
               />
@@ -158,19 +157,19 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Invoice No</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Invoice No</label>
                     <input 
                         type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                         value={formData.invoice}
                         onChange={e => setFormData({...formData, invoice: e.target.value})}
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Storage Location (CAPS)</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Storage Location (CAPS)</label>
                     <input 
                         type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white uppercase"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white uppercase focus:ring-2 focus:ring-blue-400 outline-none"
                         value={formData.storageLocation}
                         onChange={e => setFormData({...formData, storageLocation: e.target.value.toUpperCase()})}
                     />
@@ -184,20 +183,20 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
             <>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Item Code (CAPS)</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Item Code (CAPS)</label>
                     <input 
                         type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white uppercase"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white uppercase focus:ring-2 focus:ring-blue-400 outline-none"
                         value={formData.itemCode}
                         onChange={handleItemCodeChange}
                         placeholder="Enter Code to Auto-fill"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Work Name</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Work Name</label>
                     <input 
                         type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                         value={formData.workName}
                         onChange={handleWorkNameChange}
                     />
@@ -206,9 +205,9 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Unit</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Unit</label>
                     <select 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white outline-none cursor-pointer"
                         value={formData.unit}
                         onChange={e => setFormData({...formData, unit: e.target.value})}
                     >
@@ -218,18 +217,18 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Cutting Size</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Cutting Size</label>
                     <input 
                         type="text" 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                         value={formData.cuttingSize}
                         onChange={e => setFormData({...formData, cuttingSize: e.target.value})}
                     />
                 </div>
                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Status</label>
+                    <label className="block text-sm font-medium text-gray-700 ml-1">Status</label>
                     <select 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white outline-none cursor-pointer"
                         value={formData.status}
                         onChange={e => setFormData({...formData, status: e.target.value})}
                     >
@@ -242,9 +241,9 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                   <label className="block text-sm font-medium text-gray-700">Priority</label>
+                   <label className="block text-sm font-medium text-gray-700 ml-1">Priority</label>
                    <select 
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                        className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white outline-none cursor-pointer"
                         value={formData.priority}
                         onChange={e => setFormData({...formData, priority: e.target.value})}
                     >
@@ -253,17 +252,14 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
                         ))}
                     </select>
                 </div>
-                {/* Vehicle Removed */}
               </div>
-
-              {/* Location Removed for OUT */}
             </>
           )}
 
           <div>
-             <label className="block text-sm font-medium text-gray-700">Remarks</label>
+             <label className="block text-sm font-medium text-gray-700 ml-1">Remarks</label>
              <textarea 
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm border p-2 bg-white"
+                className="mt-1 block w-full rounded-2xl border-gray-300 shadow-sm border p-2.5 bg-white focus:ring-2 focus:ring-blue-400 outline-none"
                 rows={2}
                 value={formData.remarks}
                 onChange={e => setFormData({...formData, remarks: e.target.value})}
@@ -272,11 +268,11 @@ const StockOperationModal: React.FC<StockOperationModalProps> = ({ type, item, t
 
         </form>
 
-        <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded text-sm md:text-base">Cancel</button>
+        <div className="p-4 md:p-6 border-t bg-gray-50 flex justify-end gap-3">
+            <button onClick={onClose} className="px-6 py-2.5 text-gray-700 hover:bg-gray-200 rounded-2xl text-sm font-bold">Cancel</button>
             <button 
                 onClick={handleSubmit}
-                className={`px-4 py-2 text-white rounded font-bold flex items-center gap-2 shadow-lg text-sm md:text-base
+                className={`px-8 py-2.5 text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg text-sm md:text-base transition-all active:scale-95
                     ${type === 'IN' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
             >
                 <Save className="w-4 h-4" />

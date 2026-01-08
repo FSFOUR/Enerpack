@@ -1,49 +1,55 @@
 
+export type UserRole = 'ADMIN' | 'USER';
+
+export interface User {
+  username: string;
+  role: UserRole;
+  name: string;
+}
+
+export interface UserAccount extends User {
+  password: string; 
+  status: 'PENDING' | 'APPROVED' | 'DENIED';
+  createdAt: number;
+}
+
 export interface InventoryItem {
   id: string;
-  pageNo?: string; // Kept for legacy compatibility if needed, but not shown in main view
   size: string;
-  gsm: string; // Changed to string to support "GYT"
+  gsm: string;
   closingStock: number;
-  minStock: number; // Reorder level
+  minStock: number;
+  company?: string;
   remarks?: string;
-
-  // Reorder Tracking Fields
   reorderStatus?: 'Pending' | 'Order Placed' | 'Received' | 'Other';
   reorderCompany?: string;
   reorderQty?: number;
   reorderDate?: string;
   expectedDeliveryDate?: string;
   reorderRemarks?: string;
+  category?: 'SINGLE' | 'DOUBLE' | 'DOUBLE_LEFT';
 }
 
-export interface JobCardData {
+export interface AccessRequest {
   id: string;
-  jobCardNo: string;
-  date: string;
-  workName: string;
-  itemCode?: string; // Added Item Code
-  size: string;
-  gsm: string;
-  totalGross: string;
-  deliveryLocation: string;
-  loadingDate: string;
-  supervisorSign: string;
-  accountantSign: string;
-  originalText?: string;
+  viewMode: ViewMode;
+  status: 'PENDING' | 'APPROVED' | 'DENIED';
+  timestamp: number;
+  userName: string;
 }
 
 export enum ViewMode {
   DASHBOARD = 'DASHBOARD',
   INVENTORY = 'INVENTORY',
-  JOB_CARDS = 'JOB_CARDS',
   STOCK_IN_LOGS = 'STOCK_IN_LOGS',
   STOCK_OUT_LOGS = 'STOCK_OUT_LOGS',
   PENDING_WORKS = 'PENDING_WORKS',
   REORDER_ALERTS = 'REORDER_ALERTS',
-  REORDER_LOGS = 'REORDER_LOGS',
-  PAPER_CALCULATOR = 'PAPER_CALCULATOR',
+  REORDER_HISTORY = 'REORDER_HISTORY',
   FORECAST = 'FORECAST',
+  PAPER_CALCULATOR = 'PAPER_CALCULATOR',
+  JOB_CARD_GENERATOR = 'JOB_CARD_GENERATOR',
+  ADMIN_PANEL = 'ADMIN_PANEL'
 }
 
 export interface StockTransaction {
@@ -51,39 +57,39 @@ export interface StockTransaction {
   type: 'IN' | 'OUT' | 'REORDER';
   date: string;
   month: string;
-  
-  // Linked Item
   itemId: string;
   size: string;
   gsm: string;
   quantity: number;
-
-  // Stock In Fields
   company?: string;
   invoice?: string;
   storageLocation?: string;
-
-  // Stock Out Fields
   itemCode?: string;
   workName?: string;
   unit?: string;
   cuttingSize?: string;
   status?: string;
   vehicle?: string;
-  priority?: string; // Very Urgent, Urgent, High, Medium, Low
-  
-  // Reorder Fields
+  priority?: string;
   expectedDeliveryDate?: string;
-  receivedDate?: string; // New field for Received Date
+  receivedDate?: string;
   receivedQty?: number;
-
-  // Common
   remarks?: string;
   timestamp: number;
 }
 
-export interface AppNotification {
+// Fixed: Added JobCardData interface which was being imported in JobCardGenerator.tsx but was missing here.
+export interface JobCardData {
   id: string;
-  message: string;
-  type: 'success' | 'info' | 'warning';
+  jobCardNo: string;
+  date: string;
+  itemCode: string;
+  workName: string;
+  size: string;
+  gsm: string;
+  totalGross: string;
+  deliveryLocation: string;
+  loadingDate: string;
+  supervisorSign?: string;
+  accountantSign?: string;
 }

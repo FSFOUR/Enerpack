@@ -1,5 +1,5 @@
 {
   "name": "Enerpack",
-  "description": "A comprehensive inventory tracking system and automated job card generator for printing workflows.",
+  "description": "A comprehensive inventory tracking system for printing workflows with predictive analytics.",
   "requestFramePermissions": []
 }
