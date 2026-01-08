@@ -1,5 +1,5 @@
 
-export type UserRole = 'ADMIN' | 'USER';
+export type UserRole = 'ADMIN' | 'EDITOR' | 'USER';
 
 export interface User {
   username: string;
@@ -78,7 +78,6 @@ export interface StockTransaction {
   timestamp: number;
 }
 
-// Fixed: Added JobCardData interface which was being imported in JobCardGenerator.tsx but was missing here.
 export interface JobCardData {
   id: string;
   jobCardNo: string;
