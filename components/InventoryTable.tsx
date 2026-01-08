@@ -12,7 +12,8 @@ import {
   Save,
   Upload,
   FileText,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
@@ -283,9 +284,11 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
            <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
              <Printer className="w-3.5 h-3.5" /> Print
            </button>
-           <button onClick={() => setIsAdding(!isAdding)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
-             <Plus className="w-3.5 h-3.5" /> New
-           </button>
+           {isAdmin && (
+             <button onClick={() => setIsAdding(!isAdding)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
+               <Plus className="w-3.5 h-3.5" /> New
+             </button>
+           )}
         </div>
       </div>
 
@@ -429,10 +432,16 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
         <td className={`p-1 border-r ${borderColor} font-extrabold text-[12px] text-[#1e40af] tabular-nums print:text-[11px] ${COL_WIDTHS.stock}`}>{item.closingStock}</td>
         <td className={`p-1 border-r ${borderColor} print:p-0 ${COL_WIDTHS.action}`}>
           <div className="flex justify-center items-center gap-1 print:hidden">
-            <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-all" title="Add Stock"><Plus className="w-3 h-3" /></button>
-            <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 transition-all" title="Remove Stock"><Minus className="w-3 h-3" /></button>
-            <button onClick={() => onEdit(item)} className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all ml-1" title="Edit Item"><Pencil className="w-3 h-3" /></button>
-            <button onClick={() => onDelete(item.id)} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-400 hover:bg-rose-100 border border-rose-200 transition-all ml-1" title="Delete Item"><Trash2 className="w-3 h-3" /></button>
+            {isAdmin ? (
+              <>
+                <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-all" title="Add Stock"><Plus className="w-3 h-3" /></button>
+                <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 transition-all" title="Remove Stock"><Minus className="w-3 h-3" /></button>
+                <button onClick={() => onEdit(item)} className="w-6 h-6 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200 transition-all ml-1" title="Edit Item"><Pencil className="w-3 h-3" /></button>
+                <button onClick={() => onDelete(item.id)} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-400 hover:bg-rose-100 border border-rose-200 transition-all ml-1" title="Delete Item"><Trash2 className="w-3 h-3" /></button>
+              </>
+            ) : (
+              <Lock className="w-3.5 h-3.5 text-slate-300" />
+            )}
           </div>
           <div className="hidden print:block text-[7px] font-bold text-slate-400 uppercase tracking-tighter verified-text">Ver.</div>
         </td>
