@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
 import TransactionHistory from './components/TransactionHistory';
@@ -218,6 +218,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Persistence Effects
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v11', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_access_v11', JSON.stringify(accessRequests)); }, [accessRequests]);
@@ -226,6 +227,23 @@ const App: React.FC = () => {
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
     else localStorage.removeItem('enerpack_user_v1');
   }, [currentUser]);
+
+  // Handle cross-tab storage updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'enerpack_accounts_v1' && e.newValue) {
+        setAuthorizedUsers(JSON.parse(e.newValue));
+      }
+      if (e.key === 'enerpack_inventory_v11' && e.newValue) {
+        setInventory(JSON.parse(e.newValue));
+      }
+      if (e.key === 'enerpack_transactions_v11' && e.newValue) {
+        setTransactions(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const handleUpdateStock = (id: string, delta: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, closingStock: Math.max(0, Number((item.closingStock + delta).toFixed(2))) } : item));
@@ -253,15 +271,19 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRequestSignup = (signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
+  const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = {
       ...signupData,
       role: 'USER',
       status: 'PENDING',
       createdAt: Date.now()
     };
-    setAuthorizedUsers(prev => [...prev, newAccount]);
-  };
+    setAuthorizedUsers(prev => {
+      const updated = [...prev, newAccount];
+      localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED') => {
     setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status } : u));

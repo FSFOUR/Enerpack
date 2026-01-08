@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   ShieldCheck, ArrowLeft, 
   Users, Database, 
-  LayoutDashboard, History, CheckCircle, XCircle, Clock, Trash2
+  LayoutDashboard, History, CheckCircle, XCircle, Clock, AlertCircle
 } from 'lucide-react';
 import { UserAccount } from '../types';
 
@@ -58,7 +58,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <Users className="w-4 h-4" />
               Staff Requests
               {pendingRequests.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2 border-[#0c4a6e]">
+                <span className="absolute -top-1 -right-1 bg-amber-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2 border-[#0c4a6e] animate-pulse">
                   {pendingRequests.length}
                 </span>
               )}
@@ -70,11 +70,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         
         {activeSubTab === 'OVERVIEW' ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatBox icon={Users} title="Active Staff" value={accounts.filter(a => a.status === 'APPROVED').length + 1} sub="Personnel with access" color="text-blue-600" bg="bg-blue-50" />
+                <StatBox 
+                   icon={Clock} 
+                   title="Pending Verification" 
+                   value={pendingRequests.length} 
+                   sub="Awaiting Approval" 
+                   color={pendingRequests.length > 0 ? "text-amber-600" : "text-slate-400"} 
+                   bg={pendingRequests.length > 0 ? "bg-amber-50" : "bg-slate-50"}
+                   onClick={() => setActiveSubTab('REQUESTS')}
+                   highlight={pendingRequests.length > 0}
+                />
                 <StatBox icon={Database} title="Asset Inventory" value={inventoryCount} sub="Tracked SKU units" color="text-emerald-600" bg="bg-emerald-50" />
                 <StatBox icon={History} title="Logged Events" value={transactionCount} sub="System activities" color="text-indigo-600" bg="bg-indigo-50" />
              </div>
+
+             {pendingRequests.length > 0 && (
+                <div 
+                  onClick={() => setActiveSubTab('REQUESTS')}
+                  className="bg-amber-50 rounded-[2rem] p-8 border border-amber-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 cursor-pointer hover:bg-amber-100/50 transition-all group"
+                >
+                   <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 bg-amber-500 text-white rounded-[1.5rem] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                         <AlertCircle className="w-8 h-8" />
+                      </div>
+                      <div className="text-center md:text-left">
+                         <h3 className="text-xl font-black text-amber-900 tracking-tight">New Signup Requests Detected</h3>
+                         <p className="text-amber-700/70 font-medium">There are <span className="font-black underline">{pendingRequests.length} personnel</span> waiting for access verification. Review them in the Requests tab.</p>
+                      </div>
+                   </div>
+                   <div className="px-6 py-2 bg-amber-500 text-white text-[10px] font-black uppercase rounded-xl tracking-widest shadow-md">
+                      Action Required
+                   </div>
+                </div>
+             )}
 
              <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
@@ -88,41 +118,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
                 <div className="px-8 py-3 bg-emerald-50 text-emerald-700 text-xs font-black uppercase rounded-2xl tracking-widest border border-emerald-100 shadow-sm">
                    Security Layer Active
-                </div>
-             </div>
-
-             <div className="bg-[#0c4a6e] rounded-[2.5rem] p-10 shadow-2xl space-y-10 text-white relative overflow-hidden">
-                <div className="absolute top-[-20%] right-[-20%] w-[80%] h-[80%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none"></div>
-                
-                <div className="flex flex-col md:flex-row items-center justify-between relative z-10 gap-8">
-                  <div className="flex items-center gap-6">
-                    <div className="p-5 bg-white/10 text-white rounded-[2rem] shadow-inner border border-white/10">
-                      <Database className="w-10 h-10" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black uppercase tracking-tight">Data Integrity</h3>
-                      <p className="text-blue-200/50 text-xs font-bold uppercase tracking-[0.2em]">Operational Metadata</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full md:w-auto">
-                     <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[10px] font-black text-blue-300 uppercase mb-1">SKUs</p>
-                        <p className="text-xl font-black">{inventoryCount}</p>
-                     </div>
-                     <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[10px] font-black text-blue-300 uppercase mb-1">Logs</p>
-                        <p className="text-xl font-black">{transactionCount}</p>
-                     </div>
-                     <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[10px] font-black text-blue-300 uppercase mb-1">Staff</p>
-                        <p className="text-xl font-black">{accounts.filter(a => a.status === 'APPROVED').length + 1}</p>
-                     </div>
-                     <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
-                        <p className="text-[10px] font-black text-blue-300 uppercase mb-1">Status</p>
-                        <p className="text-xl font-black text-emerald-400">Live</p>
-                     </div>
-                  </div>
                 </div>
              </div>
           </div>
@@ -268,8 +263,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   );
 };
 
-const StatBox = ({ icon: Icon, title, value, sub, color, bg }: any) => (
-  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex items-center gap-6 hover:shadow-md transition-shadow">
+const StatBox = ({ icon: Icon, title, value, sub, color, bg, onClick, highlight }: any) => (
+  <div 
+    onClick={onClick}
+    className={`bg-white p-8 rounded-[2.5rem] border shadow-sm flex items-center gap-6 hover:shadow-md transition-all ${onClick ? 'cursor-pointer hover:border-blue-200' : 'border-slate-100'} ${highlight ? 'ring-2 ring-amber-500/20' : ''}`}
+  >
     <div className={`w-16 h-16 ${bg} ${color} rounded-[1.75rem] flex items-center justify-center shadow-inner`}>
        <Icon className="w-8 h-8" />
     </div>
