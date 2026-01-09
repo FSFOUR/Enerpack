@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   ShieldCheck, ArrowLeft, 
@@ -190,7 +191,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          <tr>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">User</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Permissions</th>
-                            <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Authorized Pages</th>
+                            <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Edit Authorization</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                          </tr>
@@ -220,14 +221,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                </td>
                                <td className="px-8 py-4 text-center overflow-visible">
                                   {acc.role === 'ADMIN' ? (
-                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest border border-indigo-100">Full Access</span>
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest border border-indigo-100">Unrestricted</span>
+                                  ) : acc.role === 'USER' ? (
+                                    <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded uppercase tracking-widest border border-slate-100 italic">Read Mode Only</span>
                                   ) : (
                                     <div className="relative inline-block w-48 text-left">
                                       <button 
                                         onClick={() => setOpenPageSelect(openPageSelect === acc.username ? null : acc.username)}
                                         className="flex items-center justify-between w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black text-slate-600 hover:border-blue-400 hover:shadow-sm transition-all uppercase tracking-tighter"
                                       >
-                                        <span className="truncate">{acc.allowedPages?.length || 0} Pages Approved</span>
+                                        <span className="truncate">{acc.allowedPages?.length || 0} Modules Editable</span>
                                         <ChevronDown className={`w-3 h-3 transition-transform ml-2 ${openPageSelect === acc.username ? 'rotate-180' : ''}`} />
                                       </button>
                                       {openPageSelect === acc.username && (
@@ -235,7 +238,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                           <div className="fixed inset-0 z-[55]" onClick={() => setOpenPageSelect(null)} />
                                           <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-[1.5rem] shadow-2xl z-[60] py-3 animate-in fade-in slide-in-from-top-1 duration-200 max-h-72 overflow-y-auto scrollbar-hide">
                                             <div className="px-4 pb-2 mb-2 border-b border-slate-50">
-                                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Select Modules</p>
+                                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Toggle Write Permission</p>
                                             </div>
                                             {PAGE_LIST.map(page => {
                                               const isChecked = acc.allowedPages?.includes(page.mode);
@@ -434,7 +437,7 @@ const UserApprovalCard = ({ req, onUpdateStatus }: any) => {
        
        <div className="mb-4 space-y-4">
           <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Assign Access Role</label>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Assign Primary Role</label>
             <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
                <button 
                  onClick={() => setSelectedRole('USER')}
@@ -451,22 +454,24 @@ const UserApprovalCard = ({ req, onUpdateStatus }: any) => {
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 flex items-center gap-2">
-              <ListChecks className="w-3 h-3" /> Page Authorization
-            </label>
-            <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto scrollbar-hide p-1 bg-slate-50 rounded-xl border border-slate-200">
-               {PAGE_LIST.map(p => (
-                 <button 
-                  key={p.mode}
-                  onClick={() => togglePage(p.mode)}
-                  className={`text-left px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${pages.includes(p.mode) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-100'}`}
-                 >
-                   {p.label}
-                 </button>
-               ))}
+          {selectedRole === 'EDITOR' && (
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 flex items-center gap-2">
+                <ListChecks className="w-3 h-3" /> Edit Authorization
+              </label>
+              <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto scrollbar-hide p-1 bg-slate-50 rounded-xl border border-slate-200">
+                 {PAGE_LIST.map(p => (
+                   <button 
+                    key={p.mode}
+                    onClick={() => togglePage(p.mode)}
+                    className={`text-left px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${pages.includes(p.mode) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-100'}`}
+                   >
+                     {p.label}
+                   </button>
+                 ))}
+              </div>
             </div>
-          </div>
+          )}
        </div>
 
        <div className="flex gap-2">

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
@@ -49,7 +50,6 @@ const INITIAL_DATA: InventoryItem[] = [
   { id: '280-108', size: '108', gsm: '280', closingStock: 1568, minStock: 500, category: 'SINGLE' },
 
   // 280 GSM DOUBLE SIZES
-  // Fix: Added minStock: 0 to satisfy InventoryItem interface
   { id: '280-47x64', size: '47*64', gsm: '280', closingStock: 59, minStock: 0, category: 'DOUBLE' },
   { id: '280-54x73.5', size: '54*73.5', gsm: '280', closingStock: 55, minStock: 0, category: 'DOUBLE' },
   { id: '280-54x86', size: '54*86', gsm: '280', closingStock: 157, minStock: 0, category: 'DOUBLE' },
@@ -290,7 +290,6 @@ const App: React.FC = () => {
 
     if (currentUser.role === 'ADMIN') {
       setInventory(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
-      // Log specific field changes
       let fieldChanges = [];
       if (oldItem.size !== updatedItem.size) fieldChanges.push(`Size: ${oldItem.size}➔${updatedItem.size}`);
       if (oldItem.gsm !== updatedItem.gsm) fieldChanges.push(`GSM: ${oldItem.gsm}➔${updatedItem.gsm}`);
@@ -330,7 +329,7 @@ const App: React.FC = () => {
         timestamp: Date.now(),
         requestedBy: currentUser.username,
         requestedByName: currentUser.name,
-        type: 'UPDATE', // Using UPDATE to trigger approval, but logic handles actual content
+        type: 'UPDATE',
         itemId: id,
         itemData: item,
         status: 'PENDING'
@@ -394,7 +393,7 @@ const App: React.FC = () => {
       role: 'USER',
       status: 'PENDING',
       createdAt: Date.now(),
-      allowedPages: [ViewMode.DASHBOARD, ViewMode.INVENTORY] // Default pages
+      allowedPages: Object.values(ViewMode) // Default all pages to read mode
     };
     setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
@@ -417,7 +416,8 @@ const App: React.FC = () => {
   const isEditor = currentUser.role === 'ADMIN' || currentUser.role === 'EDITOR';
   const pendingCount = authorizedUsers.filter(a => a.status === 'PENDING').length + changeRequests.length;
 
-  // Filter navigation by permissions
+  // Now all users get "Read Mode" for all pages by default.
+  // We only filter out Admin Panel for non-admins.
   const navItems = [
     { mode: ViewMode.DASHBOARD, icon: Gauge, label: "Dashboard", category: "Main" },
     { mode: ViewMode.INVENTORY, icon: Boxes, label: "Inventory", category: "Main" },
@@ -431,11 +431,8 @@ const App: React.FC = () => {
     { mode: ViewMode.JOB_CARD_GENERATOR, icon: FileStack, label: "Job Cards", category: "Tools" },
   ];
 
-  const allowedNavItems = isAdmin 
-    ? navItems 
-    : navItems.filter(item => currentUser.allowedPages?.includes(item.mode));
-
-  const categorizedNav = allowedNavItems.reduce((acc: Record<string, typeof navItems>, item) => {
+  // No more filtering except the Admin Panel
+  const categorizedNav = navItems.reduce((acc: Record<string, typeof navItems>, item) => {
     if (!acc[item.category]) acc[item.category] = [];
     acc[item.category].push(item);
     return acc;
