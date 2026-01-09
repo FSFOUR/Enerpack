@@ -1,4 +1,3 @@
-
 export type UserRole = 'ADMIN' | 'EDITOR' | 'USER';
 
 export interface User {
@@ -28,6 +27,29 @@ export interface InventoryItem {
   expectedDeliveryDate?: string;
   reorderRemarks?: string;
   category?: 'SINGLE' | 'DOUBLE' | 'DOUBLE_LEFT';
+  isPendingApproval?: boolean; // New: indicates a metadata change is waiting for admin
+}
+
+export interface AuditEntry {
+  id: string;
+  timestamp: number;
+  userId: string;
+  userName: string;
+  action: 'ADD_ITEM' | 'UPDATE_ITEM' | 'DELETE_ITEM' | 'APPROVE_CHANGE' | 'DENY_CHANGE' | 'USER_VERIFY';
+  details: string;
+  itemId?: string;
+}
+
+export interface ChangeRequest {
+  id: string;
+  timestamp: number;
+  requestedBy: string;
+  requestedByName: string;
+  type: 'UPDATE' | 'DELETE' | 'ADD';
+  itemId?: string;
+  itemData: Partial<InventoryItem>;
+  oldData?: Partial<InventoryItem>;
+  status: 'PENDING' | 'APPROVED' | 'DENIED';
 }
 
 export interface AccessRequest {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
@@ -9,7 +10,7 @@ import ForecastPage from './components/ForecastPage';
 import JobCardGenerator from './components/JobCardGenerator';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
-import { InventoryItem, ViewMode, StockTransaction, AccessRequest, User, UserAccount, UserRole } from './types';
+import { InventoryItem, ViewMode, StockTransaction, User, UserAccount, UserRole, ChangeRequest, AuditEntry } from './types';
 import { 
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, User as UserIcon, Menu, X, Activity, History, FileStack
@@ -23,7 +24,7 @@ const generateId = () => {
 };
 
 const INITIAL_DATA: InventoryItem[] = [
-  // 280 GSM SINGLE
+  // 280 GSM SINGLE SIZES
   { id: '280-54', size: '54', gsm: '280', closingStock: 1379, minStock: 500, category: 'SINGLE' },
   { id: '280-56', size: '56', gsm: '280', closingStock: 243, minStock: 500, category: 'SINGLE' },
   { id: '280-58', size: '58', gsm: '280', closingStock: 1604, minStock: 500, category: 'SINGLE' },
@@ -48,145 +49,144 @@ const INITIAL_DATA: InventoryItem[] = [
   { id: '280-104', size: '104', gsm: '280', closingStock: 955, minStock: 400, category: 'SINGLE' },
   { id: '280-108', size: '108', gsm: '280', closingStock: 1568, minStock: 500, category: 'SINGLE' },
 
-  // 280 GSM DOUBLE (from images)
-  { id: '280-47-64', size: '47*64', gsm: '280', closingStock: 59, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-54-73.5', size: '54*73.5', gsm: '280', closingStock: 55, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-54-86', size: '54*86', gsm: '280', closingStock: 157, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-56-68.5', size: '56*68.5', gsm: '280', closingStock: 33, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-56-75', size: '56*75', gsm: '280', closingStock: 39, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-56-86', size: '56*86', gsm: '280', closingStock: 323, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-57.5-76', size: '57.5*76', gsm: '280', closingStock: 106, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-57-68.5', size: '57*68.5', gsm: '280', closingStock: 125, minStock: 100, category: 'DOUBLE_LEFT' },
-  { id: '280-58-78', size: '58*78', gsm: '280', closingStock: 346, minStock: 100, category: 'DOUBLE' },
-  { id: '280-59-78', size: '59*78', gsm: '280', closingStock: 71, minStock: 100, category: 'DOUBLE' },
-  { id: '280-59-87.5', size: '59*87.5', gsm: '280', closingStock: 24, minStock: 100, category: 'DOUBLE' },
-  { id: '280-59-95', size: '59*95', gsm: '280', closingStock: 142, minStock: 100, category: 'DOUBLE' },
-  { id: '280-60-77.5', size: '60*77.5', gsm: '280', closingStock: 44, minStock: 100, category: 'DOUBLE' },
-  { id: '280-61-83', size: '61*83', gsm: '280', closingStock: 75, minStock: 100, category: 'DOUBLE' },
-  { id: '280-62-68', size: '62*68', gsm: '280', closingStock: 135, minStock: 100, category: 'DOUBLE' },
-  { id: '280-63-75', size: '63*75', gsm: '280', closingStock: 161, minStock: 100, category: 'DOUBLE' },
-  { id: '280-64-67', size: '64*67', gsm: '280', closingStock: 44, minStock: 100, category: 'DOUBLE' },
-  { id: '280-65-88.5', size: '65*88.5', gsm: '280', closingStock: 66, minStock: 100, category: 'DOUBLE' },
-  { id: '280-67-75', size: '67*75', gsm: '280', closingStock: 101, minStock: 100, category: 'DOUBLE' },
-  { id: '280-68-69', size: '68*69', gsm: '280', closingStock: 132, minStock: 100, category: 'DOUBLE' },
-  { id: '280-68-91.5', size: '68*91.5', gsm: '280', closingStock: 4, minStock: 50, category: 'DOUBLE' },
-  { id: '280-70-72', size: '70*72', gsm: '280', closingStock: 13, minStock: 50, category: 'DOUBLE' },
-  { id: '280-70-76', size: '70*76', gsm: '280', closingStock: 119, minStock: 100, category: 'DOUBLE' },
-  { id: '280-70-79', size: '70*79', gsm: '280', closingStock: 80, minStock: 100, category: 'DOUBLE' },
-  { id: '280-72-91.5', size: '72*91.5', gsm: '280', closingStock: 65, minStock: 100, category: 'DOUBLE' },
-  { id: '280-73-81', size: '73*81', gsm: '280', closingStock: 144, minStock: 100, category: 'DOUBLE' },
-  { id: '280-75-108.5', size: '75*108.5', gsm: '280', closingStock: 16, minStock: 50, category: 'DOUBLE' },
-  { id: '280-76-111', size: '76*111', gsm: '280', closingStock: 123, minStock: 100, category: 'DOUBLE' },
-  { id: '280-76-72', size: '76*72', gsm: '280', closingStock: 240, minStock: 100, category: 'DOUBLE' },
-  { id: '280-78-70.5', size: '78*70.5', gsm: '280', closingStock: 94, minStock: 100, category: 'DOUBLE' },
-  { id: '280-78-107', size: '78*107', gsm: '280', closingStock: 19, minStock: 50, category: 'DOUBLE' },
-  { id: '280-82-111', size: '82*111', gsm: '280', closingStock: 40, minStock: 100, category: 'DOUBLE' },
-  { id: '280-88-63', size: '88*63', gsm: '280', closingStock: 72, minStock: 100, category: 'DOUBLE' },
-  { id: '280-90-66', size: '90*66', gsm: '280', closingStock: 108, minStock: 100, category: 'DOUBLE' },
-  { id: '280-94.5-80.5', size: '94.5*80.5', gsm: '280', closingStock: 32, minStock: 100, category: 'DOUBLE' },
-  { id: '280-100-74', size: '100*74', gsm: '280', closingStock: 20, minStock: 50, category: 'DOUBLE' },
-  { id: '280-108-76', size: '108*76', gsm: '280', closingStock: 103, minStock: 100, category: 'DOUBLE' },
+  // 280 GSM DOUBLE SIZES
+  // Fix: Added minStock: 0 to satisfy InventoryItem interface
+  { id: '280-47x64', size: '47*64', gsm: '280', closingStock: 59, minStock: 0, category: 'DOUBLE' },
+  { id: '280-54x73.5', size: '54*73.5', gsm: '280', closingStock: 55, minStock: 0, category: 'DOUBLE' },
+  { id: '280-54x86', size: '54*86', gsm: '280', closingStock: 157, minStock: 0, category: 'DOUBLE' },
+  { id: '280-56x68.5', size: '56*68.5', gsm: '280', closingStock: 33, minStock: 0, category: 'DOUBLE' },
+  { id: '280-56x75', size: '56*75', gsm: '280', closingStock: 39, minStock: 0, category: 'DOUBLE' },
+  { id: '280-56x86', size: '56*86', gsm: '280', closingStock: 323, minStock: 0, category: 'DOUBLE' },
+  { id: '280-57.5x76', size: '57.5*76', gsm: '280', closingStock: 106, minStock: 0, category: 'DOUBLE' },
+  { id: '280-57x68.5', size: '57*68.5', gsm: '280', closingStock: 125, minStock: 0, category: 'DOUBLE' },
+  { id: '280-58x78', size: '58*78', gsm: '280', closingStock: 346, minStock: 0, category: 'DOUBLE' },
+  { id: '280-59x78', size: '59*78', gsm: '280', closingStock: 71, minStock: 0, category: 'DOUBLE' },
+  { id: '280-59x87.5', size: '59*87.5', gsm: '280', closingStock: 24, minStock: 0, category: 'DOUBLE' },
+  { id: '280-59x95', size: '59*95', gsm: '280', closingStock: 142, minStock: 0, category: 'DOUBLE' },
+  { id: '280-60x77.5', size: '60*77.5', gsm: '280', closingStock: 44, minStock: 0, category: 'DOUBLE' },
+  { id: '280-61x83', size: '61*83', gsm: '280', closingStock: 75, minStock: 0, category: 'DOUBLE' },
+  { id: '280-62x68', size: '62*68', gsm: '280', closingStock: 135, minStock: 0, category: 'DOUBLE' },
+  { id: '280-63x75', size: '63*75', gsm: '280', closingStock: 161, minStock: 0, category: 'DOUBLE' },
+  { id: '280-64x67', size: '64*67', gsm: '280', closingStock: 44, minStock: 0, category: 'DOUBLE' },
+  { id: '280-65x88.5', size: '65*88.5', gsm: '280', closingStock: 66, minStock: 0, category: 'DOUBLE' },
+  { id: '280-67x75', size: '67*75', gsm: '280', closingStock: 101, minStock: 0, category: 'DOUBLE' },
+  { id: '280-68x69', size: '68*69', gsm: '280', closingStock: 132, minStock: 0, category: 'DOUBLE' },
+  { id: '280-68x91.5', size: '68*91.5', gsm: '280', closingStock: 4, minStock: 0, category: 'DOUBLE' },
+  { id: '280-70x72', size: '70*72', gsm: '280', closingStock: 13, minStock: 0, category: 'DOUBLE' },
+  { id: '280-70x76', size: '70*76', gsm: '280', closingStock: 119, minStock: 0, category: 'DOUBLE' },
+  { id: '280-70x79', size: '70*79', gsm: '280', closingStock: 80, minStock: 0, category: 'DOUBLE' },
+  { id: '280-72x91.5', size: '72*91.5', gsm: '280', closingStock: 65, minStock: 0, category: 'DOUBLE' },
+  { id: '280-73x81', size: '73*81', gsm: '280', closingStock: 144, minStock: 0, category: 'DOUBLE' },
+  { id: '280-75x108.5', size: '75*108.5', gsm: '280', closingStock: 16, minStock: 0, category: 'DOUBLE' },
+  { id: '280-76x111', size: '76*111', gsm: '280', closingStock: 123, minStock: 0, category: 'DOUBLE' },
+  { id: '280-76x72', size: '76*72', gsm: '280', closingStock: 240, minStock: 0, category: 'DOUBLE' },
+  { id: '280-78x70.5', size: '78*70.5', gsm: '280', closingStock: 94, minStock: 0, category: 'DOUBLE' },
+  { id: '280-78x107', size: '78*107', gsm: '280', closingStock: 19, minStock: 0, category: 'DOUBLE' },
+  { id: '280-82x111', size: '82*111', gsm: '280', closingStock: 40, minStock: 0, category: 'DOUBLE' },
+  { id: '280-88x63', size: '88*63', gsm: '280', closingStock: 72, minStock: 0, category: 'DOUBLE' },
+  { id: '280-90x66', size: '90*66', gsm: '280', closingStock: 108, minStock: 0, category: 'DOUBLE' },
+  { id: '280-94.5x80.5', size: '94.5*80.5', gsm: '280', closingStock: 32, minStock: 0, category: 'DOUBLE' },
+  { id: '280-100x74', size: '100*74', gsm: '280', closingStock: 20, minStock: 0, category: 'DOUBLE' },
+  { id: '280-108x76', size: '108*76', gsm: '280', closingStock: 103, minStock: 0, category: 'DOUBLE' },
 
-  // 250 GSM
-  { id: '250-50-64.5', size: '50*64.5', gsm: '250', closingStock: 255, minStock: 100, category: 'DOUBLE' },
+  // 250 & 230 GSM
+  { id: '250-50x64.5', size: '50*64.5', gsm: '250', closingStock: 255, minStock: 0, category: 'DOUBLE' },
+  { id: '230-86', size: '86', gsm: '230', closingStock: 416, minStock: 0, category: 'SINGLE' },
+  { id: '230-54x78', size: '54*78', gsm: '230', closingStock: 55, minStock: 0, category: 'DOUBLE' },
+  { id: '230-59x91', size: '59*91', gsm: '230', closingStock: 42, minStock: 0, category: 'DOUBLE' },
+  { id: '230-82x98', size: '82*98', gsm: '230', closingStock: 42, minStock: 0, category: 'DOUBLE' },
+  { id: '230-86x110', size: '86*110', gsm: '230', closingStock: 56, minStock: 0, category: 'DOUBLE' },
+  { id: '230-100x67', size: '100*67', gsm: '230', closingStock: 42, minStock: 0, category: 'DOUBLE' },
 
-  // 230 GSM
-  { id: '230-54-78', size: '54*78', gsm: '230', closingStock: 55, minStock: 100, category: 'DOUBLE' },
-  { id: '230-59-91', size: '59*91', gsm: '230', closingStock: 42, minStock: 100, category: 'DOUBLE' },
-  { id: '230-82-98', size: '82*98', gsm: '230', closingStock: 42, minStock: 100, category: 'DOUBLE' },
-  { id: '230-86', size: '86', gsm: '230', closingStock: 416, minStock: 100, category: 'SINGLE' },
-  { id: '230-86-110', size: '86*110', gsm: '230', closingStock: 56, minStock: 100, category: 'DOUBLE' },
-  { id: '230-100-67', size: '100*67', gsm: '230', closingStock: 42, minStock: 100, category: 'DOUBLE' },
+  // 200 GSM SINGLE SIZES
+  { id: '200-65', size: '65', gsm: '200', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '200-68', size: '68', gsm: '200', closingStock: 1082, minStock: 0, category: 'SINGLE' },
+  { id: '200-70', size: '70', gsm: '200', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '200-73', size: '73', gsm: '200', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '200-75', size: '75', gsm: '200', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '200-80', size: '80', gsm: '200', closingStock: 277, minStock: 0, category: 'SINGLE' },
+  { id: '200-90', size: '90', gsm: '200', closingStock: 45, minStock: 0, category: 'SINGLE' },
 
-  // 200 GSM (SINGLES)
-  { id: '200-65', size: '65', gsm: '200', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '200-68', size: '68', gsm: '200', closingStock: 1082, minStock: 200, category: 'SINGLE' },
-  { id: '200-70', size: '70', gsm: '200', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '200-73', size: '73', gsm: '200', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '200-75', size: '75', gsm: '200', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '200-80', size: '80', gsm: '200', closingStock: 277, minStock: 200, category: 'SINGLE' },
-  { id: '200-90', size: '90', gsm: '200', closingStock: 45, minStock: 100, category: 'SINGLE' },
+  // 200 GSM DOUBLE SIZES
+  { id: '200-41x83', size: '41*83', gsm: '200', closingStock: 0, minStock: 0, category: 'DOUBLE' },
+  { id: '200-42.5x57.5', size: '42.5*57.5', gsm: '200', closingStock: 215, minStock: 0, category: 'DOUBLE' },
+  { id: '200-43x73', size: '43*73', gsm: '200', closingStock: 283, minStock: 0, category: 'DOUBLE' },
+  { id: '200-44.5x64', size: '44.5*64', gsm: '200', closingStock: 114, minStock: 0, category: 'DOUBLE' },
+  { id: '200-45x76.5', size: '45*76.5', gsm: '200', closingStock: 62, minStock: 0, category: 'DOUBLE' },
+  { id: '200-46.5x90', size: '46.5*90', gsm: '200', closingStock: 54, minStock: 0, category: 'DOUBLE' },
+  { id: '200-47x70.5', size: '47*70.5', gsm: '200', closingStock: 0, minStock: 0, category: 'DOUBLE' },
+  { id: '200-50x72', size: '50*72', gsm: '200', closingStock: 0, minStock: 0, category: 'DOUBLE' },
+  { id: '200-50x79', size: '50*79', gsm: '200', closingStock: 976, minStock: 0, category: 'DOUBLE' },
+  { id: '200-50x81', size: '50*81', gsm: '200', closingStock: 337, minStock: 0, category: 'DOUBLE' },
+  { id: '200-50x83', size: '50*83', gsm: '200', closingStock: 48, minStock: 0, category: 'DOUBLE' },
+  { id: '200-51x80', size: '51*80', gsm: '200', closingStock: 174, minStock: 0, category: 'DOUBLE' },
+  { id: '200-52x68.5', size: '52*68.5', gsm: '200', closingStock: 75, minStock: 0, category: 'DOUBLE' },
+  { id: '200-52x76.5', size: '52*76.5', gsm: '200', closingStock: 145, minStock: 0, category: 'DOUBLE' },
+  { id: '200-53x83', size: '53*83', gsm: '200', closingStock: 601, minStock: 0, category: 'DOUBLE' },
+  { id: '200-54x86', size: '54*86', gsm: '200', closingStock: 524, minStock: 0, category: 'DOUBLE' },
+  { id: '200-56x82', size: '56*82', gsm: '200', closingStock: 377, minStock: 0, category: 'DOUBLE' },
+  { id: '200-56x86', size: '56*86', gsm: '200', closingStock: 671, minStock: 0, category: 'DOUBLE' },
+  { id: '200-57x85.5', size: '57*85.5', gsm: '200', closingStock: 52, minStock: 0, category: 'DOUBLE' },
+  { id: '200-57x89', size: '57*89', gsm: '200', closingStock: 7, minStock: 0, category: 'DOUBLE' },
+  { id: '200-57x90', size: '57*90', gsm: '200', closingStock: 311, minStock: 0, category: 'DOUBLE' },
+  { id: '200-59x91', size: '59*91', gsm: '200', closingStock: 657, minStock: 0, category: 'DOUBLE' },
+  { id: '200-59.5x93', size: '59.5*93', gsm: '200', closingStock: 270, minStock: 0, category: 'DOUBLE' },
+  { id: '200-62.5x95', size: '62.5*95', gsm: '200', closingStock: 276, minStock: 0, category: 'DOUBLE' },
+  { id: '200-63x64', size: '63*64', gsm: '200', closingStock: 326, minStock: 0, category: 'DOUBLE' },
+  { id: '200-63.5x99', size: '63.5*99', gsm: '200', closingStock: 436, minStock: 0, category: 'DOUBLE' },
+  { id: '200-65x101', size: '65*101', gsm: '200', closingStock: 0, minStock: 0, category: 'DOUBLE' },
+  { id: '200-68x69', size: '68*69', gsm: '200', closingStock: 133, minStock: 0, category: 'DOUBLE' },
+  { id: '200-72x48', size: '72*48', gsm: '200', closingStock: 79, minStock: 0, category: 'DOUBLE' },
+  { id: '200-73x74', size: '73*74', gsm: '200', closingStock: 50, minStock: 0, category: 'DOUBLE' },
+  { id: '200-50x89', size: '50*89', gsm: '200', closingStock: 239, minStock: 0, category: 'DOUBLE' },
 
-  // 200 GSM (DOUBLES)
-  { id: '200-41-83', size: '41*83', gsm: '200', closingStock: 0, minStock: 100, category: 'DOUBLE' },
-  { id: '200-42.5-57.5', size: '42.5*57.5', gsm: '200', closingStock: 215, minStock: 100, category: 'DOUBLE' },
-  { id: '200-43-73', size: '43*73', gsm: '200', closingStock: 283, minStock: 100, category: 'DOUBLE' },
-  { id: '200-44.5-64', size: '44.5*64', gsm: '200', closingStock: 114, minStock: 100, category: 'DOUBLE' },
-  { id: '200-45-76.5', size: '45*76.5', gsm: '200', closingStock: 62, minStock: 100, category: 'DOUBLE' },
-  { id: '200-46.5-90', size: '46.5*90', gsm: '200', closingStock: 54, minStock: 100, category: 'DOUBLE' },
-  { id: '200-47-70.5', size: '47*70.5', gsm: '200', closingStock: 0, minStock: 100, category: 'DOUBLE' },
-  { id: '200-50-72', size: '50*72', gsm: '200', closingStock: 0, minStock: 100, category: 'DOUBLE' },
-  { id: '200-50-79', size: '50*79', gsm: '200', closingStock: 976, minStock: 300, category: 'DOUBLE' },
-  { id: '200-50-81', size: '50*81', gsm: '200', closingStock: 337, minStock: 200, category: 'DOUBLE' },
-  { id: '200-50-83', size: '50*83', gsm: '200', closingStock: 48, minStock: 100, category: 'DOUBLE' },
-  { id: '200-51-80', size: '51*80', gsm: '200', closingStock: 174, minStock: 100, category: 'DOUBLE' },
-  { id: '200-52-68.5', size: '52*68.5', gsm: '200', closingStock: 75, minStock: 100, category: 'DOUBLE' },
-  { id: '200-52-76.5', size: '52*76.5', gsm: '200', closingStock: 145, minStock: 100, category: 'DOUBLE' },
-  { id: '200-53-83', size: '53*83', gsm: '200', closingStock: 601, minStock: 200, category: 'DOUBLE' },
-  { id: '200-54-86', size: '54*86', gsm: '200', closingStock: 524, minStock: 200, category: 'DOUBLE' },
-  { id: '200-56-82', size: '56*82', gsm: '200', closingStock: 377, minStock: 100, category: 'DOUBLE' },
-  { id: '200-56-86', size: '56*86', gsm: '200', closingStock: 671, minStock: 200, category: 'DOUBLE' },
-  { id: '200-57-85.5', size: '57*85.5', gsm: '200', closingStock: 52, minStock: 100, category: 'DOUBLE' },
-  { id: '200-57-89', size: '57*89', gsm: '200', closingStock: 7, minStock: 50, category: 'DOUBLE' },
-  { id: '200-57-90', size: '57*90', gsm: '200', closingStock: 311, minStock: 100, category: 'DOUBLE' },
-  { id: '200-59-91', size: '59*91', gsm: '200', closingStock: 657, minStock: 200, category: 'DOUBLE' },
-  { id: '200-59.5-93', size: '59.5*93', gsm: '200', closingStock: 270, minStock: 100, category: 'DOUBLE' },
-  { id: '200-62.5-95', size: '62.5*95', gsm: '200', closingStock: 276, minStock: 100, category: 'DOUBLE' },
-  { id: '200-63-64', size: '63*64', gsm: '200', closingStock: 326, minStock: 100, category: 'DOUBLE' },
-  { id: '200-63.5-99', size: '63.5*99', gsm: '200', closingStock: 436, minStock: 100, category: 'DOUBLE' },
-  { id: '200-65-101', size: '65*101', gsm: '200', closingStock: 0, minStock: 100, category: 'DOUBLE' },
-  { id: '200-68-69', size: '68*69', gsm: '200', closingStock: 133, minStock: 100, category: 'DOUBLE' },
-  { id: '200-72-48', size: '72*48', gsm: '200', closingStock: 79, minStock: 100, category: 'DOUBLE' },
-  { id: '200-73-74', size: '73*74', gsm: '200', closingStock: 50, minStock: 50, category: 'DOUBLE' },
-  { id: '200-50-89', size: '50*89', gsm: '200', closingStock: 239, minStock: 100, category: 'DOUBLE' },
-
-  // 140GYT
-  { id: '140GYT-53', size: '53', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-57', size: '57', gsm: '140GYT', closingStock: 792, minStock: 200, category: 'SINGLE' },
-  { id: '140GYT-60', size: '60', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-65', size: '65', gsm: '140GYT', closingStock: 173, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-70', size: '70', gsm: '140GYT', closingStock: 1016, minStock: 300, category: 'SINGLE' },
-  { id: '140GYT-73', size: '73', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-77', size: '77', gsm: '140GYT', closingStock: 1805, minStock: 400, category: 'SINGLE' },
-  { id: '140GYT-82', size: '82', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-85', size: '85', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-88', size: '88', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-90', size: '90', gsm: '140GYT', closingStock: 956, minStock: 300, category: 'SINGLE' },
-  { id: '140GYT-95', size: '95', gsm: '140GYT', closingStock: 991, minStock: 300, category: 'SINGLE' },
-  { id: '140GYT-100', size: '100', gsm: '140GYT', closingStock: 942, minStock: 300, category: 'SINGLE' },
-  { id: '140GYT-104', size: '104', gsm: '140GYT', closingStock: 271, minStock: 100, category: 'SINGLE' },
-  { id: '140GYT-108', size: '108', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  // 140 GYT GSM
+  { id: '140GYT-53', size: '53', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-57', size: '57', gsm: '140GYT', closingStock: 792, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-60', size: '60', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-65', size: '65', gsm: '140GYT', closingStock: 173, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-70', size: '70', gsm: '140GYT', closingStock: 1016, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-73', size: '73', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-77', size: '77', gsm: '140GYT', closingStock: 1805, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-82', size: '82', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-85', size: '85', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-88', size: '88', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-90', size: '90', gsm: '140GYT', closingStock: 956, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-95', size: '95', gsm: '140GYT', closingStock: 991, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-100', size: '100', gsm: '140GYT', closingStock: 942, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-104', size: '104', gsm: '140GYT', closingStock: 271, minStock: 0, category: 'SINGLE' },
+  { id: '140GYT-108', size: '108', gsm: '140GYT', closingStock: 0, minStock: 0, category: 'SINGLE' },
 
   // 130 GSM
-  { id: '130-54', size: '54', gsm: '130', closingStock: 76, minStock: 100, category: 'SINGLE' },
-  { id: '130-56', size: '56', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-58', size: '58', gsm: '130', closingStock: 190, minStock: 100, category: 'SINGLE' },
-  { id: '130-59', size: '59', gsm: '130', closingStock: 44, minStock: 50, category: 'SINGLE' },
-  { id: '130-61', size: '61', gsm: '130', closingStock: 175, minStock: 100, category: 'SINGLE' },
-  { id: '130-63', size: '63', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-68', size: '68', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-75', size: '75', gsm: '130', closingStock: 159, minStock: 100, category: 'SINGLE' },
-  { id: '130-86', size: '86', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-90', size: '90', gsm: '130', closingStock: 99, minStock: 50, category: 'SINGLE' },
-  { id: '130-100', size: '100', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-102', size: '102', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
-  { id: '130-106', size: '106', gsm: '130', closingStock: 35, minStock: 50, category: 'SINGLE' },
-  { id: '130-108', size: '108', gsm: '130', closingStock: 0, minStock: 50, category: 'SINGLE' },
+  { id: '130-54', size: '54', gsm: '130', closingStock: 76, minStock: 0, category: 'SINGLE' },
+  { id: '130-56', size: '56', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-58', size: '58', gsm: '130', closingStock: 190, minStock: 0, category: 'SINGLE' },
+  { id: '130-59', size: '59', gsm: '130', closingStock: 44, minStock: 0, category: 'SINGLE' },
+  { id: '130-61', size: '61', gsm: '130', closingStock: 175, minStock: 0, category: 'SINGLE' },
+  { id: '130-63', size: '63', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-68', size: '68', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-75', size: '75', gsm: '130', closingStock: 159, minStock: 0, category: 'SINGLE' },
+  { id: '130-86', size: '86', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-90', size: '90', gsm: '130', closingStock: 99, minStock: 0, category: 'SINGLE' },
+  { id: '130-100', size: '100', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-102', size: '102', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '130-106', size: '106', gsm: '130', closingStock: 35, minStock: 0, category: 'SINGLE' },
+  { id: '130-108', size: '108', gsm: '130', closingStock: 0, minStock: 0, category: 'SINGLE' },
 
   // 100 GSM
-  { id: '100-60', size: '60', gsm: '100', closingStock: 150, minStock: 100, category: 'SINGLE' },
-  { id: '100-66', size: '66', gsm: '100', closingStock: 116, minStock: 100, category: 'SINGLE' },
-  { id: '100-92', size: '92', gsm: '100', closingStock: 396, minStock: 200, category: 'SINGLE' },
-  { id: '100-100', size: '100', gsm: '100', closingStock: 416, minStock: 200, category: 'SINGLE' },
-  { id: '100-106', size: '106', gsm: '100', closingStock: 227, minStock: 100, category: 'SINGLE' },
-  { id: '100-108', size: '108', gsm: '100', closingStock: 167, minStock: 100, category: 'SINGLE' },
+  { id: '100-60', size: '60', gsm: '100', closingStock: 150, minStock: 0, category: 'SINGLE' },
+  { id: '100-66', size: '66', gsm: '100', closingStock: 116, minStock: 0, category: 'SINGLE' },
+  { id: '100-92', size: '92', gsm: '100', closingStock: 396, minStock: 0, category: 'SINGLE' },
+  { id: '100-100', size: '100', gsm: '100', closingStock: 416, minStock: 0, category: 'SINGLE' },
+  { id: '100-106', size: '106', gsm: '100', closingStock: 227, minStock: 0, category: 'SINGLE' },
+  { id: '100-108', size: '108', gsm: '100', closingStock: 167, minStock: 0, category: 'SINGLE' },
 
   // 150 GSM
-  { id: '150-92', size: '92', gsm: '150', closingStock: 140, minStock: 100, category: 'SINGLE' },
-  { id: '150-68', size: '68', gsm: '150', closingStock: 387, minStock: 100, category: 'SINGLE' },
-  { id: '150-84', size: '84', gsm: '150', closingStock: 0, minStock: 100, category: 'SINGLE' },
-  { id: '150-104', size: '104', gsm: '150', closingStock: 67, minStock: 100, category: 'SINGLE' },
-  { id: '150-108', size: '108', gsm: '150', closingStock: 85, minStock: 100, category: 'SINGLE' },
+  { id: '150-92', size: '92', gsm: '150', closingStock: 140, minStock: 0, category: 'SINGLE' },
+  { id: '150-68', size: '68', gsm: '150', closingStock: 387, minStock: 0, category: 'SINGLE' },
+  { id: '150-84', size: '84', gsm: '150', closingStock: 0, minStock: 0, category: 'SINGLE' },
+  { id: '150-104', size: '104', gsm: '150', closingStock: 67, minStock: 0, category: 'SINGLE' },
+  { id: '150-108', size: '108', gsm: '150', closingStock: 85, minStock: 0, category: 'SINGLE' },
 ];
 
 const App: React.FC = () => {
@@ -210,8 +210,13 @@ const App: React.FC = () => {
     return s ? JSON.parse(s) : [];
   });
 
-  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>(() => {
-    const s = localStorage.getItem('enerpack_access_v11');
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>(() => {
+    const s = localStorage.getItem('enerpack_changes_v1');
+    return s ? JSON.parse(s) : [];
+  });
+
+  const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(() => {
+    const s = localStorage.getItem('enerpack_audit_v1');
     return s ? JSON.parse(s) : [];
   });
   
@@ -220,33 +225,34 @@ const App: React.FC = () => {
 
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v11', JSON.stringify(transactions)); }, [transactions]);
-  useEffect(() => { localStorage.setItem('enerpack_access_v11', JSON.stringify(accessRequests)); }, [accessRequests]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
+  useEffect(() => { localStorage.setItem('enerpack_changes_v1', JSON.stringify(changeRequests)); }, [changeRequests]);
+  useEffect(() => { localStorage.setItem('enerpack_audit_v1', JSON.stringify(auditLogs)); }, [auditLogs]);
   useEffect(() => { 
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
     else localStorage.removeItem('enerpack_user_v1');
   }, [currentUser]);
 
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'enerpack_accounts_v1' && e.newValue) {
-        const updated = JSON.parse(e.newValue);
-        setAuthorizedUsers(updated);
-        // If current user role was updated by admin, refresh local state
-        if (currentUser) {
-          const match = updated.find((u: UserAccount) => u.username === currentUser.username);
-          if (match && match.role !== currentUser.role) {
-            setCurrentUser(prev => prev ? { ...prev, role: match.role } : null);
-          }
-        }
-      }
+  const addAuditLog = (action: AuditEntry['action'], details: string, itemId?: string) => {
+    if (!currentUser) return;
+    const log: AuditEntry = {
+      id: generateId(),
+      timestamp: Date.now(),
+      userId: currentUser.username,
+      userName: currentUser.name,
+      action,
+      details,
+      itemId
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [currentUser]);
+    setAuditLogs(prev => [log, ...prev].slice(0, 1000));
+  };
 
   const handleUpdateStock = (id: string, delta: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, closingStock: Math.max(0, Number((item.closingStock + delta).toFixed(2))) } : item));
+    const item = inventory.find(i => i.id === id);
+    if (item) {
+      addAuditLog('UPDATE_ITEM', `Stock Adjustment: ${delta > 0 ? '+' : ''}${delta} for ${item.size} (${item.gsm})`, id);
+    }
   };
 
   const handleRecordTransaction = (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => {
@@ -256,6 +262,116 @@ const App: React.FC = () => {
       timestamp: Date.now()
     };
     setTransactions(prev => [newTransaction, ...prev]);
+  };
+
+  const handleAddItem = (item: Omit<InventoryItem, 'id'>) => {
+    if (!currentUser) return;
+    const newId = generateId();
+    if (currentUser.role === 'ADMIN') {
+      setInventory(prev => [...prev, { ...item, id: newId }]);
+      addAuditLog('ADD_ITEM', `Permanently added ${item.size} (${item.gsm}) to inventory`, newId);
+    } else {
+      const req: ChangeRequest = {
+        id: generateId(),
+        timestamp: Date.now(),
+        requestedBy: currentUser.username,
+        requestedByName: currentUser.name,
+        type: 'ADD',
+        itemData: { ...item, id: newId },
+        status: 'PENDING'
+      };
+      setChangeRequests(prev => [...prev, req]);
+    }
+  };
+
+  const handleUpdateItem = (updatedItem: InventoryItem) => {
+    if (!currentUser) return;
+    const oldItem = inventory.find(i => i.id === updatedItem.id);
+    if (!oldItem) return;
+
+    if (currentUser.role === 'ADMIN') {
+      setInventory(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+      // Log specific field changes
+      let fieldChanges = [];
+      if (oldItem.size !== updatedItem.size) fieldChanges.push(`Size: ${oldItem.size}➔${updatedItem.size}`);
+      if (oldItem.gsm !== updatedItem.gsm) fieldChanges.push(`GSM: ${oldItem.gsm}➔${updatedItem.gsm}`);
+      if (oldItem.minStock !== updatedItem.minStock) fieldChanges.push(`Min: ${oldItem.minStock}➔${updatedItem.minStock}`);
+      
+      addAuditLog('UPDATE_ITEM', `Direct Metadata Edit: ${fieldChanges.join(', ')}`, updatedItem.id);
+    } else {
+      const req: ChangeRequest = {
+        id: generateId(),
+        timestamp: Date.now(),
+        requestedBy: currentUser.username,
+        requestedByName: currentUser.name,
+        type: 'UPDATE',
+        itemId: updatedItem.id,
+        itemData: updatedItem,
+        oldData: oldItem,
+        status: 'PENDING'
+      };
+      setChangeRequests(prev => [...prev, req]);
+      setInventory(prev => prev.map(i => i.id === updatedItem.id ? { ...i, isPendingApproval: true } : i));
+    }
+  };
+
+  const handleDeleteItem = (id: string) => {
+    if (!currentUser) return;
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+
+    if (currentUser.role === 'ADMIN') {
+      if (confirm(`Delete ${item.size} (${item.gsm}) permanently?`)) {
+        setInventory(prev => prev.filter(i => i.id !== id));
+        addAuditLog('DELETE_ITEM', `Permanently deleted SKU: ${item.size} (${item.gsm})`, id);
+      }
+    } else {
+      const req: ChangeRequest = {
+        id: generateId(),
+        timestamp: Date.now(),
+        requestedBy: currentUser.username,
+        requestedByName: currentUser.name,
+        type: 'DELETE',
+        itemId: id,
+        itemData: item,
+        status: 'PENDING'
+      };
+      setChangeRequests(prev => [...prev, req]);
+    }
+  };
+
+  const handleProcessChangeRequest = (requestId: string, approved: boolean) => {
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+    const req = changeRequests.find(r => r.id === requestId);
+    if (!req) return;
+
+    if (approved) {
+      if (req.type === 'ADD') {
+        setInventory(prev => [...prev, req.itemData as InventoryItem]);
+        addAuditLog('APPROVE_CHANGE', `Approved Addition: ${req.itemData.size} (${req.itemData.gsm}) by ${req.requestedByName}`);
+      } else if (req.type === 'UPDATE' && req.itemId) {
+        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...req.itemData as InventoryItem, isPendingApproval: false } : i));
+        
+        let diffs = [];
+        const old = req.oldData as any;
+        const fresh = req.itemData as any;
+        ['size', 'gsm', 'minStock'].forEach(f => {
+           if (old[f] !== fresh[f]) diffs.push(`${f}: ${old[f]}➔${fresh[f]}`);
+        });
+
+        addAuditLog('APPROVE_CHANGE', `Approved Update for ${req.oldData?.size}: ${diffs.join(', ')} (Editor: ${req.requestedByName})`, req.itemId);
+      } else if (req.type === 'DELETE' && req.itemId) {
+        setInventory(prev => prev.filter(i => i.id !== req.itemId));
+        addAuditLog('APPROVE_CHANGE', `Approved Deletion: ${req.itemData.size} (${req.itemData.gsm}) by ${req.requestedByName}`, req.itemId);
+      }
+    } else {
+      if (req.type === 'UPDATE' && req.itemId) {
+        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...i, isPendingApproval: false } : i));
+      }
+      addAuditLog('DENY_CHANGE', `Denied ${req.type} request from ${req.requestedByName}`);
+    }
+
+    setChangeRequests(prev => prev.filter(r => r.id !== requestId));
   };
 
   const handleNavigate = (mode: ViewMode) => {
@@ -278,15 +394,12 @@ const App: React.FC = () => {
       status: 'PENDING',
       createdAt: Date.now()
     };
-    setAuthorizedUsers(prev => {
-      const updated = [...prev, newAccount];
-      localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
-      return updated;
-    });
+    setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
 
   const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole) => {
     setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: newRole || u.role } : u));
+    addAuditLog('USER_VERIFY', `Personnel @${username} status updated to ${status} (${newRole || 'No Role Change'})`, username);
   };
 
   if (!currentUser) {
@@ -295,7 +408,7 @@ const App: React.FC = () => {
 
   const isAdmin = currentUser.role === 'ADMIN';
   const isEditor = currentUser.role === 'ADMIN' || currentUser.role === 'EDITOR';
-  const pendingCount = authorizedUsers.filter(a => a.status === 'PENDING').length;
+  const pendingCount = authorizedUsers.filter(a => a.status === 'PENDING').length + changeRequests.length;
 
   return (
     <div className="h-screen w-full bg-[#f1f5f9] flex overflow-hidden font-sans print:h-auto print:overflow-visible print:block">
@@ -373,7 +486,7 @@ const App: React.FC = () => {
                 active={viewMode === ViewMode.ADMIN_PANEL} 
                 onClick={() => handleNavigate(ViewMode.ADMIN_PANEL)} 
                 badge={pendingCount > 0 ? pendingCount : undefined}
-                badgeColor="bg-amber-500"
+                badgeColor="bg-rose-500"
                />
              </div>
            )}
@@ -399,14 +512,23 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-hidden print:overflow-visible print:h-auto print:block relative">
           {viewMode === ViewMode.DASHBOARD && <Dashboard items={inventory} transactions={transactions} onNavigate={handleNavigate} user={currentUser} />}
-          {viewMode === ViewMode.INVENTORY && <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={i => setInventory([ ...inventory, {...i, id: generateId()}])} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={u => setInventory(prev => prev.map(i => i.id === u.id ? u : i))} onDeleteItem={id => setInventory(prev => prev.filter(i => i.id !== id))} isAdmin={isEditor} />}
+          {viewMode === ViewMode.INVENTORY && <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={handleAddItem} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} isAdmin={isEditor} />}
           {viewMode === ViewMode.JOB_CARD_GENERATOR && <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />}
           {viewMode === ViewMode.FORECAST && <ForecastPage items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />}
           {viewMode === ViewMode.PAPER_CALCULATOR && <PaperCalculator onBack={() => setViewMode(ViewMode.DASHBOARD)} />}
-          {viewMode === ViewMode.REORDER_ALERTS && <ReorderPage items={inventory} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateItem={u => setInventory(prev => prev.map(i => i.id === u.id ? u : i))} onRecordTransaction={handleRecordTransaction} isAdmin={isEditor} />}
+          {viewMode === ViewMode.REORDER_ALERTS && <ReorderPage items={inventory} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateItem={handleUpdateItem} onRecordTransaction={handleRecordTransaction} isAdmin={isEditor} />}
           {viewMode === ViewMode.PENDING_WORKS && <PendingWorks transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateTransaction={(id, upd) => setTransactions(prev => prev.map(t => t.id === id ? {...t, ...upd} : t))} onUpdatePriority={(id, p) => setTransactions(prev => prev.map(t => t.id === id ? {...t, priority: p} : t))} isAdmin={isEditor} />}
           {viewMode === ViewMode.ADMIN_PANEL && isAdmin && (
-            <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} />
+            <AdminPanel 
+              accounts={authorizedUsers} 
+              inventoryCount={inventory.length} 
+              transactionCount={transactions.length} 
+              onBack={() => setViewMode(ViewMode.DASHBOARD)} 
+              onUpdateAccountStatus={handleUpdateAccountStatus} 
+              changeRequests={changeRequests}
+              auditLogs={auditLogs}
+              onProcessChangeRequest={handleProcessChangeRequest}
+            />
           )}
           {(viewMode === ViewMode.STOCK_IN_LOGS || viewMode === ViewMode.STOCK_OUT_LOGS || viewMode === ViewMode.REORDER_HISTORY) && (
             <TransactionHistory 
