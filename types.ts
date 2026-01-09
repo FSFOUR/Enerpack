@@ -4,6 +4,7 @@ export interface User {
   username: string;
   role: UserRole;
   name: string;
+  allowedPages?: ViewMode[]; // New: defines which pages the user can access
 }
 
 export interface UserAccount extends User {
@@ -27,7 +28,7 @@ export interface InventoryItem {
   expectedDeliveryDate?: string;
   reorderRemarks?: string;
   category?: 'SINGLE' | 'DOUBLE' | 'DOUBLE_LEFT';
-  isPendingApproval?: boolean; // New: indicates a metadata change is waiting for admin
+  isPendingApproval?: boolean; 
 }
 
 export interface AuditEntry {

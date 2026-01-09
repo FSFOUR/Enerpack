@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
@@ -331,7 +330,7 @@ const App: React.FC = () => {
         timestamp: Date.now(),
         requestedBy: currentUser.username,
         requestedByName: currentUser.name,
-        type: 'DELETE',
+        type: 'UPDATE', // Using UPDATE to trigger approval, but logic handles actual content
         itemId: id,
         itemData: item,
         status: 'PENDING'
@@ -355,11 +354,13 @@ const App: React.FC = () => {
         let diffs = [];
         const old = req.oldData as any;
         const fresh = req.itemData as any;
-        ['size', 'gsm', 'minStock'].forEach(f => {
-           if (old[f] !== fresh[f]) diffs.push(`${f}: ${old[f]}➔${fresh[f]}`);
-        });
+        if (old && fresh) {
+          ['size', 'gsm', 'minStock'].forEach(f => {
+             if (old[f] !== fresh[f]) diffs.push(`${f}: ${old[f]}➔${fresh[f]}`);
+          });
+        }
 
-        addAuditLog('APPROVE_CHANGE', `Approved Update for ${req.oldData?.size}: ${diffs.join(', ')} (Editor: ${req.requestedByName})`, req.itemId);
+        addAuditLog('APPROVE_CHANGE', `Approved Update for ${req.oldData?.size || 'Item'}: ${diffs.join(', ')} (Editor: ${req.requestedByName})`, req.itemId);
       } else if (req.type === 'DELETE' && req.itemId) {
         setInventory(prev => prev.filter(i => i.id !== req.itemId));
         addAuditLog('APPROVE_CHANGE', `Approved Deletion: ${req.itemData.size} (${req.itemData.gsm}) by ${req.requestedByName}`, req.itemId);
@@ -392,13 +393,19 @@ const App: React.FC = () => {
       ...signupData,
       role: 'USER',
       status: 'PENDING',
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      allowedPages: [ViewMode.DASHBOARD, ViewMode.INVENTORY] // Default pages
     };
     setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
 
-  const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole) => {
-    setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: newRole || u.role } : u));
+  const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole, allowedPages?: ViewMode[]) => {
+    setAuthorizedUsers(prev => prev.map(u => u.username === username ? { 
+      ...u, 
+      status, 
+      role: newRole || u.role,
+      allowedPages: allowedPages || u.allowedPages
+    } : u));
     addAuditLog('USER_VERIFY', `Personnel @${username} status updated to ${status} (${newRole || 'No Role Change'})`, username);
   };
 
@@ -409,6 +416,30 @@ const App: React.FC = () => {
   const isAdmin = currentUser.role === 'ADMIN';
   const isEditor = currentUser.role === 'ADMIN' || currentUser.role === 'EDITOR';
   const pendingCount = authorizedUsers.filter(a => a.status === 'PENDING').length + changeRequests.length;
+
+  // Filter navigation by permissions
+  const navItems = [
+    { mode: ViewMode.DASHBOARD, icon: Gauge, label: "Dashboard", category: "Main" },
+    { mode: ViewMode.INVENTORY, icon: Boxes, label: "Inventory", category: "Main" },
+    { mode: ViewMode.STOCK_IN_LOGS, icon: PackagePlus, label: "Stock In Logs", category: "Transactions" },
+    { mode: ViewMode.STOCK_OUT_LOGS, icon: PackageMinus, label: "Stock Out Logs", category: "Transactions" },
+    { mode: ViewMode.PENDING_WORKS, icon: Activity, label: "Pending Works", category: "Transactions" },
+    { mode: ViewMode.REORDER_ALERTS, icon: BellRing, label: "Reorder Alerts", category: "Planning" },
+    { mode: ViewMode.REORDER_HISTORY, icon: History, label: "Reorder History", category: "Planning" },
+    { mode: ViewMode.FORECAST, icon: Telescope, label: "Forecast", category: "Planning" },
+    { mode: ViewMode.PAPER_CALCULATOR, icon: Calculator, label: "Paper Calculator", category: "Tools" },
+    { mode: ViewMode.JOB_CARD_GENERATOR, icon: FileStack, label: "Job Cards", category: "Tools" },
+  ];
+
+  const allowedNavItems = isAdmin 
+    ? navItems 
+    : navItems.filter(item => currentUser.allowedPages?.includes(item.mode));
+
+  const categorizedNav = allowedNavItems.reduce((acc: Record<string, typeof navItems>, item) => {
+    if (!acc[item.category]) acc[item.category] = [];
+    acc[item.category].push(item);
+    return acc;
+  }, {});
 
   return (
     <div className="h-screen w-full bg-[#f1f5f9] flex overflow-hidden font-sans print:h-auto print:overflow-visible print:block">
@@ -451,31 +482,20 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex-1 px-3 space-y-1 py-4">
-           <div className="mb-4">
-             <h3 className="px-4 text-[10px] font-bold text-blue-200/40 uppercase tracking-[0.15em] mb-2">Main Menu</h3>
-             <NavBtn icon={Gauge} label="Dashboard" active={viewMode === ViewMode.DASHBOARD} onClick={() => handleNavigate(ViewMode.DASHBOARD)} />
-             <NavBtn icon={Boxes} label="Inventory" active={viewMode === ViewMode.INVENTORY} onClick={() => handleNavigate(ViewMode.INVENTORY)} />
-           </div>
-
-           <div className="mb-4">
-             <h3 className="px-4 text-[10px] font-bold text-blue-200/40 uppercase tracking-[0.15em] mb-2">Transactions</h3>
-             <NavBtn icon={PackagePlus} label="Stock In Logs" active={viewMode === ViewMode.STOCK_IN_LOGS} onClick={() => handleNavigate(ViewMode.STOCK_IN_LOGS)} />
-             <NavBtn icon={PackageMinus} label="Stock Out Logs" active={viewMode === ViewMode.STOCK_OUT_LOGS} onClick={() => handleNavigate(ViewMode.STOCK_OUT_LOGS)} />
-             <NavBtn icon={Activity} label="Pending Works" active={viewMode === ViewMode.PENDING_WORKS} onClick={() => handleNavigate(ViewMode.PENDING_WORKS)} />
-           </div>
-
-           <div className="mb-4">
-             <h3 className="px-4 text-[10px] font-bold text-blue-200/40 uppercase tracking-[0.15em] mb-2">Planning</h3>
-             <NavBtn icon={BellRing} label="Reorder Alerts" active={viewMode === ViewMode.REORDER_ALERTS} onClick={() => handleNavigate(ViewMode.REORDER_ALERTS)} />
-             <NavBtn icon={History} label="Reorder History" active={viewMode === ViewMode.REORDER_HISTORY} onClick={() => handleNavigate(ViewMode.REORDER_HISTORY)} />
-             <NavBtn icon={Telescope} label="Forecast" active={viewMode === ViewMode.FORECAST} onClick={() => handleNavigate(ViewMode.FORECAST)} />
-           </div>
-
-           <div className="mb-4">
-             <h3 className="px-4 text-[10px] font-bold text-blue-200/40 uppercase tracking-[0.15em] mb-2">Tools</h3>
-             <NavBtn icon={Calculator} label="Paper Calculator" active={viewMode === ViewMode.PAPER_CALCULATOR} onClick={() => handleNavigate(ViewMode.PAPER_CALCULATOR)} />
-             <NavBtn icon={FileStack} label="Job Cards" active={viewMode === ViewMode.JOB_CARD_GENERATOR} onClick={() => handleNavigate(ViewMode.JOB_CARD_GENERATOR)} />
-           </div>
+           {Object.entries(categorizedNav).map(([cat, items]) => (
+             <div key={cat} className="mb-4">
+               <h3 className="px-4 text-[10px] font-bold text-blue-200/40 uppercase tracking-[0.15em] mb-2">{cat}</h3>
+               {items.map(item => (
+                 <NavBtn 
+                   key={item.mode}
+                   icon={item.icon} 
+                   label={item.label} 
+                   active={viewMode === item.mode} 
+                   onClick={() => handleNavigate(item.mode)} 
+                 />
+               ))}
+             </div>
+           ))}
 
            {isAdmin && (
              <div className="mb-4 pb-20 md:pb-0">

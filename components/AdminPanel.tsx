@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { 
   ShieldCheck, ArrowLeft, 
   Users, Database, 
-  LayoutDashboard, History, CheckCircle, XCircle, Clock, AlertCircle, Pencil, 
-  FileEdit, Trash2, ArrowRight, UserCheck, ShieldAlert
+  LayoutDashboard, History, CheckCircle, XCircle, Clock, AlertCircle, 
+  FileEdit, Trash2, ArrowRight, UserCheck, ShieldAlert, ChevronDown, ListChecks
 } from 'lucide-react';
-import { UserAccount, UserRole, AuditEntry, ChangeRequest, InventoryItem } from '../types';
+import { UserAccount, UserRole, AuditEntry, ChangeRequest, InventoryItem, ViewMode } from '../types';
 
 interface AdminPanelProps {
   accounts: UserAccount[];
@@ -14,9 +14,22 @@ interface AdminPanelProps {
   auditLogs: AuditEntry[];
   changeRequests: ChangeRequest[];
   onBack: () => void;
-  onUpdateAccountStatus: (username: string, status: 'APPROVED' | 'DENIED', role?: UserRole) => void;
+  onUpdateAccountStatus: (username: string, status: 'APPROVED' | 'DENIED', role?: UserRole, allowedPages?: ViewMode[]) => void;
   onProcessChangeRequest: (requestId: string, approved: boolean) => void;
 }
+
+const PAGE_LIST = [
+  { mode: ViewMode.DASHBOARD, label: "Dashboard" },
+  { mode: ViewMode.INVENTORY, label: "Inventory" },
+  { mode: ViewMode.STOCK_IN_LOGS, label: "Stock In Logs" },
+  { mode: ViewMode.STOCK_OUT_LOGS, label: "Stock Out Logs" },
+  { mode: ViewMode.PENDING_WORKS, label: "Pending Works" },
+  { mode: ViewMode.REORDER_ALERTS, label: "Reorder Alerts" },
+  { mode: ViewMode.REORDER_HISTORY, label: "Reorder History" },
+  { mode: ViewMode.FORECAST, label: "Forecast" },
+  { mode: ViewMode.PAPER_CALCULATOR, label: "Calculator" },
+  { mode: ViewMode.JOB_CARD_GENERATOR, label: "Job Cards" },
+];
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
   accounts, 
@@ -29,13 +42,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   onProcessChangeRequest
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'OVERVIEW' | 'REQUESTS' | 'ACTIVITY' | 'APPROVALS'>('OVERVIEW');
-  const [selectedRole, setSelectedRole] = useState<Record<string, UserRole>>({});
+  const [openPageSelect, setOpenPageSelect] = useState<string | null>(null);
   
   const pendingUserRequests = accounts.filter(a => a.status === 'PENDING');
   const processedAccounts = accounts.filter(a => a.status !== 'PENDING');
 
-  const handleRoleChange = (username: string, role: UserRole) => {
-    setSelectedRole(prev => ({ ...prev, [username]: role }));
+  const togglePageAccess = (acc: UserAccount, page: ViewMode) => {
+    const currentPages = acc.allowedPages || [];
+    const newPages = currentPages.includes(page)
+      ? currentPages.filter(p => p !== page)
+      : [...currentPages, page];
+    // Fix: Explicitly cast status to 'APPROVED' | 'DENIED' as togglePageAccess is only called for non-pending accounts
+    onUpdateAccountStatus(acc.username, acc.status as 'APPROVED' | 'DENIED', acc.role, newPages);
   };
 
   const getActionIcon = (action: AuditEntry['action']) => {
@@ -160,7 +178,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {pendingUserRequests.length > 0 ? (
                   pendingUserRequests.map(req => (
-                     <UserApprovalCard key={req.username} req={req} selectedRole={selectedRole[req.username]} onRoleChange={handleRoleChange} onUpdateStatus={onUpdateAccountStatus} />
+                     <UserApprovalCard key={req.username} req={req} onUpdateStatus={onUpdateAccountStatus} />
                   ))
                 ) : <EmptyState icon={ShieldCheck} text="No pending staff requests" />}
              </div>
@@ -173,6 +191,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                          <tr>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">User</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Permissions</th>
+                            <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Page Access</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                          </tr>
@@ -199,6 +218,36 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                      <option value="EDITOR">EDITOR</option>
                                      <option value="ADMIN">ADMIN</option>
                                   </select>
+                               </td>
+                               <td className="px-8 py-4 text-center relative">
+                                  {acc.role === 'ADMIN' ? (
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest">Full Access</span>
+                                  ) : (
+                                    <div className="relative inline-block w-48">
+                                      <button 
+                                        onClick={() => setOpenPageSelect(openPageSelect === acc.username ? null : acc.username)}
+                                        className="flex items-center justify-between w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-600 hover:border-blue-400 transition-all"
+                                      >
+                                        <span className="truncate">{acc.allowedPages?.length || 0} Pages Selected</span>
+                                        <ChevronDown className={`w-3 h-3 transition-transform ${openPageSelect === acc.username ? 'rotate-180' : ''}`} />
+                                      </button>
+                                      {openPageSelect === acc.username && (
+                                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[60] py-2 animate-in fade-in slide-in-from-top-1 duration-200 max-h-60 overflow-y-auto scrollbar-hide">
+                                          {PAGE_LIST.map(page => (
+                                            <label key={page.mode} className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
+                                              <input 
+                                                type="checkbox" 
+                                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
+                                                checked={acc.allowedPages?.includes(page.mode)}
+                                                onChange={() => togglePageAccess(acc, page.mode)}
+                                              />
+                                              <span className="ml-3 text-[10px] font-black uppercase text-slate-600 tracking-tight">{page.label}</span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                </td>
                                <td className="px-8 py-4 text-center">
                                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${acc.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
@@ -350,54 +399,82 @@ const StatBox = ({ icon: Icon, title, value, sub, color, bg, onClick, highlight 
   </button>
 );
 
-const UserApprovalCard = ({ req, selectedRole, onRoleChange, onUpdateStatus }: any) => (
-  <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
-     <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-           <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 font-black">
-              {req.name.charAt(0)}
-           </div>
-           <div>
-              <h4 className="font-black text-slate-800 text-sm leading-none">{req.name}</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">@{req.username}</p>
-           </div>
-        </div>
-     </div>
-     
-     <div className="mb-4">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Assign Access Role</label>
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-           <button 
-             onClick={() => onRoleChange(req.username, 'USER')}
-             className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${(selectedRole || 'USER') === 'USER' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
-           >
-              Read Only
-           </button>
-           <button 
-             onClick={() => onRoleChange(req.username, 'EDITOR')}
-             className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${selectedRole === 'EDITOR' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400'}`}
-           >
-              Editor
-           </button>
-        </div>
-     </div>
+const UserApprovalCard = ({ req, onUpdateStatus }: any) => {
+  const [selectedRole, setSelectedRole] = useState<UserRole>('USER');
+  const [pages, setPages] = useState<ViewMode[]>([ViewMode.DASHBOARD, ViewMode.INVENTORY]);
 
-     <div className="flex gap-2">
-        <button 
-          onClick={() => onUpdateStatus(req.username, 'APPROVED', selectedRole || 'USER')}
-          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-        >
-           <CheckCircle className="w-3.5 h-3.5" /> Approve
-        </button>
-        <button 
-          onClick={() => onUpdateStatus(req.username, 'DENIED')}
-          className="flex-1 bg-white hover:bg-rose-50 text-rose-500 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all border border-rose-100 active:scale-95"
-        >
-           <XCircle className="w-3.5 h-3.5" /> Deny
-        </button>
-     </div>
-  </div>
-);
+  const togglePage = (p: ViewMode) => {
+    setPages(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+  };
+
+  return (
+    <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+       <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 font-black">
+                {req.name.charAt(0)}
+             </div>
+             <div>
+                <h4 className="font-black text-slate-800 text-sm leading-none">{req.name}</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">@{req.username}</p>
+             </div>
+          </div>
+       </div>
+       
+       <div className="mb-4 space-y-4">
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Assign Access Role</label>
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+               <button 
+                 onClick={() => setSelectedRole('USER')}
+                 className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${selectedRole === 'USER' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+               >
+                  Read Only
+               </button>
+               <button 
+                 onClick={() => setSelectedRole('EDITOR')}
+                 className={`flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${selectedRole === 'EDITOR' ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-400'}`}
+               >
+                  Editor
+               </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2 flex items-center gap-2">
+              <ListChecks className="w-3 h-3" /> Page Authorization
+            </label>
+            <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto scrollbar-hide p-1 bg-slate-50 rounded-xl border border-slate-200">
+               {PAGE_LIST.map(p => (
+                 <button 
+                  key={p.mode}
+                  onClick={() => togglePage(p.mode)}
+                  className={`text-left px-2 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${pages.includes(p.mode) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-400 border border-slate-100'}`}
+                 >
+                   {p.label}
+                 </button>
+               ))}
+            </div>
+          </div>
+       </div>
+
+       <div className="flex gap-2">
+          <button 
+            onClick={() => onUpdateStatus(req.username, 'APPROVED', selectedRole, pages)}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          >
+             <CheckCircle className="w-3.5 h-3.5" /> Approve
+          </button>
+          <button 
+            onClick={() => onUpdateStatus(req.username, 'DENIED')}
+            className="flex-1 bg-white hover:bg-rose-50 text-rose-500 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all border border-rose-100 active:scale-95"
+          >
+             <XCircle className="w-3.5 h-3.5" /> Deny
+          </button>
+       </div>
+    </div>
+  );
+};
 
 const EmptyState = ({ icon: Icon, text }: any) => (
   <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-slate-100">
