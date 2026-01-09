@@ -3,7 +3,7 @@ import {
   ShieldCheck, ArrowLeft, 
   Users, Database, 
   LayoutDashboard, History, CheckCircle, XCircle, Clock, AlertCircle, 
-  FileEdit, Trash2, ArrowRight, UserCheck, ShieldAlert, ChevronDown, ListChecks
+  FileEdit, Trash2, ArrowRight, UserCheck, ShieldAlert, ChevronDown, ListChecks, Check
 } from 'lucide-react';
 import { UserAccount, UserRole, AuditEntry, ChangeRequest, InventoryItem, ViewMode } from '../types';
 
@@ -52,7 +52,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     const newPages = currentPages.includes(page)
       ? currentPages.filter(p => p !== page)
       : [...currentPages, page];
-    // Fix: Explicitly cast status to 'APPROVED' | 'DENIED' as togglePageAccess is only called for non-pending accounts
     onUpdateAccountStatus(acc.username, acc.status as 'APPROVED' | 'DENIED', acc.role, newPages);
   };
 
@@ -184,19 +183,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
              </div>
 
              <SectionHeader icon={Users} title="Authorized Personnel" sub="Manage active team permissions" />
-             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-visible mb-20">
+                <div className="overflow-x-auto overflow-visible">
                    <table className="w-full text-left">
                       <thead className="bg-slate-50/50 border-b border-slate-100">
                          <tr>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">User</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Permissions</th>
-                            <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Page Access</th>
+                            <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Authorized Pages</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                             <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                          </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50">
+                      <tbody className="divide-y divide-slate-50 overflow-visible">
                          {processedAccounts.map(acc => (
                             <tr key={acc.username} className="hover:bg-slate-50/50 transition-colors">
                                <td className="px-8 py-4">
@@ -210,7 +209,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                </td>
                                <td className="px-8 py-4 text-center">
                                   <select 
-                                     className={`bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest outline-none ${acc.role === 'ADMIN' ? 'text-blue-600' : 'text-amber-600'}`}
+                                     className={`bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest outline-none ${acc.role === 'ADMIN' ? 'text-blue-600 font-black' : 'text-amber-600 font-black'}`}
                                      value={acc.role}
                                      onChange={(e) => onUpdateAccountStatus(acc.username, 'APPROVED', e.target.value as UserRole)}
                                   >
@@ -219,32 +218,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                      <option value="ADMIN">ADMIN</option>
                                   </select>
                                </td>
-                               <td className="px-8 py-4 text-center relative">
+                               <td className="px-8 py-4 text-center overflow-visible">
                                   {acc.role === 'ADMIN' ? (
-                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest">Full Access</span>
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest border border-indigo-100">Full Access</span>
                                   ) : (
-                                    <div className="relative inline-block w-48">
+                                    <div className="relative inline-block w-48 text-left">
                                       <button 
                                         onClick={() => setOpenPageSelect(openPageSelect === acc.username ? null : acc.username)}
-                                        className="flex items-center justify-between w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-600 hover:border-blue-400 transition-all"
+                                        className="flex items-center justify-between w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black text-slate-600 hover:border-blue-400 hover:shadow-sm transition-all uppercase tracking-tighter"
                                       >
-                                        <span className="truncate">{acc.allowedPages?.length || 0} Pages Selected</span>
-                                        <ChevronDown className={`w-3 h-3 transition-transform ${openPageSelect === acc.username ? 'rotate-180' : ''}`} />
+                                        <span className="truncate">{acc.allowedPages?.length || 0} Pages Approved</span>
+                                        <ChevronDown className={`w-3 h-3 transition-transform ml-2 ${openPageSelect === acc.username ? 'rotate-180' : ''}`} />
                                       </button>
                                       {openPageSelect === acc.username && (
-                                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[60] py-2 animate-in fade-in slide-in-from-top-1 duration-200 max-h-60 overflow-y-auto scrollbar-hide">
-                                          {PAGE_LIST.map(page => (
-                                            <label key={page.mode} className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer transition-colors">
-                                              <input 
-                                                type="checkbox" 
-                                                className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
-                                                checked={acc.allowedPages?.includes(page.mode)}
-                                                onChange={() => togglePageAccess(acc, page.mode)}
-                                              />
-                                              <span className="ml-3 text-[10px] font-black uppercase text-slate-600 tracking-tight">{page.label}</span>
-                                            </label>
-                                          ))}
-                                        </div>
+                                        <>
+                                          <div className="fixed inset-0 z-[55]" onClick={() => setOpenPageSelect(null)} />
+                                          <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-[1.5rem] shadow-2xl z-[60] py-3 animate-in fade-in slide-in-from-top-1 duration-200 max-h-72 overflow-y-auto scrollbar-hide">
+                                            <div className="px-4 pb-2 mb-2 border-b border-slate-50">
+                                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Select Modules</p>
+                                            </div>
+                                            {PAGE_LIST.map(page => {
+                                              const isChecked = acc.allowedPages?.includes(page.mode);
+                                              return (
+                                                <div 
+                                                  key={page.mode} 
+                                                  onClick={() => togglePageAccess(acc, page.mode)}
+                                                  className={`flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors group`}
+                                                >
+                                                  <span className={`text-[10px] font-black uppercase tracking-tight ${isChecked ? 'text-blue-600' : 'text-slate-500'}`}>
+                                                    {page.label}
+                                                  </span>
+                                                  <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-slate-200 group-hover:border-blue-400'}`}>
+                                                    {isChecked && <Check className="w-3 h-3 text-white stroke-[4px]" />}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </>
                                       )}
                                     </div>
                                   )}
