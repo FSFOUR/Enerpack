@@ -1,10 +1,11 @@
+
 export type UserRole = 'ADMIN' | 'EDITOR' | 'USER';
 
 export interface User {
   username: string;
   role: UserRole;
   name: string;
-  allowedPages?: ViewMode[]; // New: defines which pages the user can access
+  allowedPages?: ViewMode[]; 
 }
 
 export interface UserAccount extends User {
@@ -84,6 +85,7 @@ export interface StockTransaction {
   size: string;
   gsm: string;
   quantity: number;
+  sheets?: number; // Added for manual sheet count tracking
   company?: string;
   invoice?: string;
   storageLocation?: string;

@@ -17,9 +17,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
     .filter(t => {
         if (type === 'IN') return t.type === 'IN';
         if (type === 'REORDER') return t.type === 'REORDER';
-        if (type === 'OUT') {
-           return t.type === 'OUT' && t.status === 'Delivered';
-        }
+        if (type === 'OUT') return t.type === 'OUT' && t.status === 'Delivered';
         return false;
     })
     .sort((a, b) => b.timestamp - a.timestamp);
@@ -61,54 +59,16 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
   };
 
   const handleExport = () => {
-    if (typeof (window as any).XLSX === 'undefined') {
-        alert("Excel library not loaded.");
-        return;
-    }
+    if (typeof (window as any).XLSX === 'undefined') return;
     const wb = (window as any).XLSX.utils.book_new();
     const ws = (window as any).XLSX.utils.json_to_sheet(displayedTransactions.map(t => {
         if (type === 'IN') {
-            return {
-                DATE: t.date,
-                MONTH: t.month,
-                SIZE: t.size,
-                GSM: t.gsm,
-                IN: t.quantity,
-                COMPANY: t.company,
-                INVOICE: t.invoice,
-                LOCATION: t.storageLocation,
-                REMARKS: t.remarks
-            };
+            return { DATE: t.date, MONTH: t.month, SIZE: t.size, GSM: t.gsm, IN: t.quantity, COMPANY: t.company, INVOICE: t.invoice, LOCATION: t.storageLocation, REMARKS: t.remarks };
         } else if (type === 'OUT') {
-            return {
-                DATE: t.date,
-                MONTH: t.month,
-                SIZE: t.size,
-                GSM: t.gsm,
-                OUT: t.quantity,
-                COMPANY: t.company,
-                ITEM_CODE: t.itemCode,
-                WORK_NAME: t.workName,
-                UNIT: t.unit,
-                CUT_SIZE: t.cuttingSize,
-                SHEETS: t.unit === 'GROSS' ? t.quantity * 144 : t.quantity,
-                STATUS: t.status,
-                VEHICLE: t.vehicle,
-                LOCATION: t.storageLocation,
-                REMARKS: t.remarks
-            };
+            const sheetsValue = t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? t.quantity * 144 : t.quantity);
+            return { DATE: t.date, MONTH: t.month, SIZE: t.size, GSM: t.gsm, OUT: t.quantity, UNIT: t.unit, COMPANY: t.company, ITEM_CODE: t.itemCode, WORK_NAME: t.workName, CUT_SIZE: t.cuttingSize, SHEETS: sheetsValue, STATUS: t.status, VEHICLE: t.vehicle, LOCATION: t.storageLocation, REMARKS: t.remarks };
         } else {
-            return {
-                ORDER_DATE: t.date,
-                MONTH: t.month,
-                SIZE: t.size,
-                GSM: t.gsm,
-                QUANTITY: t.quantity,
-                COMPANY: t.company,
-                RECEIVED_DATE: t.receivedDate || '-',
-                RECEIVED_QTY: t.receivedQty || 0,
-                REMARKS: t.remarks
-            };
+            return { ORDER_DATE: t.date, MONTH: t.month, SIZE: t.size, GSM: t.gsm, QUANTITY: t.quantity, COMPANY: t.company, RECEIVED_DATE: t.receivedDate || '-', RECEIVED_QTY: t.receivedQty || 0, REMARKS: t.remarks };
         }
     }));
     (window as any).XLSX.utils.book_append_sheet(wb, ws, `History ${type}`);
@@ -118,24 +78,9 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
   const handleDownloadPDF = async () => {
     if (!logContainerRef.current) return;
     setIsPdfGenerating(true);
-    
     const element = logContainerRef.current;
-    const opt = {
-      margin: 5,
-      filename: `Enerpack_Logs_${type}_${new Date().toISOString().split('T')[0]}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-    };
-
-    try {
-      await (window as any).html2pdf().set(opt).from(element).save();
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      alert("PDF generation failed.");
-    } finally {
-      setIsPdfGenerating(false);
-    }
+    const opt = { margin: 5, filename: `Enerpack_Logs_${type}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } };
+    try { await (window as any).html2pdf().set(opt).from(element).save(); } catch (err) { console.error(err); } finally { setIsPdfGenerating(false); }
   };
 
   return (
@@ -149,88 +94,64 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
 
       <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0 no-print">
         <div className="flex items-center gap-4 w-full md:w-auto">
-            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-                <span className="font-bold text-sm">Back</span>
-            </button>
-            <h2 className={`text-lg md:text-xl font-bold pl-4 ml-2 border-l-2 ${getTitleColor()}`}>
-                {getTitle()}
-            </h2>
+            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-bold text-sm">Back</span></button>
+            <h2 className={`text-lg md:text-xl font-bold pl-4 ml-2 border-l-2 ${getTitleColor()}`}>{getTitle()}</h2>
         </div>
-
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
-                <input 
-                    type="text" 
-                    placeholder="Search logs..." 
-                    className="pl-8 pr-4 py-1.5 rounded-full border border-gray-300 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 text-center"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <input type="text" placeholder="Search logs..." className="pl-8 pr-4 py-1.5 rounded-full border border-gray-300 text-sm w-full md:w-64 focus:outline-none bg-gray-50 text-center" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-rose-700 flex items-center gap-2 font-medium">
-                <FileText className="w-4 h-4" /> PDF
-            </button>
-            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-green-700 flex items-center gap-2 font-medium">
-                <Download className="w-4 h-4" /> Excel
-            </button>
+            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-rose-700 flex items-center gap-2 font-medium"><FileText className="w-4 h-4" /> PDF</button>
+            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-green-700 flex items-center gap-2 font-medium"><Download className="w-4 h-4" /> Excel</button>
         </div>
       </div>
 
       <div ref={logContainerRef} className="flex-1 overflow-auto p-4 bg-white">
-        <div className="hidden print:block mb-4 text-center">
-            <h1 className="text-xl font-black uppercase text-slate-800">{getTitle()} REPORT</h1>
-            <p className="text-xs font-bold text-slate-400 mt-1">Movement Logs Snapshot - {new Date().toLocaleDateString()}</p>
-        </div>
-
         <div className="overflow-x-auto rounded-lg border border-gray-300">
             <div className="min-w-max">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead className={`${getHeaderColor()} text-white sticky top-0`}>
                         {type === 'IN' && (
                             <tr>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">DATE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">MONTH</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">SIZE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">GSM</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">IN</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">COMPANY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">INVOICE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">STORAGE LOC</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">REMARKS</th>
+                                <th className="p-2 border border-white/20">DATE</th>
+                                <th className="p-2 border border-white/20">MONTH</th>
+                                <th className="p-2 border border-white/20">SIZE</th>
+                                <th className="p-2 border border-white/20">GSM</th>
+                                <th className="p-2 border border-white/20">IN</th>
+                                <th className="p-2 border border-white/20">COMPANY</th>
+                                <th className="p-2 border border-white/20">INVOICE</th>
+                                <th className="p-2 border border-white/20">STORAGE LOC</th>
+                                <th className="p-2 border border-white/20">REMARKS</th>
                             </tr>
                         )}
                         {type === 'OUT' && (
                             <tr>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">DATE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">MONTH</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">SIZE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">GSM</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">OUT</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">COMPANY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">ITEM CODE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">WORK NAME</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">UNIT</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">CUT SIZE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">SHEETS</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">STATUS</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">VEHICLE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">LOCATION</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">REMARKS</th>
+                                <th className="p-2 border border-white/20">DATE</th>
+                                <th className="p-2 border border-white/20">SIZE</th>
+                                <th className="p-2 border border-white/20">GSM</th>
+                                <th className="p-2 border border-white/20">OUT</th>
+                                <th className="p-2 border border-white/20">UNIT</th>
+                                <th className="p-2 border border-white/20">ITEM CODE</th>
+                                <th className="p-2 border border-white/20">WORK NAME</th>
+                                <th className="p-2 border border-white/20">CUT SIZE</th>
+                                <th className="p-2 border border-white/20 bg-red-900">SHEETS</th>
+                                <th className="p-2 border border-white/20">STATUS</th>
+                                <th className="p-2 border border-white/20">VEHICLE</th>
+                                <th className="p-2 border border-white/20">LOCATION</th>
+                                <th className="p-2 border border-white/20">REMARKS</th>
                             </tr>
                         )}
                         {type === 'REORDER' && (
                             <tr>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">ORDER DATE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">MONTH</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">SIZE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">GSM</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">QUANTITY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">COMPANY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">RECEIVED DATE</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">REC QTY</th>
-                                <th className="p-2 border border-white/20 text-center whitespace-nowrap">REMARKS</th>
+                                <th className="p-2 border border-white/20">ORDER DATE</th>
+                                <th className="p-2 border border-white/20">SIZE</th>
+                                <th className="p-2 border border-white/20">GSM</th>
+                                <th className="p-2 border border-white/20">QUANTITY</th>
+                                <th className="p-2 border border-white/20">COMPANY</th>
+                                <th className="p-2 border border-white/20">RECEIVED</th>
+                                <th className="p-2 border border-white/20">REC QTY</th>
+                                <th className="p-2 border border-white/20">REMARKS</th>
                             </tr>
                         )}
                     </thead>
@@ -239,53 +160,46 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                             <tr key={t.id} className="odd:bg-white even:bg-gray-50 hover:bg-yellow-50">
                                 {type === 'IN' && (
                                     <>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.date}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.month}</td>
-                                        <td className="p-2 border border-gray-300 font-bold whitespace-nowrap">{t.size}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-green-700 whitespace-nowrap">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.invoice}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
+                                        <td className="p-2 border border-gray-300">{t.date}</td>
+                                        <td className="p-2 border border-gray-300">{t.month}</td>
+                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
+                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-green-700">{t.quantity}</td>
+                                        <td className="p-2 border border-gray-300">{t.company}</td>
+                                        <td className="p-2 border border-gray-300">{t.invoice}</td>
+                                        <td className="p-2 border border-gray-300">{t.storageLocation}</td>
+                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'OUT' && (
                                     <>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.date}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.month}</td>
-                                        <td className="p-2 border border-gray-300 font-bold whitespace-nowrap">{t.size}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-red-700 whitespace-nowrap">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.itemCode}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate" title={t.workName}>{t.workName}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.unit}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.cuttingSize}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-blue-700 whitespace-nowrap">
-                                            {t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity}
+                                        <td className="p-2 border border-gray-300">{t.date}</td>
+                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
+                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-red-700">{t.quantity}</td>
+                                        <td className="p-2 border border-gray-300 text-slate-500 font-bold">{t.unit}</td>
+                                        <td className="p-2 border border-gray-300">{t.itemCode}</td>
+                                        <td className="p-2 border border-gray-300 max-w-xs truncate">{t.workName}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-slate-700">{t.cuttingSize}</td>
+                                        <td className="p-2 border border-gray-300 font-black text-blue-700 bg-blue-50/50">
+                                            {t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity)}
                                         </td>
-                                        <td className={`p-2 border border-gray-300 font-bold whitespace-nowrap ${t.status === 'Delivered' ? 'text-green-600' : 'text-orange-600'}`}>{t.status}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.vehicle}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
+                                        <td className={`p-2 border border-gray-300 font-bold ${t.status === 'Delivered' ? 'text-green-600' : 'text-orange-600'}`}>{t.status}</td>
+                                        <td className="p-2 border border-gray-300 uppercase">{t.vehicle}</td>
+                                        <td className="p-2 border border-gray-300 uppercase">{t.storageLocation}</td>
+                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'REORDER' && (
                                     <>
-                                        <td className="p-2 border border-gray-300 font-medium whitespace-nowrap">{t.date}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.month}</td>
-                                        <td className="p-2 border border-gray-300 font-bold whitespace-nowrap">{t.size}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-purple-700 whitespace-nowrap">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap">{t.company}</td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap font-bold text-green-700">
-                                            {t.receivedDate || '-'}
-                                        </td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap text-gray-700 font-medium">
-                                            {t.receivedQty !== undefined ? t.receivedQty : '-'}
-                                        </td>
-                                        <td className="p-2 border border-gray-300 whitespace-nowrap max-w-xs truncate">{t.remarks}</td>
+                                        <td className="p-2 border border-gray-300">{t.date}</td>
+                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
+                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-purple-700">{t.quantity}</td>
+                                        <td className="p-2 border border-gray-300">{t.company}</td>
+                                        <td className="p-2 border border-gray-300 font-bold text-green-700">{t.receivedDate || '-'}</td>
+                                        <td className="p-2 border border-gray-300">{t.receivedQty || '-'}</td>
+                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
                                     </>
                                 )}
                             </tr>
@@ -294,7 +208,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                 </table>
             </div>
         </div>
-        {displayedTransactions.length === 0 && <div className="p-8 text-center text-gray-500">No records found.</div>}
       </div>
     </div>
   );
