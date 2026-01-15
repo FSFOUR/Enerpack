@@ -14,8 +14,7 @@ import {
   FileText,
   Loader2,
   Lock,
-  Clock,
-  ShieldCheck
+  Clock
 } from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
@@ -112,7 +111,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     
     const opt = {
       margin: 8,
-      filename: `Enerpack_Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+      filename: `Ener_Pack_Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`,
       image: { type: 'jpeg', quality: 1.0 },
       html2canvas: { 
         scale: 4, 
@@ -267,7 +266,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       )}
 
       <div className="bg-[#0c4a6e] text-white p-3 px-6 flex justify-between items-center shrink-0 shadow-lg z-30 print:hidden">
-        <h2 className="font-bold uppercase tracking-widest text-lg">ENERPACK INVENTORY</h2>
+        <h2 className="uppercase tracking-[0.2em] text-lg brand-font">ENER PACK INVENTORY</h2>
         <div className="flex items-center gap-2">
            <div className="relative">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -335,7 +334,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
               {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
            </div>
            <div className="text-center pb-4">
-              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest">Enerpack Stock Report</h1>
+              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest brand-font">Ener Pack Stock Report</h1>
               <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Total Active Inventory Units: {filteredItems.length}</p>
            </div>
         </div>
@@ -404,7 +403,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       </div>
       
       <div className="bg-[#0c4a6e] text-white p-1 text-[10px] font-bold text-center shrink-0 uppercase tracking-widest opacity-80 print:hidden">
-        Total Items: {filteredItems.length} | Enerpack Operation Intelligence
+        Total Items: {filteredItems.length} | Ener Pack Operation Intelligence
       </div>
     </div>
   );
@@ -431,7 +430,6 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
         <td className={`p-0 border-r ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size} h-10`}>
           <div className="h-10 flex items-center justify-center px-1 relative">
             {item.size}
-            {/* Fix: Wrapped Clock icon in a span to use the title attribute correctly and avoid TS error */}
             {item.isPendingApproval && (
               <span title="Changes pending approval" className="absolute left-1 top-1">
                 <Clock className="w-2.5 h-2.5 text-amber-500" />

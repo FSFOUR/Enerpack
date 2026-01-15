@@ -54,17 +54,10 @@ export interface ChangeRequest {
   status: 'PENDING' | 'APPROVED' | 'DENIED';
 }
 
-export interface AccessRequest {
-  id: string;
-  viewMode: ViewMode;
-  status: 'PENDING' | 'APPROVED' | 'DENIED';
-  timestamp: number;
-  userName: string;
-}
-
 export enum ViewMode {
   DASHBOARD = 'DASHBOARD',
   INVENTORY = 'INVENTORY',
+  TRACKER = 'TRACKER',
   STOCK_IN_LOGS = 'STOCK_IN_LOGS',
   STOCK_OUT_LOGS = 'STOCK_OUT_LOGS',
   PENDING_WORKS = 'PENDING_WORKS',
@@ -85,7 +78,7 @@ export interface StockTransaction {
   size: string;
   gsm: string;
   quantity: number;
-  sheets?: number; // Added for manual sheet count tracking
+  sheets?: number; 
   company?: string;
   invoice?: string;
   storageLocation?: string;

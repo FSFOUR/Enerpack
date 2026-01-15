@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus, CheckCircle2 } from 'lucide-react';
 import { User as UserType, UserAccount } from '../types';
 
 interface LoginProps {
@@ -85,11 +85,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
       <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
         <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 bg-blue-500 rounded-2xl items-center justify-center shadow-2xl border-2 border-white/20 mb-4 rotate-3 transform transition-transform hover:rotate-0">
-            <Package className="w-8 h-8 text-white" />
+          <div className="inline-flex w-20 h-20 bg-white rounded-[2rem] items-center justify-center shadow-2xl border-2 border-white/20 mb-6 rotate-3 transform transition-transform hover:rotate-0">
+            <div className="flex flex-col items-center justify-center text-[#0c4a6e]">
+              <span className="font-black text-3xl leading-none">E P</span>
+              <div className="w-8 h-1 bg-[#0c4a6e] mt-1 rounded-full opacity-30"></div>
+            </div>
           </div>
-          <h1 className="text-white text-4xl font-black uppercase tracking-tighter leading-none mb-2">Enerpack</h1>
-          <p className="text-blue-300 text-xs font-bold uppercase tracking-[0.2em] opacity-80">Operational Intelligence</p>
+          <h1 className="text-white text-5xl tracking-tighter leading-none mb-2 uppercase brand-font">Ener Pack</h1>
+          <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em] opacity-80">Operational Intelligence</p>
         </div>
 
         <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/10 relative">
@@ -110,7 +113,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
           <div className="p-8 md:p-10">
             <div className="mb-8 text-center md:text-left">
-              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{mode === 'LOGIN' ? 'Welcome Back' : 'Get Access'}</h2>
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Welcome Back</h2>
               <p className="text-slate-400 text-sm font-medium">
                 {mode === 'LOGIN' ? 'Enter credentials to manage inventory.' : 'Register and wait for admin verification.'}
               </p>
@@ -210,7 +213,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
         </div>
 
         <div className="mt-8 text-center">
-           <p className="text-blue-200/30 text-[9px] font-black uppercase tracking-[0.3em]">Master Secure Environment</p>
+           <p className="text-blue-200/30 text-[9px] font-black uppercase tracking-[0.5em]">Master Secure Environment</p>
         </div>
       </div>
     </div>
