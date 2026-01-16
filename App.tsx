@@ -25,30 +25,170 @@ const generateId = () => {
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
 
+// COMPREHENSIVE INVENTORY DATA EXTRACTED FROM PROVIDED IMAGES
 const INITIAL_DATA: InventoryItem[] = [
-  { id: '280-54', size: '54', gsm: '280', closingStock: 1379, minStock: 500, category: 'SINGLE' },
-  { id: '280-56', size: '56', gsm: '280', closingStock: 243, minStock: 500, category: 'SINGLE' },
-  { id: '280-58', size: '58', gsm: '280', closingStock: 1604, minStock: 500, category: 'SINGLE' },
-  { id: '280-59', size: '59', gsm: '280', closingStock: 442, minStock: 400, category: 'SINGLE' },
-  { id: '280-60', size: '60', gsm: '280', closingStock: 1351, minStock: 500, category: 'SINGLE' },
+  // 280 GSM SINGLE SIZE
+  { id: '280-54', size: '54', gsm: '280', closingStock: 1019, minStock: 500, category: 'SINGLE' },
+  { id: '280-56', size: '56', gsm: '280', closingStock: 100, minStock: 500, category: 'SINGLE' },
+  { id: '280-58', size: '58', gsm: '280', closingStock: 1284, minStock: 500, category: 'SINGLE' },
+  { id: '280-59', size: '59', gsm: '280', closingStock: 0, minStock: 400, category: 'SINGLE' },
+  { id: '280-60', size: '60', gsm: '280', closingStock: 0, minStock: 500, category: 'SINGLE' },
   { id: '280-63', size: '63', gsm: '280', closingStock: 0, minStock: 400, category: 'SINGLE' },
-  { id: '280-65', size: '65', gsm: '280', closingStock: 1453, minStock: 500, category: 'SINGLE' },
-  { id: '280-68', size: '68', gsm: '280', closingStock: 984, minStock: 400, category: 'SINGLE' },
+  { id: '280-65', size: '65', gsm: '280', closingStock: 393, minStock: 500, category: 'SINGLE' },
+  { id: '280-68', size: '68', gsm: '280', closingStock: 0, minStock: 400, category: 'SINGLE' },
   { id: '280-70', size: '70', gsm: '280', closingStock: 0, minStock: 200, category: 'SINGLE' },
-  { id: '280-73', size: '73', gsm: '280', closingStock: 941, minStock: 400, category: 'SINGLE' },
-  { id: '280-76', size: '76', gsm: '280', closingStock: 926, minStock: 400, category: 'SINGLE' },
-  { id: '280-78', size: '78', gsm: '280', closingStock: 1334, minStock: 500, category: 'SINGLE' },
-  { id: '280-80', size: '80', gsm: '280', closingStock: 2029, minStock: 500, category: 'SINGLE' },
+  { id: '280-73', size: '73', gsm: '280', closingStock: 0, minStock: 400, category: 'SINGLE' },
+  { id: '280-76', size: '76', gsm: '280', closingStock: 0, minStock: 400, category: 'SINGLE' },
+  { id: '280-78', size: '78', gsm: '280', closingStock: 154, minStock: 500, category: 'SINGLE' },
+  { id: '280-80', size: '80', gsm: '280', closingStock: 1569, minStock: 500, category: 'SINGLE' },
   { id: '280-83', size: '83', gsm: '280', closingStock: 1337, minStock: 500, category: 'SINGLE' },
-  { id: '280-86', size: '86', gsm: '280', closingStock: 1418, minStock: 500, category: 'SINGLE' },
-  { id: '280-88', size: '88', gsm: '280', closingStock: 1953, minStock: 500, category: 'SINGLE' },
-  { id: '280-90', size: '90', gsm: '280', closingStock: 3384, minStock: 500, category: 'SINGLE' },
-  { id: '280-93', size: '93', gsm: '280', closingStock: 1262, minStock: 400, category: 'SINGLE' },
-  { id: '280-96', size: '96', gsm: '280', closingStock: 770, minStock: 400, category: 'SINGLE' },
-  { id: '280-98', size: '98', gsm: '280', closingStock: 1330, minStock: 500, category: 'SINGLE' },
-  { id: '280-100', size: '100', gsm: '280', closingStock: 1999, minStock: 500, category: 'SINGLE' },
-  { id: '280-104', size: '104', gsm: '280', closingStock: 955, minStock: 400, category: 'SINGLE' },
-  { id: '280-108', size: '108', gsm: '280', closingStock: 1568, minStock: 500, category: 'SINGLE' },
+  { id: '280-86', size: '86', gsm: '280', closingStock: 828, minStock: 500, category: 'SINGLE' },
+  { id: '280-88', size: '88', gsm: '280', closingStock: 1573, minStock: 500, category: 'SINGLE' },
+  { id: '280-90', size: '90', gsm: '280', closingStock: 2524, minStock: 500, category: 'SINGLE' },
+  { id: '280-93', size: '93', gsm: '280', closingStock: 837, minStock: 400, category: 'SINGLE' },
+  { id: '280-96', size: '96', gsm: '280', closingStock: 470, minStock: 400, category: 'SINGLE' },
+  { id: '280-98', size: '98', gsm: '280', closingStock: 760, minStock: 500, category: 'SINGLE' },
+  { id: '280-100', size: '100', gsm: '280', closingStock: 1439, minStock: 500, category: 'SINGLE' },
+  { id: '280-104', size: '104', gsm: '280', closingStock: 815, minStock: 400, category: 'SINGLE' },
+  { id: '280-108', size: '108', gsm: '280', closingStock: 1308, minStock: 500, category: 'SINGLE' },
+
+  // 280 GSM DOUBLE SIZE
+  { id: '280-47x64', size: '47*64', gsm: '280', closingStock: 48, minStock: 20, category: 'DOUBLE' },
+  { id: '280-54x73.5', size: '54*73.5', gsm: '280', closingStock: 33, minStock: 20, category: 'DOUBLE' },
+  { id: '280-54x86', size: '54*86', gsm: '280', closingStock: 87, minStock: 20, category: 'DOUBLE' },
+  { id: '280-56x68.5', size: '56*68.5', gsm: '280', closingStock: 33, minStock: 20, category: 'DOUBLE' },
+  { id: '280-56x75', size: '56*75', gsm: '280', closingStock: 4, minStock: 20, category: 'DOUBLE' },
+  { id: '280-56x86', size: '56*86', gsm: '280', closingStock: 323, minStock: 50, category: 'DOUBLE' },
+  { id: '280-57.5x76', size: '57.5*76', gsm: '280', closingStock: 71, minStock: 20, category: 'DOUBLE' },
+  { id: '280-57x68.5', size: '57*68.5', gsm: '280', closingStock: 125, minStock: 20, category: 'DOUBLE' },
+  { id: '280-58x78', size: '58*78', gsm: '280', closingStock: 346, minStock: 50, category: 'DOUBLE' },
+  { id: '280-59x78', size: '59*78', gsm: '280', closingStock: 71, minStock: 20, category: 'DOUBLE' },
+  { id: '280-59x87.5', size: '59*87.5', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+  { id: '280-59x95', size: '59*95', gsm: '280', closingStock: 134, minStock: 20, category: 'DOUBLE' },
+  { id: '280-60x77.5', size: '60*77.5', gsm: '280', closingStock: 44, minStock: 20, category: 'DOUBLE' },
+  { id: '280-61x83', size: '61*83', gsm: '280', closingStock: 44, minStock: 20, category: 'DOUBLE' },
+  { id: '280-62x68', size: '62*68', gsm: '280', closingStock: 102, minStock: 20, category: 'DOUBLE' },
+  { id: '280-63x75', size: '63*75', gsm: '280', closingStock: 154, minStock: 20, category: 'DOUBLE' },
+  { id: '280-64x67', size: '64*67', gsm: '280', closingStock: 44, minStock: 20, category: 'DOUBLE' },
+  { id: '280-65x88.5', size: '65*88.5', gsm: '280', closingStock: 56, minStock: 20, category: 'DOUBLE' },
+  { id: '280-67x75', size: '67*75', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+  { id: '280-68x69', size: '68*69', gsm: '280', closingStock: 132, minStock: 20, category: 'DOUBLE' },
+  { id: '280-68x91.5', size: '68*91.5', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+  { id: '280-70x72', size: '70*72', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+  { id: '280-70x76', size: '70*76', gsm: '280', closingStock: 37, minStock: 20, category: 'DOUBLE' },
+  { id: '280-70x79', size: '70*79', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+  { id: '280-72x91.5', size: '72*91.5', gsm: '280', closingStock: 50, minStock: 20, category: 'DOUBLE' },
+  { id: '280-73x81', size: '73*81', gsm: '280', closingStock: 119, minStock: 20, category: 'DOUBLE' },
+  { id: '280-75x108.5', size: '75*108.5', gsm: '280', closingStock: 16, minStock: 10, category: 'DOUBLE' },
+  { id: '280-76x111', size: '76*111', gsm: '280', closingStock: 123, minStock: 20, category: 'DOUBLE' },
+  { id: '280-76x72', size: '76*72', gsm: '280', closingStock: 231, minStock: 20, category: 'DOUBLE' },
+  { id: '280-78x70.5', size: '78*70.5', gsm: '280', closingStock: 29, minStock: 10, category: 'DOUBLE' },
+  { id: '280-78x107', size: '78*107', gsm: '280', closingStock: 19, minStock: 10, category: 'DOUBLE' },
+  { id: '280-82x111', size: '82*111', gsm: '280', closingStock: 40, minStock: 10, category: 'DOUBLE' },
+  { id: '280-88x63', size: '88*63', gsm: '280', closingStock: 72, minStock: 20, category: 'DOUBLE' },
+  { id: '280-90x66', size: '90*66', gsm: '280', closingStock: 86, minStock: 20, category: 'DOUBLE' },
+  { id: '280-94.5x80.5', size: '94.5*80.5', gsm: '280', closingStock: 32, minStock: 10, category: 'DOUBLE' },
+  { id: '280-100x74', size: '100*74', gsm: '280', closingStock: 20, minStock: 10, category: 'DOUBLE' },
+  { id: '280-108x76', size: '108*76', gsm: '280', closingStock: 103, minStock: 20, category: 'DOUBLE' },
+  { id: '280-61.5x92', size: '61.5*92', gsm: '280', closingStock: 0, minStock: 20, category: 'DOUBLE' },
+
+  // 250 & 230 GSM
+  { id: '250-50x64.5', size: '50*64.5', gsm: '250', closingStock: 213, minStock: 50, category: 'DOUBLE' },
+  { id: '230-54x78', size: '54*78', gsm: '230', closingStock: 55, minStock: 20, category: 'DOUBLE' },
+  { id: '230-59x91', size: '59*91', gsm: '230', closingStock: 42, minStock: 20, category: 'DOUBLE' },
+  { id: '230-82x98', size: '82*98', gsm: '230', closingStock: 14, minStock: 10, category: 'DOUBLE' },
+  { id: '230-86', size: '86', gsm: '230', closingStock: 416, minStock: 100, category: 'SINGLE' },
+  { id: '230-86x110', size: '86*110', gsm: '230', closingStock: 56, minStock: 20, category: 'DOUBLE' },
+  { id: '230-100x67', size: '100*67', gsm: '230', closingStock: 42, minStock: 20, category: 'DOUBLE' },
+
+  // 200 GSM SINGLE SIZE
+  { id: '200-65', size: '65', gsm: '200', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '200-68', size: '68', gsm: '200', closingStock: 1082, minStock: 400, category: 'SINGLE' },
+  { id: '200-70', size: '70', gsm: '200', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '200-73', size: '73', gsm: '200', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '200-75', size: '75', gsm: '200', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '200-80', size: '80', gsm: '200', closingStock: 277, minStock: 300, category: 'SINGLE' },
+  { id: '200-90', size: '90', gsm: '200', closingStock: 45, minStock: 200, category: 'SINGLE' },
+
+  // 200 GSM DOUBLE SIZE
+  { id: '200-41x83', size: '41*83', gsm: '200', closingStock: 80, minStock: 30, category: 'DOUBLE' },
+  { id: '200-42.5x57.5', size: '42.5*57.5', gsm: '200', closingStock: 215, minStock: 50, category: 'DOUBLE' },
+  { id: '200-43x73', size: '43*73', gsm: '200', closingStock: 283, minStock: 50, category: 'DOUBLE' },
+  { id: '200-44.5x64', size: '44.5*64', gsm: '200', closingStock: 114, minStock: 30, category: 'DOUBLE' },
+  { id: '200-45x76.5', size: '45*76.5', gsm: '200', closingStock: 44, minStock: 20, category: 'DOUBLE' },
+  { id: '200-46.5x90', size: '46.5*90', gsm: '200', closingStock: 11, minStock: 10, category: 'DOUBLE' },
+  { id: '200-47x70.5', size: '47*70.5', gsm: '200', closingStock: 188, minStock: 40, category: 'DOUBLE' },
+  { id: '200-50x72', size: '50*72', gsm: '200', closingStock: 67, minStock: 20, category: 'DOUBLE' },
+  { id: '200-50x79', size: '50*79', gsm: '200', closingStock: 701, minStock: 100, category: 'DOUBLE' },
+  { id: '200-50x81', size: '50*81', gsm: '200', closingStock: 151, minStock: 40, category: 'DOUBLE' },
+  { id: '200-50x83', size: '50*83', gsm: '200', closingStock: 130, minStock: 30, category: 'DOUBLE' },
+  { id: '200-51x80', size: '51*80', gsm: '200', closingStock: 153, minStock: 40, category: 'DOUBLE' },
+  { id: '200-52x68.5', size: '52*68.5', gsm: '200', closingStock: 75, minStock: 20, category: 'DOUBLE' },
+  { id: '200-52x76.5', size: '52*76.5', gsm: '200', closingStock: 145, minStock: 40, category: 'DOUBLE' },
+  { id: '200-53x83', size: '53*83', gsm: '200', closingStock: 674, minStock: 100, category: 'DOUBLE' },
+  { id: '200-54x86', size: '54*86', gsm: '200', closingStock: 489, minStock: 100, category: 'DOUBLE' },
+  { id: '200-56x82', size: '56*82', gsm: '200', closingStock: 356, minStock: 80, category: 'DOUBLE' },
+  { id: '200-56x86', size: '56*86', gsm: '200', closingStock: 380, minStock: 80, category: 'DOUBLE' },
+  { id: '200-57x85.5', size: '57*85.5', gsm: '200', closingStock: 153, minStock: 40, category: 'DOUBLE' },
+  { id: '200-57x89', size: '57*89', gsm: '200', closingStock: 136, minStock: 30, category: 'DOUBLE' },
+  { id: '200-57x90', size: '57*90', gsm: '200', closingStock: 241, minStock: 50, category: 'DOUBLE' },
+  { id: '200-59x91', size: '59*91', gsm: '200', closingStock: 620, minStock: 100, category: 'DOUBLE' },
+  { id: '200-59.5x93', size: '59.5*93', gsm: '200', closingStock: 270, minStock: 50, category: 'DOUBLE' },
+  { id: '200-62.5x95', size: '62.5*95', gsm: '200', closingStock: 276, minStock: 50, category: 'DOUBLE' },
+  { id: '200-63x64', size: '63*64', gsm: '200', closingStock: 326, minStock: 60, category: 'DOUBLE' },
+  { id: '200-63.5x99', size: '63.5*99', gsm: '200', closingStock: 436, minStock: 80, category: 'DOUBLE' },
+  { id: '200-65x101', size: '65*101', gsm: '200', closingStock: 75, minStock: 20, category: 'DOUBLE' },
+  { id: '200-68x69', size: '68*69', gsm: '200', closingStock: 133, minStock: 30, category: 'DOUBLE' },
+  { id: '200-72x48', size: '72*48', gsm: '200', closingStock: 79, minStock: 20, category: 'DOUBLE' },
+  { id: '200-73x74', size: '73*74', gsm: '200', closingStock: 179, minStock: 40, category: 'DOUBLE' },
+  { id: '200-50x89', size: '50*89', gsm: '200', closingStock: 239, minStock: 40, category: 'DOUBLE' },
+
+  // 140GYT GSM
+  { id: '140GYT-53', size: '53', gsm: '140GYT', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '140GYT-57', size: '57', gsm: '140GYT', closingStock: 612, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-60', size: '60', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-65', size: '65', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-70', size: '70', gsm: '140GYT', closingStock: 866, minStock: 300, category: 'SINGLE' },
+  { id: '140GYT-73', size: '73', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-77', size: '77', gsm: '140GYT', closingStock: 1805, minStock: 400, category: 'SINGLE' },
+  { id: '140GYT-82', size: '82', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-85', size: '85', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-88', size: '88', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-90', size: '90', gsm: '140GYT', closingStock: 956, minStock: 300, category: 'SINGLE' },
+  { id: '140GYT-95', size: '95', gsm: '140GYT', closingStock: 941, minStock: 300, category: 'SINGLE' },
+  { id: '140GYT-100', size: '100', gsm: '140GYT', closingStock: 942, minStock: 300, category: 'SINGLE' },
+  { id: '140GYT-104', size: '104', gsm: '140GYT', closingStock: 271, minStock: 200, category: 'SINGLE' },
+  { id: '140GYT-108', size: '108', gsm: '140GYT', closingStock: 0, minStock: 200, category: 'SINGLE' },
+
+  // 130 GSM
+  { id: '130-54', size: '54', gsm: '130', closingStock: 218, minStock: 100, category: 'SINGLE' },
+  { id: '130-56', size: '56', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-58', size: '58', gsm: '130', closingStock: 190, minStock: 100, category: 'SINGLE' },
+  { id: '130-59', size: '59', gsm: '130', closingStock: 44, minStock: 50, category: 'SINGLE' },
+  { id: '130-61', size: '61', gsm: '130', closingStock: 286, minStock: 100, category: 'SINGLE' },
+  { id: '130-63', size: '63', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-68', size: '68', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-75', size: '75', gsm: '130', closingStock: 59, minStock: 50, category: 'SINGLE' },
+  { id: '130-86', size: '86', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-90', size: '90', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-100', size: '100', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-102', size: '102', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+  { id: '130-106', size: '106', gsm: '130', closingStock: 35, minStock: 50, category: 'SINGLE' },
+  { id: '130-108', size: '108', gsm: '130', closingStock: 0, minStock: 100, category: 'SINGLE' },
+
+  // 100 & 150 GSM
+  { id: '100-60', size: '60', gsm: '100', closingStock: 150, minStock: 50, category: 'SINGLE' },
+  { id: '100-66', size: '66', gsm: '100', closingStock: 116, minStock: 50, category: 'SINGLE' },
+  { id: '100-92', size: '92', gsm: '100', closingStock: 396, minStock: 100, category: 'SINGLE' },
+  { id: '100-100', size: '100', gsm: '100', closingStock: 416, minStock: 100, category: 'SINGLE' },
+  { id: '100-106', size: '106', gsm: '100', closingStock: 227, minStock: 100, category: 'SINGLE' },
+  { id: '100-108', size: '108', gsm: '100', closingStock: 167, minStock: 100, category: 'SINGLE' },
+  
+  { id: '150-92', size: '92', gsm: '150', closingStock: 140, minStock: 50, category: 'SINGLE' },
+  { id: '150-68', size: '68', gsm: '150', closingStock: 387, minStock: 100, category: 'SINGLE' },
+  { id: '150-84', size: '84', gsm: '150', closingStock: 0, minStock: 50, category: 'SINGLE' },
+  { id: '150-104', size: '104', gsm: '150', closingStock: 67, minStock: 50, category: 'SINGLE' },
+  { id: '150-108', size: '108', gsm: '150', closingStock: 85, minStock: 50, category: 'SINGLE' },
 ];
 
 const App: React.FC = () => {
@@ -85,6 +225,7 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Storage Persistence
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
@@ -248,7 +389,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-full bg-[#f1f5f9] flex overflow-hidden font-sans print:h-auto">
+    <div className="h-screen w-full bg-[#0c4a6e] flex overflow-hidden font-sans print:h-auto">
+      {/* Sidebar - Same as previous, categorized and beautiful */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0c4a6e] transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'} md:static flex flex-col shrink-0 overflow-y-auto print:hidden border-r border-white/5`}>
         <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/10">
           <div className="flex items-center gap-3">
@@ -278,7 +420,7 @@ const App: React.FC = () => {
            {isAdmin && (
              <div className="mb-3">
                <h3 className="px-3 text-[9px] font-black text-blue-200/30 uppercase tracking-[0.15em] mb-1.5">Infrastructure</h3>
-               <NavBtn icon={Settings2} label="GCP Console" active={viewMode === ViewMode.ADMIN_PANEL} onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} badge={pendingCount > 0 ? pendingCount : undefined} badgeColor="bg-rose-500" />
+               <NavBtn icon={Settings2} label="Admin Panel" active={viewMode === ViewMode.ADMIN_PANEL} onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} badge={pendingCount > 0 ? pendingCount : undefined} badgeColor="bg-rose-500" />
              </div>
            )}
         </div>
@@ -297,8 +439,8 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 shadow-lg z-40">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#0c4a6e]">
+        <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 z-40">
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-1.5 text-white/80 bg-white/10 rounded-lg hover:bg-white/20"><Menu className="w-5 h-5" /></button>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div>
@@ -307,7 +449,8 @@ const App: React.FC = () => {
           <div className="w-8 h-8"></div>
         </header>
 
-        <div className="flex-1 overflow-hidden relative">
+        {/* Workspace Container with sharp edges */}
+        <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)] transition-all duration-500">
           {renderContent()}
         </div>
       </main>

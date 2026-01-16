@@ -84,7 +84,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    <div className="flex flex-col h-full bg-[#f1f5f9] relative">
       {isPdfGenerating && (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center text-white">
           <Loader2 className="w-12 h-12 animate-spin text-blue-400 mb-4" />
@@ -92,114 +92,118 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
         </div>
       )}
 
-      <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0 no-print">
-        <div className="flex items-center gap-4 w-full md:w-auto">
+      <div className="p-4 border-b bg-white flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0 no-print">
+        <div className="flex items-center gap-4 w-full md:w-auto px-4">
             <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-bold text-sm">Back</span></button>
             <h2 className={`text-lg md:text-xl font-bold pl-4 ml-2 border-l-2 ${getTitleColor()}`}>{getTitle()}</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto px-4">
             <div className="relative flex-1 md:flex-none">
-                <Search className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
-                <input type="text" placeholder="Search logs..." className="pl-8 pr-4 py-1.5 rounded-full border border-gray-300 text-sm w-full md:w-64 focus:outline-none bg-gray-50 text-center" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input type="text" placeholder="Search logs..." className="pl-9 pr-4 py-2 rounded-2xl border border-gray-200 text-sm w-full md:w-64 focus:outline-none bg-slate-50 text-center font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-rose-700 flex items-center gap-2 font-medium"><FileText className="w-4 h-4" /> PDF</button>
-            <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1.5 rounded text-sm shadow hover:bg-green-700 flex items-center gap-2 font-medium"><Download className="w-4 h-4" /> Excel</button>
+            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-rose-700 flex items-center gap-2 font-bold transition-all"><FileText className="w-4 h-4" /> PDF</button>
+            <button onClick={handleExport} className="bg-emerald-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-emerald-700 flex items-center gap-2 font-bold transition-all"><Download className="w-4 h-4" /> Excel</button>
         </div>
       </div>
 
-      <div ref={logContainerRef} className="flex-1 overflow-auto p-4 bg-white">
-        <div className="overflow-x-auto rounded-lg border border-gray-300">
-            <div className="min-w-max">
+      <div ref={logContainerRef} className="flex-1 overflow-auto p-6 bg-[#f1f5f9]">
+        <div className="overflow-x-auto rounded-[2.5rem] border border-gray-200 bg-white shadow-xl">
+            <div className="min-w-max p-4">
                 <table className="w-full text-xs text-center border-collapse">
-                    <thead className={`${getHeaderColor()} text-white sticky top-0`}>
+                    <thead className={`${getHeaderColor()} text-white sticky top-0 z-10 rounded-t-[2rem]`}>
                         {type === 'IN' && (
                             <tr>
-                                <th className="p-2 border border-white/20">DATE</th>
-                                <th className="p-2 border border-white/20">MONTH</th>
-                                <th className="p-2 border border-white/20">SIZE</th>
-                                <th className="p-2 border border-white/20">GSM</th>
-                                <th className="p-2 border border-white/20">IN</th>
-                                <th className="p-2 border border-white/20">COMPANY</th>
-                                <th className="p-2 border border-white/20">INVOICE</th>
-                                <th className="p-2 border border-white/20">STORAGE LOC</th>
-                                <th className="p-2 border border-white/20">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">DATE</th>
+                                <th className="p-3 border border-white/10">MONTH</th>
+                                <th className="p-3 border border-white/10">SIZE</th>
+                                <th className="p-3 border border-white/10">GSM</th>
+                                <th className="p-3 border border-white/10">IN</th>
+                                <th className="p-3 border border-white/10">COMPANY</th>
+                                <th className="p-3 border border-white/10">INVOICE</th>
+                                <th className="p-3 border border-white/10">STORAGE LOC</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
                             </tr>
                         )}
                         {type === 'OUT' && (
                             <tr>
-                                <th className="p-2 border border-white/20">DATE</th>
-                                <th className="p-2 border border-white/20">SIZE</th>
-                                <th className="p-2 border border-white/20">GSM</th>
-                                <th className="p-2 border border-white/20">OUT</th>
-                                <th className="p-2 border border-white/20">UNIT</th>
-                                <th className="p-2 border border-white/20">ITEM CODE</th>
-                                <th className="p-2 border border-white/20">WORK NAME</th>
-                                <th className="p-2 border border-white/20">CUT SIZE</th>
-                                <th className="p-2 border border-white/20 bg-red-900">SHEETS</th>
-                                <th className="p-2 border border-white/20">STATUS</th>
-                                <th className="p-2 border border-white/20">VEHICLE</th>
-                                <th className="p-2 border border-white/20">LOCATION</th>
-                                <th className="p-2 border border-white/20">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">DATE</th>
+                                <th className="p-3 border border-white/10">SIZE</th>
+                                <th className="p-3 border border-white/10">GSM</th>
+                                <th className="p-3 border border-white/10">OUT</th>
+                                <th className="p-3 border border-white/10">UNIT</th>
+                                <th className="p-3 border border-white/10">ITEM CODE</th>
+                                <th className="p-3 border border-white/10">WORK NAME</th>
+                                <th className="p-3 border border-white/10">CUT SIZE</th>
+                                <th className="p-3 border border-white/10 bg-red-900 font-black">SHEETS</th>
+                                <th className="p-3 border border-white/10">STATUS</th>
+                                <th className="p-3 border border-white/10">VEHICLE</th>
+                                <th className="p-3 border border-white/10">LOCATION</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
                             </tr>
                         )}
                         {type === 'REORDER' && (
                             <tr>
-                                <th className="p-2 border border-white/20">ORDER DATE</th>
-                                <th className="p-2 border border-white/20">SIZE</th>
-                                <th className="p-2 border border-white/20">GSM</th>
-                                <th className="p-2 border border-white/20">QUANTITY</th>
-                                <th className="p-2 border border-white/20">COMPANY</th>
-                                <th className="p-2 border border-white/20">RECEIVED</th>
-                                <th className="p-2 border border-white/20">REC QTY</th>
-                                <th className="p-2 border border-white/20">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">ORDER DATE</th>
+                                <th className="p-3 border border-white/10">SIZE</th>
+                                <th className="p-3 border border-white/10">GSM</th>
+                                <th className="p-3 border border-white/10">QUANTITY</th>
+                                <th className="p-3 border border-white/10">COMPANY</th>
+                                <th className="p-3 border border-white/10">RECEIVED</th>
+                                <th className="p-3 border border-white/10">REC QTY</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
                             </tr>
                         )}
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-100">
                         {displayedTransactions.map(t => (
-                            <tr key={t.id} className="odd:bg-white even:bg-gray-50 hover:bg-yellow-50">
+                            <tr key={t.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-amber-50 transition-colors">
                                 {type === 'IN' && (
                                     <>
-                                        <td className="p-2 border border-gray-300">{t.date}</td>
-                                        <td className="p-2 border border-gray-300">{t.month}</td>
-                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
-                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-green-700">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300">{t.company}</td>
-                                        <td className="p-2 border border-gray-300">{t.invoice}</td>
-                                        <td className="p-2 border border-gray-300">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
+                                        <td className="p-3 border border-gray-100">{t.date}</td>
+                                        <td className="p-3 border border-gray-100">{t.month}</td>
+                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100">{t.gsm}</td>
+                                        <td className="p-3 border border-gray-100 font-black text-emerald-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold">{t.company}</td>
+                                        <td className="p-3 border border-gray-100">{t.invoice}</td>
+                                        <td className="p-3 border border-gray-100 font-medium">{t.storageLocation}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'OUT' && (
                                     <>
-                                        <td className="p-2 border border-gray-300">{t.date}</td>
-                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
-                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-red-700">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300 text-slate-500 font-bold">{t.unit}</td>
-                                        <td className="p-2 border border-gray-300">{t.itemCode}</td>
-                                        <td className="p-2 border border-gray-300 max-w-xs truncate">{t.workName}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-slate-700">{t.cuttingSize}</td>
-                                        <td className="p-2 border border-gray-300 font-black text-blue-700 bg-blue-50/50">
+                                        <td className="p-3 border border-gray-100">{t.date}</td>
+                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100">{t.gsm}</td>
+                                        <td className="p-3 border border-gray-100 font-black text-rose-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-400 font-bold">{t.unit}</td>
+                                        <td className="p-3 border border-gray-100 text-indigo-600 font-bold">{t.itemCode}</td>
+                                        <td className="p-3 border border-gray-100 max-w-xs truncate text-left font-medium">{t.workName}</td>
+                                        <td className="p-3 border border-gray-100 font-bold text-slate-600">{t.cuttingSize}</td>
+                                        <td className="p-3 border border-gray-100 font-black text-blue-700 bg-blue-50/30">
                                             {t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity)}
                                         </td>
-                                        <td className={`p-2 border border-gray-300 font-bold ${t.status === 'Delivered' ? 'text-green-600' : 'text-orange-600'}`}>{t.status}</td>
-                                        <td className="p-2 border border-gray-300 uppercase">{t.vehicle}</td>
-                                        <td className="p-2 border border-gray-300 uppercase">{t.storageLocation}</td>
-                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
+                                        <td className={`p-3 border border-gray-100`}>
+                                            <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${t.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                                {t.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold text-slate-400">{t.vehicle}</td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold text-slate-400">{t.storageLocation}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'REORDER' && (
                                     <>
-                                        <td className="p-2 border border-gray-300">{t.date}</td>
-                                        <td className="p-2 border border-gray-300 font-bold">{t.size}</td>
-                                        <td className="p-2 border border-gray-300">{t.gsm}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-purple-700">{t.quantity}</td>
-                                        <td className="p-2 border border-gray-300">{t.company}</td>
-                                        <td className="p-2 border border-gray-300 font-bold text-green-700">{t.receivedDate || '-'}</td>
-                                        <td className="p-2 border border-gray-300">{t.receivedQty || '-'}</td>
-                                        <td className="p-2 border border-gray-300 truncate max-w-xs">{t.remarks}</td>
+                                        <td className="p-3 border border-gray-100">{t.date}</td>
+                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100">{t.gsm}</td>
+                                        <td className="p-3 border border-gray-100 font-black text-purple-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 font-bold uppercase">{t.company}</td>
+                                        <td className="p-3 border border-gray-100 font-black text-emerald-600">{t.receivedDate || '-'}</td>
+                                        <td className="p-3 border border-gray-100 font-bold">{t.receivedQty || '-'}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
                                     </>
                                 )}
                             </tr>

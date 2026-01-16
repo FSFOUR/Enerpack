@@ -120,7 +120,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         backgroundColor: '#ffffff'
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      pagebreak: { mode: ['css', 'legacy'] }
     };
 
     try {
@@ -318,7 +318,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
            </div>
            <div className="flex items-center gap-2">
              <button type="button" onClick={handleAddItem} className="bg-[#0284c7] hover:bg-[#0369a1] text-white h-[44px] px-10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 min-w-[120px]">
-               <Save className="w-4 h-4" /> Add
+               <Plus className="w-4 h-4" /> Add
              </button>
              <button type="button" onClick={() => setIsAdding(false)} className="bg-slate-200/50 h-[44px] w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-red-500 transition-all border border-slate-200">
                <X className="w-5 h-5" />
@@ -347,6 +347,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
           const rightVisualRows = config.right.length + (config.rightSubIndex !== undefined ? 1 : 0);
           const maxRows = Math.max(leftVisualRows, rightVisualRows);
 
+          // PDF BREAK LOGIC: 
+          // Page 1: 280 GSM alone.
+          // Page 2: 250, 230, and 200 GSM together.
           let style: React.CSSProperties = {};
           if (group.label === "280") {
              style = { breakAfter: 'page' };
@@ -357,7 +360,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
           return (
             <div 
               key={group.label} 
-              className="bg-white gsm-section-container shadow-sm border border-slate-300 print:shadow-none print:border-none print:overflow-visible break-inside-avoid mb-6 print:mb-0"
+              className="bg-white gsm-section-container shadow-sm border border-slate-300 print:shadow-none print:border-none print:overflow-visible mb-6 print:mb-0 overflow-hidden"
               style={style}
             >
               <div className="bg-[#f1f5f9] border-b border-slate-300 h-10 flex items-center justify-center text-center text-slate-800 font-extrabold uppercase tracking-[0.2em] text-[11px] print:bg-slate-200 print:border-slate-400 gsm-header">
@@ -416,9 +419,9 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
   items.forEach((item: InventoryItem, idx: number) => {
     if (splitIndex !== undefined && idx === splitIndex) {
       renderedRows.push(
-        <tr key={`subheading-split-${idx}`} className="bg-slate-100 print:bg-slate-200 h-10 subheading-row">
-          <td colSpan={5} className={`p-0 border-b ${borderColor} text-center h-10`}>
-            <div className="text-[8px] font-black uppercase text-slate-600 tracking-[0.2em] leading-10 h-10 flex items-center justify-center">
+        <tr key={`subheading-split-${idx}`} className="bg-slate-100 print:bg-slate-200 h-[24px] subheading-row">
+          <td colSpan={5} className={`p-0 border-b ${borderColor} text-center h-[24px]`}>
+            <div className="text-[8px] font-black uppercase text-slate-600 tracking-[0.2em] leading-[24px] h-[24px] flex items-center justify-center">
               {splitLabel}
             </div>
           </td>
@@ -426,9 +429,9 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
       );
     }
     renderedRows.push(
-      <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-blue-50/50 transition-colors h-10 ${item.isPendingApproval ? 'bg-amber-50/50' : ''}`}>
-        <td className={`p-0 border-r ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size} h-10`}>
-          <div className="h-10 flex items-center justify-center px-1 relative">
+      <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-blue-50/50 transition-colors h-[24px] ${item.isPendingApproval ? 'bg-amber-50/50' : ''}`}>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size} h-[24px]`}>
+          <div className="h-[24px] flex items-center justify-center px-1 relative">
             {item.size}
             {item.isPendingApproval && (
               <span title="Changes pending approval" className="absolute left-1 top-1">
@@ -437,14 +440,14 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
             )}
           </div>
         </td>
-        <td className={`p-0 border-r ${borderColor} text-slate-500 font-medium text-[10px] print:text-[9px] ${COL_WIDTHS.gsm} h-10`}>
-          <div className="h-10 flex items-center justify-center px-1">{item.gsm}</div>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} text-slate-500 font-medium text-[10px] print:text-[9px] ${COL_WIDTHS.gsm} h-[24px]`}>
+          <div className="h-[24px] flex items-center justify-center px-1">{item.gsm}</div>
         </td>
-        <td className={`p-0 border-r ${borderColor} font-extrabold text-[12px] text-[#1e40af] tabular-nums print:text-[11px] ${COL_WIDTHS.stock} h-10`}>
-          <div className="h-10 flex items-center justify-center px-1">{item.closingStock}</div>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-extrabold text-[12px] text-[#1e40af] tabular-nums print:text-[11px] ${COL_WIDTHS.stock} h-[24px]`}>
+          <div className="h-[24px] flex items-center justify-center px-1">{item.closingStock}</div>
         </td>
-        <td className={`p-0 border-r ${borderColor} print:p-0 ${COL_WIDTHS.action} h-10`}>
-          <div className="h-10 flex items-center justify-center px-1 gap-1 print:hidden">
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} print:p-0 ${COL_WIDTHS.action} h-[24px]`}>
+          <div className="h-[24px] flex items-center justify-center px-1 gap-1 print:hidden">
             {isAdmin ? (
               <>
                 <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-all" title="Add Stock"><Plus className="w-3 h-3" /></button>
@@ -456,24 +459,25 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
               <Lock className="w-3.5 h-3.5 text-slate-300" />
             )}
           </div>
-          <div className="hidden print:flex h-10 items-center justify-center text-[7px] font-bold text-slate-400 uppercase tracking-tighter verified-text">Ver.</div>
+          <div className="hidden print:flex h-[24px] items-center justify-center text-[7px] font-bold text-slate-400 uppercase tracking-tighter verified-text">Ver.</div>
         </td>
-        <td className={`p-0 text-[9px] text-slate-400 font-medium text-left truncate px-2 italic leading-tight ${COL_WIDTHS.remarks} h-10`}>
-          <div className="h-10 flex items-center truncate italic">{item.remarks || ""}</div>
+        <td className={`p-0 border-b ${borderColor} text-[9px] text-slate-400 font-medium text-left truncate px-2 italic leading-tight ${COL_WIDTHS.remarks} h-[24px]`}>
+          <div className="h-[24px] flex items-center truncate italic">{item.remarks || ""}</div>
         </td>
       </tr>
     );
   });
 
+  // Calculate padding needed to make Left and Right columns match in height
   const paddingNeeded = targetCount - renderedRows.length;
   for (let p = 0; p < paddingNeeded; p++) {
     renderedRows.push(
-      <tr key={`padding-row-${p}`} className="h-10 bg-white">
-        <td className={`p-0 border-r ${borderColor} ${COL_WIDTHS.size} h-10`}></td>
-        <td className={`p-0 border-r ${borderColor} ${COL_WIDTHS.gsm} h-10`}></td>
-        <td className={`p-0 border-r ${borderColor} ${COL_WIDTHS.stock} h-10`}></td>
-        <td className={`p-0 border-r ${borderColor} ${COL_WIDTHS.action} h-10`}></td>
-        <td className={`p-0 ${COL_WIDTHS.remarks} h-10`}></td>
+      <tr key={`padding-row-${p}`} className="h-[24px] bg-white">
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} ${COL_WIDTHS.size} h-[24px]`}></td>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} ${COL_WIDTHS.gsm} h-[24px]`}></td>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} ${COL_WIDTHS.stock} h-[24px]`}></td>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} ${COL_WIDTHS.action} h-[24px]`}></td>
+        <td className={`p-0 border-b ${borderColor} ${COL_WIDTHS.remarks} h-[24px]`}></td>
       </tr>
     );
   }
@@ -481,12 +485,12 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
   return (
     <table className="w-full text-xs text-center border-collapse table-fixed">
       <thead className="bg-[#f1f5f9] text-slate-500 font-bold uppercase text-[7px] border-b border-slate-300 print:bg-slate-50 print:border-black">
-        <tr className="h-10">
-          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.size} h-10`}><div className="h-10 flex items-center justify-center">Size</div></th>
-          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.gsm} h-10`}><div className="h-10 flex items-center justify-center">GSM</div></th>
-          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.stock} h-10`}><div className="h-10 flex items-center justify-center">Stock</div></th>
-          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.action} h-10`}><div className="h-10 flex items-center justify-center">Action</div></th>
-          <th className={`p-0 ${COL_WIDTHS.remarks} h-10`}><div className="h-10 flex items-center justify-center">Remarks</div></th>
+        <tr className="h-[24px]">
+          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.size} h-[24px]`}><div className="h-[24px] flex items-center justify-center">Size</div></th>
+          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.gsm} h-[24px]`}><div className="h-[24px] flex items-center justify-center">GSM</div></th>
+          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.stock} h-[24px]`}><div className="h-[24px] flex items-center justify-center">Stock</div></th>
+          <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.action} h-[24px]`}><div className="h-[24px] flex items-center justify-center">Action</div></th>
+          <th className={`p-0 ${COL_WIDTHS.remarks} h-[24px]`}><div className="h-[24px] flex items-center justify-center">Remarks</div></th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-300 print:divide-black">
