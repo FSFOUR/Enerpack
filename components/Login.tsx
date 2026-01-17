@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
 import { User as UserType, UserAccount } from '../types';
 
 interface LoginProps {
@@ -23,27 +23,41 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
     setIsLoading(true);
     setError('');
 
+    // Small delay to simulate secure processing and ensure state sync
     setTimeout(() => {
-      // 1. Check master admin with NEW CREDENTIALS
-      if (username === 'admin' && password === 'enerpack2022') {
+      const lowerUser = username.toLowerCase().trim();
+      
+      // 1. Check master admin
+      if (lowerUser === 'admin' && password === 'enerpack2022') {
         onLogin({ username: 'admin', role: 'ADMIN', name: 'Master Administrator' });
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Check dynamic users
+      const account = authorizedUsers.find(u => u.username.toLowerCase() === lowerUser);
+      
+      if (!account) {
+        setError('Account not found. Please register first.');
+      } else if (account.password !== password) {
+        setError('Incorrect password. Please try again.');
       } else {
-        // 2. Check authorized dynamic users
-        const user = authorizedUsers.find(u => u.username === username && u.password === password);
-        if (user) {
-          if (user.status === 'APPROVED') {
-            onLogin({ username: user.username, role: user.role, name: user.name });
-          } else if (user.status === 'PENDING') {
-            setError('Your account is pending administrator approval.');
-          } else {
-            setError('Access denied by administrator.');
-          }
+        // Password matches, check status
+        if (account.status === 'APPROVED') {
+          onLogin({ 
+            username: account.username, 
+            role: account.role, 
+            name: account.name,
+            allowedPages: account.allowedPages 
+          });
+        } else if (account.status === 'PENDING') {
+          setError('Access Pending: An administrator must approve your account before you can log in.');
         } else {
-          setError('Invalid username or password.');
+          setError('Access Denied: Your account request was declined by the administrator.');
         }
       }
       setIsLoading(false);
-    }, 800);
+    }, 600);
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -51,27 +65,30 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
     setIsLoading(true);
     setError('');
 
-    if (username.length < 3) {
+    const cleanUsername = username.toLowerCase().trim();
+
+    if (cleanUsername.length < 3) {
       setError('Username must be at least 3 characters.');
       setIsLoading(false);
       return;
     }
 
-    if (authorizedUsers.some(u => u.username === username) || username === 'admin') {
-      setError('Username already exists.');
+    if (authorizedUsers.some(u => u.username.toLowerCase() === cleanUsername) || cleanUsername === 'admin') {
+      setError('This username is already registered. Try signing in.');
       setIsLoading(false);
       return;
     }
 
     setTimeout(() => {
       onRequestSignup({
-        name: fullName,
-        username,
-        password
+        name: fullName.trim(),
+        username: cleanUsername,
+        password: password
       });
-      setSuccess('Registration request submitted! Wait for Admin approval.');
+      
+      setSuccess('Request Submitted! Please contact the Admin to approve your access.');
       setMode('LOGIN');
-      setUsername('');
+      // Keep username for convenience but clear sensitive/other fields
       setPassword('');
       setFullName('');
       setIsLoading(false);
@@ -80,10 +97,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
   return (
     <div className="min-h-screen w-full bg-[#0c4a6e] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+      <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500 relative z-10">
         <div className="text-center mb-8">
           <div className="inline-flex w-20 h-20 bg-white rounded-[2rem] items-center justify-center shadow-2xl border-2 border-white/20 mb-6 rotate-3 transform transition-transform hover:rotate-0">
             <div className="flex flex-col items-center justify-center text-[#0c4a6e]">
@@ -113,7 +131,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
           <div className="p-8 md:p-10">
             <div className="mb-8 text-center md:text-left">
-              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Welcome Back</h2>
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
+                {mode === 'LOGIN' ? 'Welcome Back' : 'Create Account'}
+              </h2>
               <p className="text-slate-400 text-sm font-medium">
                 {mode === 'LOGIN' ? 'Enter credentials to manage inventory.' : 'Register and wait for admin verification.'}
               </p>
@@ -123,6 +143,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               <div className="mb-6 bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3 text-emerald-600 animate-in slide-in-from-top-2">
                 <CheckCircle2 className="w-5 h-5 shrink-0" />
                 <p className="text-xs font-bold uppercase tracking-tight leading-tight">{success}</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-6 bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3 text-rose-600 animate-in slide-in-from-top-2">
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <p className="text-xs font-bold uppercase tracking-tight leading-tight">{error}</p>
               </div>
             )}
 
@@ -186,13 +213,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                   </button>
                 </div>
               </div>
-
-              {error && (
-                <div className="bg-rose-50 border border-rose-100 p-3 rounded-xl flex items-center gap-3 text-rose-600 animate-in slide-in-from-top-2">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <p className="text-xs font-bold uppercase tracking-tight">{error}</p>
-                </div>
-              )}
 
               <button 
                 type="submit"

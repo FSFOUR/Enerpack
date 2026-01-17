@@ -25,7 +25,7 @@ const generateId = () => {
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
 
-// COMPREHENSIVE INVENTORY DATA EXTRACTED FROM PROVIDED IMAGES
+// COMPREHENSIVE INVENTORY DATA
 const INITIAL_DATA: InventoryItem[] = [
   // 280 GSM SINGLE SIZE
   { id: '280-54', size: '54', gsm: '280', closingStock: 1019, minStock: 500, category: 'SINGLE' },
@@ -322,8 +322,13 @@ const App: React.FC = () => {
   const handleLogout = () => { if (confirm('Log out?')) { setCurrentUser(null); setViewMode(ViewMode.DASHBOARD); } };
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
-    const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [] };
-    setAuthorizedUsers(prev => [...prev, newAccount]);
+    const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
+    setAuthorizedUsers(prev => {
+      const updated = [...prev, newAccount];
+      // Force immediate persistence to ensure next component cycle sees it
+      localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole, allowedPages?: ViewMode[]) => {
@@ -390,7 +395,7 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-full bg-[#0c4a6e] flex overflow-hidden font-sans print:h-auto">
-      {/* Sidebar - Same as previous, categorized and beautiful */}
+      {/* Sidebar - Sharp edges, strict overlay on mobile */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0c4a6e] transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'} md:static flex flex-col shrink-0 overflow-y-auto print:hidden border-r border-white/5`}>
         <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/10">
           <div className="flex items-center gap-3">
@@ -426,13 +431,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-white/5 bg-black/10">
-           <div className="flex items-center justify-between mb-4 px-1">
-             <div className="flex items-center gap-2">
-               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-               <span className="text-[8px] font-black text-blue-200 uppercase tracking-widest">Cloud Sync Active</span>
-             </div>
-             <Cloud className="w-3 h-3 text-blue-400/50" />
-           </div>
            <button onClick={handleLogout} className="flex items-center gap-2.5 text-rose-300 hover:text-rose-400 transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-rose-400/10">
               <LogOut className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Sign Out</span>
            </button>
@@ -449,8 +447,8 @@ const App: React.FC = () => {
           <div className="w-8 h-8"></div>
         </header>
 
-        {/* Workspace Container with sharp edges */}
-        <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)] transition-all duration-500">
+        {/* Workspace Container - Sharp edges for stability */}
+        <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
         </div>
       </main>
