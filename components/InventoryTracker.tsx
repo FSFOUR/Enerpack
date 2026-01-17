@@ -52,7 +52,7 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
     const totalUsed = relevantOuts.reduce((sum, t) => sum + t.quantity, 0);
     const avgDailyUsage = totalUsed / 30;
     
-    if (avgDailyUsage <= 0) return { daysLeft: 'N/A', predictedDate: 'Insufficient usage data' };
+    if (avgDailyUsage <= 0) return { daysLeft: 'N/A', predictedDate: 'Insufficient data' };
 
     const daysLeft = Math.floor((selectedItem?.closingStock || 0) / avgDailyUsage);
     const predictedDate = new Date();
@@ -60,7 +60,7 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
     return {
       daysLeft,
-      predictedDate: predictedDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      predictedDate: predictedDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       usageRate: avgDailyUsage.toFixed(1)
     };
   }, [selectedItemId, transactions, selectedItem]);
@@ -77,8 +77,8 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
       size: selectedItem.size,
       gsm: selectedItem.gsm,
       quantity: qty,
-      company: type === 'IN' ? 'Restock Operation' : 'Direct Exit',
-      remarks: `Tracked via Mobile Interface`
+      company: type === 'IN' ? 'Quick Restock' : 'Direct Exit',
+      remarks: `Mobile Tracker`
     });
 
     onUpdateStock(selectedItem.id, type === 'IN' ? qty : -qty);
@@ -87,50 +87,48 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#f1f5f9] overflow-hidden">
-      <div className="bg-[#0c4a6e] p-4 px-8 flex justify-between items-center shrink-0 shadow-lg text-white">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-2xl transition-all">
-            <ArrowLeft className="w-5 h-5" />
+      <div className="bg-[#0c4a6e] p-3 px-6 flex justify-between items-center shrink-0 shadow-lg text-white">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-1.5 bg-white/10 rounded-xl transition-all">
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex flex-col">
-            <h2 className="font-black text-xl uppercase tracking-tighter flex items-center gap-2">
-              <Package className="w-6 h-6 text-blue-400" />
-              Inventory Tracker
+            <h2 className="font-black text-sm uppercase tracking-tighter flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-blue-400" />
+              Quick Tracker
             </h2>
-            <p className="text-blue-200/50 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Movement & Forecasting</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row p-4 md:p-6 gap-6 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row p-2 md:p-6 gap-3 md:gap-6 overflow-hidden">
         
-        <div className="w-full lg:w-1/3 flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-hide">
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Quick Search</h3>
-            <div className="relative mb-4">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+        <div className="w-full lg:w-1/3 flex flex-col gap-3 md:gap-6 overflow-y-auto scrollbar-hide shrink-0">
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
               <input 
                 type="text" 
-                placeholder="Item dimensions..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                placeholder="Search Item..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-4 text-xs font-bold text-slate-800 outline-none transition-all"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             
             {filteredItems.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-1.5 mt-3">
                 {filteredItems.map(item => (
                   <button 
                     key={item.id}
                     onClick={() => { setSelectedItemId(item.id); setSearchQuery(''); }}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between ${selectedItemId === item.id ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-500/10' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between ${selectedItemId === item.id ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-slate-100'}`}
                   >
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-800">{item.size}</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.gsm} GSM</span>
+                      <span className="font-black text-xs text-slate-800">{item.size}</span>
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{item.gsm} GSM</span>
                     </div>
-                    <ChevronRight className={`w-5 h-5 transition-transform ${selectedItemId === item.id ? 'text-blue-500 translate-x-1' : 'text-slate-300'}`} />
+                    <ChevronRight className={`w-4 h-4 ${selectedItemId === item.id ? 'text-blue-500' : 'text-slate-300'}`} />
                   </button>
                 ))}
               </div>
@@ -138,23 +136,19 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
           </div>
 
           {selectedItem && (
-            <div className="bg-[#0c4a6e] p-6 rounded-[2rem] shadow-xl text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <BarChart2 className="w-24 h-24" />
+            <div className="bg-[#0c4a6e] p-4 rounded-2xl shadow-xl text-white relative overflow-hidden shrink-0">
+              <div className="absolute top-0 right-0 p-2 opacity-10">
+                <BarChart2 className="w-12 h-12" />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-1">Current Availability</p>
-              <div className="flex items-baseline gap-2 mb-4">
-                <h4 className="text-5xl font-black tracking-tighter tabular-nums">{selectedItem.closingStock}</h4>
-                <span className="text-blue-400 font-bold uppercase text-xs">Units</span>
+              <p className="text-[8px] font-black uppercase tracking-widest text-blue-300">Stock Available</p>
+              <div className="flex items-baseline gap-1.5">
+                <h4 className="text-3xl font-black tracking-tighter tabular-nums">{selectedItem.closingStock}</h4>
+                <span className="text-blue-400 font-bold uppercase text-[9px]">Units</span>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-200 mb-1">Min Level</p>
-                  <p className="font-bold">{selectedItem.minStock}</p>
-                </div>
-                <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-blue-200 mb-1">Status</p>
-                  <p className={`font-bold ${selectedItem.closingStock < selectedItem.minStock ? 'text-rose-400' : 'text-emerald-400'}`}>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="bg-white/10 p-2 rounded-lg border border-white/5">
+                  <p className="text-[7px] font-black uppercase text-blue-200">Status</p>
+                  <p className={`text-[10px] font-bold ${selectedItem.closingStock < selectedItem.minStock ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {selectedItem.closingStock < selectedItem.minStock ? 'LOW' : 'OK'}
                   </p>
                 </div>
@@ -163,113 +157,90 @@ const InventoryTracker: React.FC<InventoryTrackerProps> = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2 scrollbar-hide space-y-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide space-y-3">
           {selectedItem ? (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
               
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                <div className="flex flex-col md:flex-row gap-8">
-                  <div className="flex-1 space-y-6">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                      <History className="w-5 h-5 text-indigo-500" /> Stock Operation
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                        <button 
-                          onClick={() => setOpType('OUT')}
-                          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${opType === 'OUT' ? 'bg-rose-500 text-white shadow-lg' : 'text-slate-400'}`}
-                        >
-                          <ArrowUpCircle className="w-4 h-4" /> Stock Out
-                        </button>
-                        <button 
-                          onClick={() => setOpType('IN')}
-                          className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${opType === 'IN' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400'}`}
-                        >
-                          <ArrowDownCircle className="w-4 h-4" /> Stock In
-                        </button>
-                      </div>
-                      
-                      <div className="relative group">
-                        <input 
-                          type="number" 
-                          placeholder="Enter quantity..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-6 px-8 text-3xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 outline-none transition-all tabular-nums text-center"
-                          value={qty || ''}
-                          onChange={(e) => setQty(Number(e.target.value))}
-                        />
-                        <div className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300 uppercase tracking-widest">Units</div>
-                      </div>
-
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button 
-                        onClick={() => handleQuickLog(opType)}
-                        disabled={!isAdmin || qty <= 0}
-                        className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-30 ${opType === 'OUT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white`}
+                        onClick={() => setOpType('OUT')}
+                        className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${opType === 'OUT' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400'}`}
                       >
-                        <Save className="w-4 h-4" /> Confirm Movement
+                        <ArrowUpCircle className="w-3 h-3" /> Out
+                      </button>
+                      <button 
+                        onClick={() => setOpType('IN')}
+                        className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${opType === 'IN' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400'}`}
+                      >
+                        <ArrowDownCircle className="w-3 h-3" /> In
                       </button>
                     </div>
+                    
+                    <div className="relative group">
+                      <input 
+                        type="number" 
+                        placeholder="Qty..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xl font-black text-slate-800 outline-none transition-all text-center tabular-nums"
+                        value={qty || ''}
+                        onChange={(e) => setQty(Number(e.target.value))}
+                      />
+                    </div>
+
+                    <button 
+                      onClick={() => handleQuickLog(opType)}
+                      disabled={!isAdmin || qty <= 0}
+                      className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-30 ${opType === 'OUT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white`}
+                    >
+                      Confirm
+                    </button>
                   </div>
 
-                  <div className="w-full md:w-80 space-y-4">
-                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-blue-500" /> Forecast
-                    </h3>
-                    <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 space-y-6">
-                      <div className="text-center">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Stock Exhausts In</p>
-                        <h5 className={`text-4xl font-black tracking-tighter tabular-nums ${typeof forecast?.daysLeft === 'number' && forecast.daysLeft < 7 ? 'text-rose-600' : 'text-slate-800'}`}>
-                          {forecast?.daysLeft}
-                        </h5>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Estimated Days</p>
-                      </div>
-                      <div className="space-y-3 pt-3 border-t border-slate-200">
-                        <div className="flex justify-between items-center">
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Next Reorder</span>
-                           <span className="text-[11px] font-black text-slate-700">{forecast?.predictedDate}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Usage Rate</span>
-                           <span className="text-[11px] font-black text-slate-700">{forecast?.usageRate} / Day</span>
-                        </div>
-                      </div>
+                  <div className="w-full sm:w-48 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                    <div className="text-center">
+                      <p className="text-[7px] font-black uppercase text-slate-400">Ends In</p>
+                      <h5 className={`text-xl font-black ${typeof forecast?.daysLeft === 'number' && forecast.daysLeft < 7 ? 'text-rose-600' : 'text-slate-800'}`}>
+                        {forecast?.daysLeft} Days
+                      </h5>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5">Rate: {forecast?.usageRate}/d</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2 mb-6">
-                   <Clock className="w-5 h-5 text-slate-400" /> Immediate History
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                   <Clock className="w-3.5 h-3.5 text-slate-400" /> History
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                    {recentTransactions.length > 0 ? recentTransactions.map(t => (
-                     <div key={t.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                        <div className="flex items-center gap-4">
-                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.type === 'IN' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                              {t.type === 'IN' ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+                     <div key={t.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-3">
+                           <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${t.type === 'IN' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                              {t.type === 'IN' ? <ArrowDownCircle className="w-3.5 h-3.5" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
                            </div>
                            <div>
-                              <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{t.type === 'IN' ? 'Restocked' : 'Dispatched'}</p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{t.date}</p>
+                              <p className="text-[9px] font-black text-slate-800 uppercase leading-none">{t.type === 'IN' ? 'In' : 'Out'}</p>
+                              <p className="text-[7px] font-bold text-slate-400 uppercase">{t.date}</p>
                            </div>
                         </div>
-                        <span className={`text-lg font-black tabular-nums ${t.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <span className={`text-sm font-black tabular-nums ${t.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>
                            {t.type === 'IN' ? '+' : '-'}{t.quantity}
                         </span>
                      </div>
                    )) : (
-                     <p className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No recent movements</p>
+                     <p className="text-center py-2 text-slate-400 text-[9px] font-bold uppercase">No records</p>
                    )}
                 </div>
               </div>
 
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-6 opacity-40">
-               <Package className="w-20 h-20" />
-               <p className="font-black text-slate-400 text-sm uppercase tracking-[0.2em] text-center max-w-xs leading-relaxed">
-                 Select an asset from the sidebar to start tracking movements.
-               </p>
+            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2 opacity-40">
+               <Package className="w-12 h-12" />
+               <p className="font-black text-slate-400 text-[9px] uppercase tracking-widest">Select Item</p>
             </div>
           )}
         </div>

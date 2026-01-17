@@ -265,24 +265,18 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         </div>
       )}
 
-      <div className="bg-[#0c4a6e] text-white p-3 px-6 flex justify-between items-center shrink-0 shadow-lg z-30 print:hidden">
-        <h2 className="uppercase tracking-[0.2em] text-lg brand-font">ENER PACK INVENTORY</h2>
-        <div className="flex items-center gap-2">
+      <div className="bg-[#0c4a6e] text-white p-3 px-6 flex flex-col md:flex-row justify-between items-center shrink-0 shadow-lg z-30 print:hidden gap-3">
+        <h2 className="uppercase tracking-[0.2em] text-lg brand-font text-center md:text-left">ENER PACK INVENTORY</h2>
+        <div className="flex flex-wrap items-center justify-center gap-2">
            <div className="relative">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-             <input type="text" placeholder="Search Size..." className="bg-white text-slate-800 text-xs py-1.5 pl-9 pr-4 rounded-lg w-64 focus:ring-2 focus:ring-blue-400 outline-none font-medium" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+             <input type="text" placeholder="Search..." className="bg-white text-slate-800 text-xs py-1.5 pl-9 pr-4 rounded-lg w-40 md:w-64 focus:ring-2 focus:ring-blue-400 outline-none font-medium" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
            </div>
-           <button onClick={handleImport} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
-             <Upload className="w-3.5 h-3.5" /> Import
-           </button>
            <button onClick={handleExport} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
              <FileDown className="w-3.5 h-3.5" /> Export
            </button>
            <button onClick={handleSavePDF} className="flex items-center gap-2 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
-             <FileText className="w-3.5 h-3.5" /> Save PDF
-           </button>
-           <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 rounded-lg text-white text-[11px] font-bold uppercase transition-all">
-             <Printer className="w-3.5 h-3.5" /> Print
+             <FileText className="w-3.5 h-3.5" /> PDF
            </button>
            {isAdmin && (
              <button onClick={() => setIsAdding(!isAdding)} className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all">
@@ -312,12 +306,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
              <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Initial Stock</label>
              <input type="number" className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.closingStock} onChange={e => setNewItem({...newItem, closingStock: Number(e.target.value)})} />
            </div>
-           <div className="flex-1 min-w-[140px]">
-             <label className="block text-[11px] font-semibold text-slate-600 mb-1 ml-1">Remarks</label>
-             <input className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-400 outline-none shadow-sm" value={newItem.remarks} onChange={e => setNewItem({...newItem, remarks: e.target.value})} placeholder="" />
-           </div>
-           <div className="flex items-center gap-2">
-             <button type="button" onClick={handleAddItem} className="bg-[#0284c7] hover:bg-[#0369a1] text-white h-[44px] px-10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 min-w-[120px]">
+           <div className="flex items-center gap-2 pt-4">
+             <button type="button" onClick={handleAddItem} className="bg-[#0284c7] hover:bg-[#0369a1] text-white h-[44px] px-10 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2">
                <Plus className="w-4 h-4" /> Add
              </button>
              <button type="button" onClick={() => setIsAdding(false)} className="bg-slate-200/50 h-[44px] w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-red-500 transition-all border border-slate-200">
@@ -328,14 +318,13 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       )}
 
       <div ref={tableContainerRef} className="flex-1 overflow-auto p-4 space-y-0 bg-[#f1f5f9] scrollbar-hide print:p-0 print:space-y-0 print:overflow-visible">
-        {/* PDF Only Header with Curved DateTime Tab */}
+        {/* PDF Only Header */}
         <div className="hidden print:block report-header-container border-b-[1.5pt] border-black mb-6">
            <div className="date-time-tab">
               {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
            </div>
            <div className="text-center pb-4">
               <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest brand-font">Ener Pack Stock Report</h1>
-              <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Total Active Inventory Units: {filteredItems.length}</p>
            </div>
         </div>
 
@@ -347,15 +336,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
           const rightVisualRows = config.right.length + (config.rightSubIndex !== undefined ? 1 : 0);
           const maxRows = Math.max(leftVisualRows, rightVisualRows);
 
-          // PDF BREAK LOGIC: 
-          // Page 1: 280 GSM alone.
-          // Page 2: 250, 230, and 200 GSM together.
           let style: React.CSSProperties = {};
-          if (group.label === "280") {
-             style = { breakAfter: 'page' };
-          } else if (group.label === "200") {
-             style = { breakAfter: 'page' };
-          }
+          if (group.label === "280") style = { breakAfter: 'page' };
+          else if (group.label === "200") style = { breakAfter: 'page' };
 
           return (
             <div 
@@ -367,9 +350,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                  {group.label} GSM SECTION
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 divide-x divide-slate-300 print:grid-cols-2 print:divide-x-0 grid-container">
-                <div className="flex flex-col">
-                  <div className="bg-[#f8fafc] h-10 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header">
+              <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-300 print:grid-cols-2 print:divide-x-0 grid-container">
+                <div className="flex flex-col overflow-x-auto mobile-bottom-scroll">
+                  <div className="bg-[#f8fafc] h-10 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header min-w-[500px] lg:min-w-0">
                     {config.leftHeader}
                   </div>
                   <InventorySubTable 
@@ -384,8 +367,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   />
                 </div>
 
-                <div className="flex flex-col">
-                  <div className="bg-[#f8fafc] h-10 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header">
+                <div className="flex flex-col overflow-x-auto mobile-bottom-scroll">
+                  <div className="bg-[#f8fafc] h-10 flex items-center justify-center text-center text-[8px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-300 print:bg-slate-50 print:border-slate-400 sub-table-header min-w-[500px] lg:min-w-0">
                     {config.rightHeader}
                   </div>
                   <InventorySubTable 
@@ -406,7 +389,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       </div>
       
       <div className="bg-[#0c4a6e] text-white p-1 text-[10px] font-bold text-center shrink-0 uppercase tracking-widest opacity-80 print:hidden">
-        Total Items: {filteredItems.length} | Ener Pack Operation Intelligence
+        Ener Pack Operation Intelligence
       </div>
     </div>
   );
@@ -433,11 +416,7 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size} h-[24px]`}>
           <div className="h-[24px] flex items-center justify-center px-1 relative">
             {item.size}
-            {item.isPendingApproval && (
-              <span title="Changes pending approval" className="absolute left-1 top-1">
-                <Clock className="w-2.5 h-2.5 text-amber-500" />
-              </span>
-            )}
+            {item.isPendingApproval && <span className="absolute left-1 top-1"><Clock className="w-2.5 h-2.5 text-amber-500" /></span>}
           </div>
         </td>
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} text-slate-500 font-medium text-[10px] print:text-[9px] ${COL_WIDTHS.gsm} h-[24px]`}>
@@ -450,16 +429,14 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
           <div className="h-[24px] flex items-center justify-center px-1 gap-1 print:hidden">
             {isAdmin ? (
               <>
-                <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition-all" title="Add Stock"><Plus className="w-3 h-3" /></button>
-                <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 transition-all" title="Remove Stock"><Minus className="w-3 h-3" /></button>
-                <button onClick={() => onEdit(item)} className={`w-6 h-6 flex items-center justify-center rounded border transition-all ${item.isPendingApproval ? 'bg-amber-100 text-amber-600 border-amber-200 cursor-not-allowed' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border-slate-200'}`} title={item.isPendingApproval ? "Pending Approval" : "Edit Item"} disabled={item.isPendingApproval}><Pencil className="w-3 h-3" /></button>
-                <button onClick={() => onDelete(item.id)} className={`w-6 h-6 flex items-center justify-center rounded border transition-all ${item.isPendingApproval ? 'bg-amber-100 text-amber-600 border-amber-200 cursor-not-allowed' : 'bg-rose-50 text-rose-400 hover:bg-rose-100 border-rose-200'}`} title={item.isPendingApproval ? "Pending Approval" : "Delete Item"} disabled={item.isPendingApproval}><Trash2 className="w-3 h-3" /></button>
+                <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 border border-emerald-200"><Plus className="w-3 h-3" /></button>
+                <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 border border-rose-200"><Minus className="w-3 h-3" /></button>
+                <button onClick={() => onEdit(item)} className="w-6 h-6 flex items-center justify-center rounded border bg-slate-100 text-slate-500 border-slate-200"><Pencil className="w-3 h-3" /></button>
               </>
             ) : (
               <Lock className="w-3.5 h-3.5 text-slate-300" />
             )}
           </div>
-          <div className="hidden print:flex h-[24px] items-center justify-center text-[7px] font-bold text-slate-400 uppercase tracking-tighter verified-text">Ver.</div>
         </td>
         <td className={`p-0 border-b ${borderColor} text-[9px] text-slate-400 font-medium text-left truncate px-2 italic leading-tight ${COL_WIDTHS.remarks} h-[24px]`}>
           <div className="h-[24px] flex items-center truncate italic">{item.remarks || ""}</div>
@@ -468,7 +445,6 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
     );
   });
 
-  // Calculate padding needed to make Left and Right columns match in height
   const paddingNeeded = targetCount - renderedRows.length;
   for (let p = 0; p < paddingNeeded; p++) {
     renderedRows.push(
@@ -483,7 +459,7 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
   }
 
   return (
-    <table className="w-full text-xs text-center border-collapse table-fixed">
+    <table className="w-full text-xs text-center border-collapse table-fixed min-w-[500px] lg:min-w-0">
       <thead className="bg-[#f1f5f9] text-slate-500 font-bold uppercase text-[7px] border-b border-slate-300 print:bg-slate-50 print:border-black">
         <tr className="h-[24px]">
           <th className={`p-0 border-r ${borderColor} ${COL_WIDTHS.size} h-[24px]`}><div className="h-[24px] flex items-center justify-center">Size</div></th>

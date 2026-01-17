@@ -102,8 +102,8 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
       </div>
 
       <div ref={pendingContainerRef} className="flex-1 overflow-auto p-6">
-        <div className="overflow-x-auto rounded-[2.5rem] border border-slate-200 shadow-xl bg-white">
-            <div className="min-w-max p-4">
+        <div className="overflow-x-auto rounded-[2.5rem] border border-slate-200 shadow-xl bg-white mobile-bottom-scroll">
+            <div className="min-w-[1000px] p-4">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead className="bg-orange-600 text-white sticky top-0 z-10 rounded-t-[2rem]">
                         <tr>

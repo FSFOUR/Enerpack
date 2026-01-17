@@ -108,8 +108,8 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
       </div>
 
       <div ref={logContainerRef} className="flex-1 overflow-auto p-6 bg-[#f1f5f9]">
-        <div className="overflow-x-auto rounded-[2.5rem] border border-gray-200 bg-white shadow-xl">
-            <div className="min-w-max p-4">
+        <div className="overflow-x-auto rounded-[2.5rem] border border-gray-200 bg-white shadow-xl mobile-bottom-scroll">
+            <div className="min-w-[800px] p-4">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead className={`${getHeaderColor()} text-white sticky top-0 z-10 rounded-t-[2rem]`}>
                         {type === 'IN' && (

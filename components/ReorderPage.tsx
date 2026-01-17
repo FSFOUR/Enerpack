@@ -178,7 +178,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                 title="Back to Operations"
             >
                 <ArrowLeft className="w-5 h-5" />
-                <span className="font-bold text-sm">Back to Operations</span>
+                <span className="font-bold text-sm">Back</span>
             </button>
             <h2 className="text-lg md:text-xl font-bold text-red-700 flex items-center gap-2 border-l border-red-200 pl-4 ml-2">
                 <AlertTriangle className="w-6 h-6" />
@@ -192,7 +192,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                 <input 
                     type="text" 
                     placeholder="Search alerts..." 
-                    className="pl-8 pr-4 py-1.5 rounded-full border border-red-200 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-center"
+                    className="pl-8 pr-4 py-1.5 rounded-full border border-red-200 text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-red-500 bg-white text-center font-medium"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -207,8 +207,8 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
       </div>
 
       <div className="flex-1 overflow-auto p-4">
-        <div className="overflow-x-auto rounded-lg border border-gray-300 shadow-md">
-            <div className="min-w-max">
+        <div className="overflow-x-auto rounded-lg border border-gray-300 shadow-md mobile-bottom-scroll">
+            <div className="min-w-[1200px] p-2">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead className="bg-red-600 text-white sticky top-0 z-10">
                         <tr>
@@ -240,7 +240,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="text"
-                                        className="w-full p-1 border rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="w-full p-1 border border-gray-200 rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
                                         placeholder={isAdmin ? "Supplier..." : "-"}
                                         value={item.reorderCompany || ''}
                                         onChange={(e) => handleUpdate(item, 'reorderCompany', e.target.value)}
@@ -251,7 +251,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[80px]">
                                     <input 
                                         type="number"
-                                        className="w-full p-1 border rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="w-full p-1 border border-gray-200 rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
                                         placeholder="0"
                                         value={item.reorderQty || ''}
                                         onChange={(e) => handleUpdate(item, 'reorderQty', Number(e.target.value))}
@@ -262,7 +262,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="date"
-                                        className="w-full p-1 border rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="w-full p-1 border border-gray-200 rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
                                         value={item.reorderDate || ''}
                                         onChange={(e) => handleUpdate(item, 'reorderDate', e.target.value)}
                                         disabled={!isAdmin}
@@ -272,7 +272,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <input 
                                         type="date"
-                                        className="w-full p-1 border rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="w-full p-1 border border-gray-200 rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
                                         value={item.expectedDeliveryDate || ''}
                                         onChange={(e) => handleUpdate(item, 'expectedDeliveryDate', e.target.value)}
                                         disabled={!isAdmin}
@@ -281,7 +281,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[120px]">
                                     <select 
-                                        className={`w-full p-1 border rounded text-xs text-center font-bold disabled:bg-slate-50 disabled:text-slate-400
+                                        className={`w-full p-1 border border-gray-200 rounded text-xs text-center font-bold disabled:bg-slate-50 disabled:text-slate-400
                                             ${item.reorderStatus === 'Received' ? 'text-green-700 bg-green-50' : 
                                               item.reorderStatus === 'Order Placed' ? 'text-blue-700 bg-blue-50' : 
                                               'bg-white text-gray-700'}`}
@@ -298,7 +298,7 @@ const ReorderPage: React.FC<ReorderPageProps> = ({ items, onBack, onUpdateItem, 
                                 <td className="p-2 border border-gray-300 bg-white whitespace-nowrap min-w-[150px]">
                                     <input 
                                         type="text"
-                                        className="w-full p-1 border rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="w-full p-1 border border-gray-200 rounded text-xs text-center disabled:bg-slate-50 disabled:text-slate-400"
                                         placeholder={isAdmin ? "Notes..." : "-"}
                                         value={item.reorderRemarks || ''}
                                         onChange={(e) => handleUpdate(item, 'reorderRemarks', e.target.value)}
