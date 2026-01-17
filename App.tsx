@@ -25,7 +25,7 @@ const generateId = () => {
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
 
-// COMPREHENSIVE INVENTORY DATA
+// COMPREHENSIVE INITIAL INVENTORY DATA
 const INITIAL_DATA: InventoryItem[] = [
   // 280 GSM SINGLE SIZE
   { id: '280-54', size: '54', gsm: '280', closingStock: 1019, minStock: 500, category: 'SINGLE' },
@@ -222,10 +222,11 @@ const App: React.FC = () => {
     return s ? JSON.parse(s) : [];
   });
 
+  // Explicitly default to Dashboard on every fresh load/refresh
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Storage Persistence
+  // Sync state to LocalStorage
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
@@ -325,7 +326,7 @@ const App: React.FC = () => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
     setAuthorizedUsers(prev => {
       const updated = [...prev, newAccount];
-      // Force immediate persistence to ensure next component cycle sees it
+      // Immediate write to ensure availability for next login attempt
       localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
       return updated;
     });
@@ -447,7 +448,7 @@ const App: React.FC = () => {
           <div className="w-8 h-8"></div>
         </header>
 
-        {/* Workspace Container - Sharp edges for stability */}
+        {/* Workspace Container - Removed sliding transitions for mobile stability */}
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
         </div>
