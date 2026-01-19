@@ -15,7 +15,7 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  Cloud, MousePointer2, UserPlus
+  MousePointer2
 } from 'lucide-react';
 
 const generateId = () => {
@@ -324,12 +324,7 @@ const App: React.FC = () => {
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
-    setAuthorizedUsers(prev => {
-      const updated = [...prev, newAccount];
-      // Ensure sync before state update
-      localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
-      return updated;
-    });
+    setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
 
   const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole, allowedPages?: ViewMode[]) => {

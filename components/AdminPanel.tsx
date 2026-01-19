@@ -190,9 +190,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     .filter(a => a.status === 'PENDING')
     .sort((a, b) => b.createdAt - a.createdAt);
 
-  const processedAccounts = [...accounts]
-    .filter(a => a.status !== 'PENDING')
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const sortedAccounts = [...accounts].sort((a, b) => {
+    // Sort by status (Pending first) then by name
+    if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+    if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   const togglePageAccess = (acc: UserAccount, page: ViewMode) => {
     const currentPages = acc.allowedPages || [];
@@ -380,41 +383,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
         {activeSubTab === 'STAFFS' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-10">
-             <div className="flex justify-between items-center px-2 flex-wrap gap-4">
-                <SectionHeader icon={Clock} title="Awaiting Verification" sub="Review and grant identity permissions" />
-                {pendingUserRequests.length > 1 && (
-                  <button onClick={handleApproveAll} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95"><Zap className="w-3.5 h-3.5" /> Quick Grant All</button>
-                )}
-             </div>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pendingUserRequests.length > 0 ? (
-                  pendingUserRequests.map(req => (
-                     <UserApprovalCard key={req.username} req={req} onUpdateStatus={onUpdateAccountStatus} />
-                  ))
-                ) : <EmptyState icon={ShieldCheck} text="Security log: All personnel verified" />}
-             </div>
+             {pendingUserRequests.length > 0 && (
+               <>
+                 <div className="flex justify-between items-center px-2 flex-wrap gap-4">
+                    <SectionHeader icon={Clock} title="Awaiting Verification" sub="Quick access cards for new registration requests" />
+                    {pendingUserRequests.length > 1 && (
+                      <button onClick={handleApproveAll} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95"><Zap className="w-3.5 h-3.5" /> Quick Grant All</button>
+                    )}
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+                    {pendingUserRequests.map(req => (
+                       <UserApprovalCard key={req.username} req={req} onUpdateStatus={onUpdateAccountStatus} />
+                    ))}
+                 </div>
+               </>
+             )}
 
-             <SectionHeader icon={Users} title="User Authorization Grid" sub="Manage security levels and access tiers" />
-             {/* Changed to overflow-visible to fix dropdown menu visibility issues */}
+             <SectionHeader icon={Users} title="Operational Personnel Pool" sub="Manage all system credentials, security tiers, and module access" />
              <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-visible mb-20 relative">
                 <div className="overflow-x-auto overflow-visible">
-                   <table className="w-full text-left table-fixed min-w-[900px]">
+                   <table className="w-full text-left table-fixed min-w-[950px]">
                       <thead className="bg-slate-50/50 border-b border-slate-100">
                          <tr>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[30%]">Personnel</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[15%]">Tier</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[25%]">Modules</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[15%]">Status</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-[15%]">Actions</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[28%]">Personnel Identity</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[12%]">Tier</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[25%]">Module Permissions</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[20%]">Log Status</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right w-[15%]">Manage</th>
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 overflow-visible">
-                         {processedAccounts.map(acc => (
-                            <tr key={acc.username} className="hover:bg-slate-50/30 transition-colors overflow-visible">
+                         {sortedAccounts.map(acc => (
+                            <tr key={acc.username} className={`hover:bg-slate-50/30 transition-colors overflow-visible ${acc.status === 'PENDING' ? 'bg-amber-50/20' : ''}`}>
                                <td className="px-8 py-5">
                                   <div className="flex items-center gap-4">
-                                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-black uppercase text-sm border border-slate-200">{acc.name.charAt(0)}</div>
+                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black uppercase text-sm border ${acc.status === 'PENDING' ? 'bg-amber-100 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                        {acc.name.charAt(0)}
+                                     </div>
                                      <div className="overflow-hidden">
                                         <span className="font-black text-slate-800 text-sm block leading-none mb-1 truncate">{acc.name}</span>
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate block">ID: {acc.username}</span>
@@ -425,7 +431,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                   <select 
                                      className={`bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-400 transition-all ${acc.role === 'ADMIN' ? 'text-indigo-600' : acc.role === 'EDITOR' ? 'text-amber-600' : 'text-slate-600'}`}
                                      value={acc.role}
-                                     onChange={(e) => onUpdateAccountStatus(acc.username, 'APPROVED', e.target.value as UserRole)}
+                                     onChange={(e) => onUpdateAccountStatus(acc.username, acc.status === 'APPROVED' ? 'APPROVED' : acc.status, e.target.value as UserRole)}
                                   >
                                      <option value="USER">READ</option>
                                      <option value="EDITOR">EDIT</option>
@@ -434,9 +440,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                </td>
                                <td className="px-8 py-5 text-center overflow-visible">
                                   {acc.role === 'ADMIN' ? (
-                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest border border-indigo-100">Full Access</span>
+                                    <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest border border-indigo-100">Master Access</span>
                                   ) : acc.role === 'USER' ? (
-                                    <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-100 italic">Restricted</span>
+                                    <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-100 italic">No Modification Rights</span>
                                   ) : (
                                     <div className="relative inline-block w-full text-left">
                                       <button 
@@ -477,18 +483,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                   )}
                                </td>
                                <td className="px-8 py-5 text-center">
-                                  <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${acc.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
-                                     {acc.status}
-                                  </span>
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${acc.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : acc.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-200 animate-pulse' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                                       {acc.status}
+                                    </span>
+                                    {acc.status === 'PENDING' && <span className="text-[8px] font-bold text-amber-500 uppercase">Verification Required</span>}
+                                  </div>
                                </td>
                                <td className="px-8 py-5 text-right">
                                   <div className="flex justify-end gap-2">
+                                     {acc.status === 'PENDING' ? (
+                                       <button 
+                                        onClick={() => onUpdateAccountStatus(acc.username, 'APPROVED', 'USER', [ViewMode.DASHBOARD])}
+                                        className="p-2.5 rounded-xl transition-all shadow-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                                        title="Verify Identity"
+                                       >
+                                          <CheckCircle className="w-4 h-4" />
+                                       </button>
+                                     ) : (
+                                       <button 
+                                        onClick={() => onUpdateAccountStatus(acc.username, acc.status === 'APPROVED' ? 'DENIED' : 'APPROVED')}
+                                        className={`p-2.5 rounded-xl transition-all shadow-sm ${acc.status === 'APPROVED' ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`}
+                                        title={acc.status === 'APPROVED' ? 'Revoke Access' : 'Restore Access'}
+                                       >
+                                          {acc.status === 'APPROVED' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                                       </button>
+                                     )}
                                      <button 
-                                      onClick={() => onUpdateAccountStatus(acc.username, acc.status === 'APPROVED' ? 'DENIED' : 'APPROVED')}
-                                      className={`p-2.5 rounded-xl transition-all shadow-sm ${acc.status === 'APPROVED' ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`}
-                                      title={acc.status === 'APPROVED' ? 'Revoke Access' : 'Restore Access'}
+                                       onClick={() => { if(confirm(`Delete staff @${acc.username}?`)) onUpdateAccountStatus(acc.username, 'DENIED'); }}
+                                       className="p-2.5 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-xl transition-all"
                                      >
-                                        {acc.status === 'APPROVED' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                                        <Trash2 className="w-4 h-4" />
                                      </button>
                                   </div>
                                </td>
