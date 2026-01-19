@@ -15,7 +15,7 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  Cloud, MousePointer2
+  Cloud, MousePointer2, UserPlus
 } from 'lucide-react';
 
 const generateId = () => {
@@ -326,7 +326,7 @@ const App: React.FC = () => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
     setAuthorizedUsers(prev => {
       const updated = [...prev, newAccount];
-      // Immediate write to ensure availability for next login attempt
+      // Ensure sync before state update
       localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
       return updated;
     });
@@ -337,11 +337,23 @@ const App: React.FC = () => {
     addAuditLog('USER_VERIFY', `Personnel @${username} updated to ${status}`, username);
   };
 
+  const handleDeleteAuditLog = (id: string) => {
+    setAuditLogs(prev => prev.filter(log => log.id !== id));
+  };
+
+  const handleClearAuditLogs = () => {
+    if (confirm("Are you absolutely sure you want to PERMANENTLY delete all audit logs? This cannot be undone.")) {
+      setAuditLogs([]);
+    }
+  };
+
   if (!currentUser) return <Login onLogin={setCurrentUser} authorizedUsers={authorizedUsers} onRequestSignup={handleRequestSignup} />;
 
   const isAdmin = currentUser.role === 'ADMIN';
   const canEditCurrentPage = isAdmin || (currentUser.role === 'EDITOR' && currentUser.allowedPages?.includes(viewMode));
-  const pendingCount = authorizedUsers.filter(a => a.status === 'PENDING').length + changeRequests.length;
+  const pendingUserCount = authorizedUsers.filter(a => a.status === 'PENDING').length;
+  const pendingChangeCount = changeRequests.length;
+  const totalAdminAlerts = pendingUserCount + pendingChangeCount;
 
   const navItems = [
     { mode: ViewMode.DASHBOARD, icon: Gauge, label: "Dashboard", category: "Main" },
@@ -366,7 +378,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (viewMode) {
       case ViewMode.DASHBOARD:
-        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} />;
+        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
       case ViewMode.INVENTORY:
         return <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={handleAddItem} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} isAdmin={canEditCurrentPage} />;
       case ViewMode.TRACKER:
@@ -388,9 +400,9 @@ const App: React.FC = () => {
       case ViewMode.JOB_CARD_GENERATOR:
         return <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
       case ViewMode.ADMIN_PANEL:
-        return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} />;
+        return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={handleClearAuditLogs} />;
       default:
-        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} />;
+        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
     }
   };
 
@@ -426,7 +438,14 @@ const App: React.FC = () => {
            {isAdmin && (
              <div className="mb-3">
                <h3 className="px-3 text-[9px] font-black text-blue-200/30 uppercase tracking-[0.15em] mb-1.5">Infrastructure</h3>
-               <NavBtn icon={Settings2} label="Admin Panel" active={viewMode === ViewMode.ADMIN_PANEL} onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} badge={pendingCount > 0 ? pendingCount : undefined} badgeColor="bg-rose-500" />
+               <NavBtn 
+                 icon={Settings2} 
+                 label="Admin Panel" 
+                 active={viewMode === ViewMode.ADMIN_PANEL} 
+                 onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} 
+                 badge={totalAdminAlerts > 0 ? totalAdminAlerts : undefined} 
+                 badgeColor="bg-rose-500" 
+               />
              </div>
            )}
         </div>
@@ -445,10 +464,15 @@ const App: React.FC = () => {
             <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div>
             <h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">Ener Pack</h2>
           </div>
-          <div className="w-8 h-8"></div>
+          <div className="w-8 h-8 relative flex items-center justify-center">
+            {isAdmin && totalAdminAlerts > 0 && (
+              <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e]"></div>
+            )}
+            <Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" />
+          </div>
         </header>
 
-        {/* Workspace Container - Removed sliding transitions for mobile stability */}
+        {/* Workspace Container */}
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
         </div>

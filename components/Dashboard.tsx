@@ -1,5 +1,6 @@
+
 import React, { useMemo } from 'react';
-import { InventoryItem, StockTransaction, ViewMode, User } from '../types';
+import { InventoryItem, StockTransaction, ViewMode, User, UserAccount } from '../types';
 import { 
   Package, 
   Layers,
@@ -9,7 +10,11 @@ import {
   Bell,
   MoreVertical,
   ArrowUpRight,
-  Lock
+  Lock,
+  UserCheck,
+  Zap,
+  // Added missing ChevronRight import
+  ChevronRight
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -17,6 +22,7 @@ interface DashboardProps {
   transactions: StockTransaction[];
   onNavigate: (mode: ViewMode) => void;
   user: User;
+  pendingUserRequests?: UserAccount[];
 }
 
 const StatCard = ({ title, value, icon: Icon, iconBg, trend, statusText, onClick }: any) => (
@@ -25,7 +31,7 @@ const StatCard = ({ title, value, icon: Icon, iconBg, trend, statusText, onClick
     className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all text-left w-full"
   >
     <div className="flex flex-col">
-      <p className="text-slate-400 text-xs font-semibold mb-1">{title}</p>
+      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{title}</p>
       <h3 className="text-3xl font-bold text-slate-800 tabular-nums">{value}</h3>
       {trend && (
         <p className="text-emerald-500 text-xs font-bold mt-2 flex items-center gap-1">
@@ -44,7 +50,7 @@ const StatCard = ({ title, value, icon: Icon, iconBg, trend, statusText, onClick
   </button>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, user, pendingUserRequests = [] }) => {
   
   const metrics = useMemo(() => {
     const totalProducts = items.length;
@@ -83,6 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
   const polylinePoints = trendPoints.map(p => `${p.x},${p.y}`).join(' ');
   const areaPoints = `0,200 ${polylinePoints} 800,200`;
 
+  const isAdmin = user.role === 'ADMIN';
   const isReadOnly = user.role === 'USER';
 
   return (
@@ -90,7 +97,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
       <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Top Header Bar */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
            <div className="flex flex-col">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-slate-800 tracking-tight uppercase brand-font">Welcome {user.name}</h1>
@@ -100,41 +107,42 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
                   </div>
                 )}
               </div>
-              <p className="text-slate-400 text-sm font-medium">Verified by {user.name} — Current Status</p>
+              <p className="text-slate-400 text-sm font-medium">Verified Ops Terminal — Online</p>
            </div>
-           <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search Analytics..." 
-                  className="bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                />
-              </div>
-              <button className="bg-white border border-slate-200 p-2 rounded-2xl text-slate-400 hover:text-slate-800">
-                <Bell className="w-5 h-5" />
-              </button>
-           </div>
+           
+           {isAdmin && pendingUserRequests.length > 0 && (
+             <button 
+              onClick={() => onNavigate(ViewMode.ADMIN_PANEL)}
+              className="bg-rose-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-rose-500/20 flex items-center gap-3 animate-pulse active:scale-95 transition-all"
+             >
+                <UserCheck className="w-5 h-5" />
+                <div className="text-left">
+                   <p className="text-[10px] font-black uppercase tracking-widest leading-none">Access Alert</p>
+                   <p className="text-sm font-bold">{pendingUserRequests.length} Pending Requests</p>
+                </div>
+                <ChevronRight className="w-4 h-4 ml-2" />
+             </button>
+           )}
         </div>
 
         {/* Primary Metrics Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
-            title="Total Products" 
+            title="Active SKUs" 
             value={metrics.totalProducts} 
             icon={Package} 
             iconBg="bg-emerald-500 text-emerald-500"
             onClick={() => onNavigate(ViewMode.INVENTORY)}
           />
           <StatCard 
-            title="Total Stock" 
+            title="Total Assets" 
             value={metrics.totalStock.toLocaleString()} 
             icon={Layers} 
             iconBg="bg-blue-500 text-blue-500"
             onClick={() => onNavigate(ViewMode.INVENTORY)}
           />
           <StatCard 
-            title="Monthly Out" 
+            title="Volume (MTD)" 
             value={metrics.monthlyOut.toLocaleString()} 
             icon={TrendingUp} 
             iconBg="bg-indigo-500 text-indigo-500"
@@ -142,7 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
             onClick={() => onNavigate(ViewMode.STOCK_OUT_LOGS)}
           />
           <StatCard 
-            title="Out of Stock" 
+            title="Low Stock" 
             value={metrics.lowStockItems} 
             icon={AlertTriangle} 
             iconBg="bg-rose-500 text-rose-500"
@@ -157,8 +165,8 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
           {/* Movement Trends Panel */}
           <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="font-bold text-slate-800">Movement Trends</h3>
-              <button className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl">Last 6 Months</button>
+              <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest">Global Movement Patterns</h3>
+              <button className="text-[9px] font-black text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-xl uppercase tracking-tighter">H2 Analytics</button>
             </div>
             
             <div className="relative h-[250px] w-full">
@@ -180,7 +188,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
                 ))}
               </svg>
               
-              <div className="flex justify-between text-[10px] font-bold text-slate-300 mt-4 px-2">
+              <div className="flex justify-between text-[10px] font-bold text-slate-300 mt-4 px-2 uppercase tracking-widest">
                 {['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(m => <span key={m}>{m}</span>)}
               </div>
             </div>
@@ -189,7 +197,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
           {/* Inventory Split Panel */}
           <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="font-bold text-slate-800">Inventory Split</h3>
+              <h3 className="font-bold text-slate-800 uppercase text-xs tracking-widest">Distribution</h3>
               <button className="text-slate-400 hover:text-slate-800"><MoreVertical className="w-4 h-4" /></button>
             </div>
             
@@ -204,7 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-2xl font-black text-slate-800">{metrics.totalProducts}</span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Items</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Categories</span>
                   </div>
                </div>
                
@@ -220,11 +228,14 @@ const Dashboard: React.FC<DashboardProps> = ({ items, transactions, onNavigate, 
 
         {/* Bottom Panel */}
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6">
-           <h3 className="font-bold text-slate-800 mb-6">Top Items by Sales (Out)</h3>
+           <h3 className="font-bold text-slate-800 mb-6 uppercase text-xs tracking-widest flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-indigo-500" />
+              High Velocity Inventory
+           </h3>
            <div className="space-y-6">
-              <TopItemRow label="54" value="600" percentage={95} />
-              <TopItemRow label="56" value="420" percentage={70} />
-              <TopItemRow label="60" value="210" percentage={35} />
+              <TopItemRow label="54 x 280" value="600 Units" percentage={95} />
+              <TopItemRow label="56 x 280" value="420 Units" percentage={70} />
+              <TopItemRow label="60 x 200" value="210 Units" percentage={35} />
            </div>
         </div>
       </div>
@@ -244,12 +255,12 @@ const LegendItem = ({ color, label, value }: any) => (
 
 const TopItemRow = ({ label, value, percentage }: any) => (
   <div className="space-y-2">
-    <div className="flex justify-between items-center text-xs font-bold">
+    <div className="flex justify-between items-center text-[10px] font-black uppercase">
       <span className="text-slate-800">{label}</span>
-      <span className="text-slate-800">{value}</span>
+      <span className="text-indigo-600">{value}</span>
     </div>
-    <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden">
-      <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${percentage}%` }}></div>
+    <div className="w-full h-2 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
+      <div className="h-full bg-indigo-500 rounded-full transition-all duration-1000 shadow-sm" style={{ width: `${percentage}%` }}></div>
     </div>
   </div>
 );

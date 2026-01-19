@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle, ShieldCheck, ArrowRight, Smartphone } from 'lucide-react';
 import { User as UserType, UserAccount } from '../types';
 
 interface LoginProps {
@@ -18,29 +18,33 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(''), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Simulate validation and state sync
+    const lowerUser = username.toLowerCase().trim();
+    
     setTimeout(() => {
-      const lowerUser = username.toLowerCase().trim();
-      
-      // Master admin check
       if (lowerUser === 'admin' && password === 'enerpack2022') {
         onLogin({ username: 'admin', role: 'ADMIN', name: 'Master Administrator' });
         setIsLoading(false);
         return;
       }
 
-      // Dynamic user check
-      const account = authorizedUsers.find(u => u.username.toLowerCase() === lowerUser);
+      const account = authorizedUsers.find(u => u.username.toLowerCase().trim() === lowerUser);
       
       if (!account) {
-        setError('Account not found. Please register first.');
+        setError('Identification failed. Username not recognized.');
       } else if (account.password !== password) {
-        setError('Incorrect password. Please try again.');
+        setError('Security mismatch. Incorrect password.');
       } else {
         if (account.status === 'APPROVED') {
           onLogin({ 
@@ -50,13 +54,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
             allowedPages: account.allowedPages 
           });
         } else if (account.status === 'PENDING') {
-          setError('Access Pending: Administrator approval required.');
+          setError('Authorization Pending. Contact Admin for activation.');
         } else {
-          setError('Access Denied: Account request declined.');
+          setError('Access Revoked.');
         }
       }
       setIsLoading(false);
-    }, 600);
+    }, 500);
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -67,13 +71,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
     const cleanUsername = username.toLowerCase().trim();
 
     if (cleanUsername.length < 3) {
-      setError('Username must be at least 3 characters.');
+      setError('Username too short.');
       setIsLoading(false);
       return;
     }
 
-    if (authorizedUsers.some(u => u.username.toLowerCase() === cleanUsername) || cleanUsername === 'admin') {
-      setError('Username already registered.');
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (authorizedUsers.some(u => u.username.toLowerCase().trim() === cleanUsername) || cleanUsername === 'admin') {
+      setError('Username already exists.');
       setIsLoading(false);
       return;
     }
@@ -85,69 +95,69 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
         password: password
       });
       
-      setSuccess('Request Submitted! Contact Admin for approval.');
+      setSuccess('Registration submitted! Awaiting admin approval.');
       setMode('LOGIN');
-      setPassword('');
       setFullName('');
       setIsLoading(false);
-    }, 800);
+    }, 700);
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#0c4a6e] flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-400/10 rounded-full blur-[120px] pointer-events-none"></div>
+    <div className="min-h-screen w-full bg-[#0c4a6e] flex items-center justify-center p-4 relative overflow-hidden font-sans text-slate-800">
+      {/* Background Ambience */}
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-sky-500/10 rounded-full blur-[150px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500 relative z-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 bg-white rounded-[1.5rem] items-center justify-center shadow-2xl mb-6">
-            <span className="font-black text-2xl text-[#0c4a6e] brand-font">EP</span>
+      <div className="w-full max-w-md relative z-10 space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="text-center">
+          <div className="inline-flex w-24 h-24 bg-white rounded-[2.5rem] items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] mb-6 transform hover:scale-105 transition-transform">
+            <span className="font-black text-4xl text-[#0c4a6e] brand-font">EP</span>
           </div>
-          <h1 className="text-white text-4xl tracking-tighter mb-1 uppercase brand-font">Ener Pack</h1>
-          <p className="text-blue-300 text-[9px] font-black uppercase tracking-[0.4em] opacity-80">Operational Intelligence</p>
+          <h1 className="text-white text-5xl font-black tracking-[0.1em] mb-1 uppercase brand-font">ENERPACK</h1>
+          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">Operations.</p>
         </div>
 
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-white/10">
-          <div className="flex bg-slate-50 border-b border-slate-100 p-2">
+        <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
+          <div className="flex bg-slate-50/80 border-b border-slate-100 p-2">
             <button 
               onClick={() => { setMode('LOGIN'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'LOGIN' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+              className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'LOGIN' ? 'bg-white text-[#0c4a6e] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              Sign In
+              <LogIn className="w-3.5 h-3.5" /> Sign In
             </button>
             <button 
               onClick={() => { setMode('REGISTER'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${mode === 'REGISTER' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+              className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'REGISTER' ? 'bg-white text-[#0c4a6e] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              Register
+              <UserPlus className="w-3.5 h-3.5" /> Register
             </button>
           </div>
 
-          <div className="p-8">
+          <div className="p-8 md:p-10">
             {success && (
-              <div className="mb-6 bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex items-center gap-3 text-emerald-600 animate-in slide-in-from-top-2">
+              <div className="mb-6 bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3 text-emerald-700 animate-in zoom-in-95 duration-300">
                 <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <p className="text-xs font-bold uppercase tracking-tight">{success}</p>
+                <p className="text-[10px] font-bold uppercase leading-tight">{success}</p>
               </div>
             )}
 
             {error && (
-              <div className="mb-6 bg-rose-50 border border-rose-100 p-4 rounded-xl flex items-start gap-3 text-rose-600 animate-in slide-in-from-top-2">
+              <div className="mb-6 bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-start gap-3 text-rose-700 animate-in shake duration-500">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-xs font-bold uppercase tracking-tight">{error}</p>
+                <p className="text-[10px] font-bold uppercase leading-tight">{error}</p>
               </div>
             )}
 
-            <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
+            <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-5">
               {mode === 'REGISTER' && (
-                <div>
-                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">Full Name</label>
+                <div className="group">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Full Name</label>
                   <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><User className="w-5 h-5" /></div>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                     <input 
                       type="text" required
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white outline-none transition-all"
-                      placeholder="e.g. John Doe"
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                      placeholder="Your Name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                     />
@@ -155,34 +165,34 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                 </div>
               )}
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">Username</label>
+              <div className="group">
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Username</label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><User className="w-5 h-5" /></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                   <input 
                     type="text" required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white outline-none transition-all"
-                    placeholder="Username"
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                    placeholder="Enter Username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">Password</label>
+              <div className="group">
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Password</label>
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"><Lock className="w-5 h-5" /></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><Lock className="w-5 h-5" /></div>
                   <input 
                     type={showPassword ? "text" : "password"} required
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pl-12 pr-12 text-sm font-bold text-slate-800 focus:bg-white outline-none transition-all"
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-12 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                   <button 
                     type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -191,14 +201,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
               <button 
                 type="submit" disabled={isLoading}
-                className="w-full bg-[#0c4a6e] hover:bg-[#075985] text-white py-4 rounded-xl font-black uppercase tracking-[0.1em] text-sm transition-all shadow-xl active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-[#0c4a6e] hover:bg-[#075985] text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] transition-all shadow-[0_15px_30px_rgba(12,74,110,0.3)] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    {mode === 'LOGIN' ? <LogIn className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
                     {mode === 'LOGIN' ? 'Login' : 'Submit Registration'}
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -206,8 +216,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
           </div>
         </div>
 
-        <div className="mt-8 text-center">
-           <p className="text-blue-200/30 text-[9px] font-black uppercase tracking-[0.5em]">Secure Terminal</p>
+        <div className="flex flex-col items-center gap-4">
+           <div className="flex items-center gap-4 bg-black/20 px-6 py-2 rounded-full border border-white/5">
+              <ShieldCheck className="w-3 h-3 text-blue-400" />
+              <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-widest">Secure Infrastructure Terminal</span>
+           </div>
         </div>
       </div>
     </div>
