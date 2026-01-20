@@ -5,16 +5,16 @@ import {
   Minus, 
   Search, 
   FileDown, 
-  Printer, 
+  Search as SearchIcon, 
   Pencil, 
-  Trash2, 
   X, 
   Save,
   Upload,
   FileText,
   Loader2,
   Lock,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
@@ -27,7 +27,7 @@ interface InventoryTableProps {
   onRecordTransaction: (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => void;
   onBulkUpdate: (items: InventoryItem[]) => void;
   onUpdateItem: (item: InventoryItem) => void;
-  onDeleteItem: (id: string) => void;
+  onDeleteItem: (item: InventoryItem) => void;
   isAdmin?: boolean;
 }
 
@@ -43,8 +43,8 @@ const COL_WIDTHS = {
   size: 'w-[15%] size-column',
   gsm: 'w-[10%] gsm-column',
   stock: 'w-[15%] stock-column',
-  action: 'w-[20%] action-column',
-  remarks: 'w-[40%] remarks-column'
+  action: 'w-[22%] action-column',
+  remarks: 'w-[38%] remarks-column'
 };
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ 
@@ -53,8 +53,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   onUpdateStock, 
   onAddItem, 
   onRecordTransaction, 
+  onBulkUpdate,
   onUpdateItem, 
-  onDeleteItem, 
+  onDeleteItem,
   isAdmin = false 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -132,26 +133,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
       element.classList.remove('pdf-export-mode');
       setIsPdfGenerating(false);
     }
-  };
-
-  const handleImport = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.xlsx, .xls';
-    input.onchange = (e: any) => {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event: any) => {
-        const data = new Uint8Array(event.target.result);
-        const workbook = (window as any).XLSX.read(data, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = (window as any).XLSX.utils.sheet_to_json(sheet);
-        console.log("Imported Data:", json);
-        alert("Import feature ready.");
-      };
-      reader.readAsArrayBuffer(file);
-    };
-    input.click();
   };
 
   const organizeByGSMGroup = (group: { label: string, values: string[] }) => {
@@ -362,7 +343,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     targetCount={maxRows}
                     onModal={setModalOpen} 
                     onEdit={setEditItem} 
-                    onDelete={onDeleteItem} 
+                    onDelete={onDeleteItem}
                     isAdmin={isAdmin} 
                   />
                 </div>
@@ -378,7 +359,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     targetCount={maxRows}
                     onModal={setModalOpen} 
                     onEdit={setEditItem} 
-                    onDelete={onDeleteItem} 
+                    onDelete={onDeleteItem}
                     isAdmin={isAdmin} 
                   />
                 </div>
@@ -426,12 +407,39 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
           <div className="h-[24px] flex items-center justify-center px-1">{item.closingStock}</div>
         </td>
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} print:p-0 ${COL_WIDTHS.action} h-[24px]`}>
-          <div className="h-[24px] flex items-center justify-center px-1 gap-1 print:hidden">
+          <div className="h-[24px] flex items-center justify-center px-1 gap-1.5 print:hidden">
             {isAdmin ? (
               <>
-                <button onClick={() => onModal({type: 'IN', item})} className="w-6 h-6 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 border border-emerald-200"><Plus className="w-3 h-3" /></button>
-                <button onClick={() => onModal({type: 'OUT', item})} className="w-6 h-6 flex items-center justify-center rounded bg-rose-50 text-rose-500 border border-rose-200"><Minus className="w-3 h-3" /></button>
-                <button onClick={() => onEdit(item)} className="w-6 h-6 flex items-center justify-center rounded border bg-slate-100 text-slate-500 border-slate-200"><Pencil className="w-3 h-3" /></button>
+                <button 
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onModal({type: 'IN', item}); }} 
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-colors disabled:opacity-30 shadow-sm active:scale-90" 
+                  title="Stock In"
+                  disabled={item.isPendingApproval}
+                ><Plus className="w-3.5 h-3.5 pointer-events-none" /></button>
+                <button 
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onModal({type: 'OUT', item}); }} 
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 border border-rose-100 hover:bg-rose-100 transition-colors disabled:opacity-30 shadow-sm active:scale-90" 
+                  title="Stock Out"
+                  disabled={item.isPendingApproval}
+                ><Minus className="w-3.5 h-3.5 pointer-events-none" /></button>
+                <button 
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(item); }} 
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors disabled:opacity-30 shadow-sm active:scale-90" 
+                  title="Edit Item"
+                  disabled={item.isPendingApproval}
+                ><Pencil className="w-3.5 h-3.5 pointer-events-none" /></button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item); }}
+                  className="p-1 bg-white border border-slate-200 rounded-full text-rose-500 shadow-md z-10 hover:bg-rose-50 transition-all disabled:opacity-30 active:scale-90"
+                  title="Delete"
+                  disabled={item.isPendingApproval}
+                >
+                  <Trash2 className="w-4 h-4 pointer-events-none" />
+                </button>
               </>
             ) : (
               <Lock className="w-3.5 h-3.5 text-slate-300" />

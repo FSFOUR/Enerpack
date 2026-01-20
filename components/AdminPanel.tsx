@@ -15,7 +15,7 @@ interface AdminPanelProps {
   auditLogs: AuditEntry[];
   changeRequests: ChangeRequest[];
   onBack: () => void;
-  onUpdateAccountStatus: (username: string, status: 'APPROVED' | 'DENIED', role?: UserRole, allowedPages?: ViewMode[]) => void;
+  onUpdateAccountStatus: (username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => void;
   onProcessChangeRequest: (requestId: string, approved: boolean) => void;
   onDeleteAuditLog: (id: string) => void;
   onClearAuditLogs: () => void;
@@ -191,7 +191,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     .sort((a, b) => b.createdAt - a.createdAt);
 
   const sortedAccounts = [...accounts].sort((a, b) => {
-    // Sort by status (Pending first) then by name
     if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
     if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
     return a.name.localeCompare(b.name);
@@ -202,7 +201,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     const newPages = currentPages.includes(page)
       ? currentPages.filter(p => p !== page)
       : [...currentPages, page];
-    onUpdateAccountStatus(acc.username, acc.status as 'APPROVED' | 'DENIED', acc.role, newPages);
+    onUpdateAccountStatus(acc.username, acc.status, acc.role, newPages);
   };
 
   const handleApproveAll = () => {
@@ -264,7 +263,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#f8fafc]">
-      {/* Header */}
       <div className="bg-[#0c4a6e] p-5 px-8 flex flex-col md:flex-row justify-between items-center shrink-0 shadow-xl text-white gap-4 z-20">
         <div className="flex items-center gap-4 w-full md:w-auto">
           <button onClick={onBack} className="p-2.5 bg-white/10 hover:bg-white/20 rounded-2xl transition-all">
@@ -325,81 +323,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <StatBox icon={Database} title="Asset SKUs" value={inventoryCount} sub="Live Records" color="text-emerald-600" bg="bg-emerald-50" />
                 <StatBox icon={Share2} title="Linked Devices" value="1" sub="Instance Count" color="text-indigo-600" bg="bg-indigo-50" onClick={() => setActiveSubTab('SYNC')} />
              </div>
-
-             {pendingUserRequests.length > 0 && (
-                <div className="bg-indigo-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
-                   <div className="absolute right-0 top-0 p-10 opacity-10 group-hover:scale-110 transition-transform duration-500"><UserCheck className="w-48 h-48" /></div>
-                   <div className="relative z-10">
-                      <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Unverified Personnel Detected</h3>
-                      <p className="text-indigo-200 text-sm max-w-md mb-6">Security check required for {pendingUserRequests.length} new access requests. Granting permission will enable device login.</p>
-                      <div className="flex flex-wrap gap-4">
-                         <button onClick={() => setActiveSubTab('STAFFS')} className="px-8 py-3 bg-white text-indigo-900 rounded-xl font-black uppercase text-[10px] tracking-[0.1em] shadow-lg active:scale-95 transition-all">Review & Verify</button>
-                         <button onClick={handleApproveAll} className="px-8 py-3 bg-indigo-500/30 border border-white/20 text-white rounded-xl font-black uppercase text-[10px] tracking-[0.1em] hover:bg-indigo-500/50 transition-all flex items-center gap-2"><Zap className="w-3.5 h-3.5" /> Instant Approve All</button>
-                      </div>
-                   </div>
-                </div>
-             )}
-          </div>
-        )}
-
-        {activeSubTab === 'SYNC' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-10">
-            <SectionHeader icon={Share2} title="System Migration" sub="Access data on any device with the same credentials" />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><Download className="w-6 h-6" /></div>
-                    <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Export Data Pool</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed mb-8">Generate a migration file to transfer all users, inventory, and history to a new phone, laptop, or tablet. Use this to enable cross-device access.</p>
-                  </div>
-                  <button onClick={exportSystemData} className="w-full py-4 bg-[#0c4a6e] text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 flex items-center justify-center gap-3 active:scale-95 transition-all">
-                     <Download className="w-4 h-4" /> Download Migration File
-                  </button>
-               </div>
-
-               <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><Upload className="w-6 h-6" /></div>
-                    <h4 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Import Data Pool</h4>
-                    <p className="text-slate-500 text-xs leading-relaxed mb-8">Load a migration file from another device. This will sync all username and password data, allowing authorized users to log in instantly.</p>
-                  </div>
-                  <label className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-3 cursor-pointer active:scale-95 transition-all">
-                     <Upload className="w-4 h-4" /> Select Migration File
-                     <input type="file" className="hidden" accept=".json" onChange={importSystemData} />
-                  </label>
-               </div>
-            </div>
-
-            <div className="bg-amber-50 border-2 border-amber-100 rounded-[2rem] p-6 flex gap-6 items-center">
-               <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-amber-500 shrink-0 shadow-sm"><AlertTriangle className="w-7 h-7" /></div>
-               <div className="flex-1">
-                  <h5 className="font-black text-amber-800 uppercase text-xs tracking-widest mb-1">Local Identity Protocol</h5>
-                  <p className="text-amber-700/70 text-xs font-medium">To maintain security without a central cloud server, each new device must be synchronized via the Migration File. Once imported, all staff can log in with their existing credentials.</p>
-               </div>
-            </div>
           </div>
         )}
 
         {activeSubTab === 'STAFFS' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-10">
-             {pendingUserRequests.length > 0 && (
-               <>
-                 <div className="flex justify-between items-center px-2 flex-wrap gap-4">
-                    <SectionHeader icon={Clock} title="Awaiting Verification" sub="Quick access cards for new registration requests" />
-                    {pendingUserRequests.length > 1 && (
-                      <button onClick={handleApproveAll} className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 flex items-center gap-2 hover:bg-emerald-700 transition-all active:scale-95"><Zap className="w-3.5 h-3.5" /> Quick Grant All</button>
-                    )}
-                 </div>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-                    {pendingUserRequests.map(req => (
-                       <UserApprovalCard key={req.username} req={req} onUpdateStatus={onUpdateAccountStatus} />
-                    ))}
-                 </div>
-               </>
-             )}
-
              <SectionHeader icon={Users} title="Operational Personnel Pool" sub="Manage all system credentials, security tiers, and module access" />
              <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-visible mb-20 relative">
                 <div className="overflow-x-auto overflow-visible">
@@ -431,7 +359,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                   <select 
                                      className={`bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-400 transition-all ${acc.role === 'ADMIN' ? 'text-indigo-600' : acc.role === 'EDITOR' ? 'text-amber-600' : 'text-slate-600'}`}
                                      value={acc.role}
-                                     onChange={(e) => onUpdateAccountStatus(acc.username, acc.status === 'APPROVED' ? 'APPROVED' : acc.status, e.target.value as UserRole)}
+                                     onChange={(e) => onUpdateAccountStatus(acc.username, acc.status, e.target.value as UserRole)}
                                   >
                                      <option value="USER">READ</option>
                                      <option value="EDITOR">EDIT</option>
@@ -456,9 +384,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                         <>
                                           <div className="fixed inset-0 z-[55]" onClick={() => setOpenPageSelect(null)} />
                                           <div className="absolute left-0 right-0 top-full mt-3 bg-white border border-slate-200 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.25)] z-[60] py-4 animate-in fade-in slide-in-from-top-2 duration-300 max-h-80 overflow-y-auto scrollbar-hide">
-                                            <div className="px-6 pb-3 mb-3 border-b border-slate-50">
-                                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Permissions</p>
-                                            </div>
                                             {PAGE_LIST.map(page => {
                                               const isChecked = acc.allowedPages?.includes(page.mode);
                                               return (
@@ -483,32 +408,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                   )}
                                </td>
                                <td className="px-8 py-5 text-center">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${acc.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : acc.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-200 animate-pulse' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
-                                       {acc.status}
-                                    </span>
-                                    {acc.status === 'PENDING' && <span className="text-[8px] font-bold text-amber-500 uppercase">Verification Required</span>}
-                                  </div>
+                                  <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${acc.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : acc.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-200 animate-pulse' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                                     {acc.status}
+                                  </span>
                                </td>
                                <td className="px-8 py-5 text-right">
                                   <div className="flex justify-end gap-2">
-                                     {acc.status === 'PENDING' ? (
-                                       <button 
-                                        onClick={() => onUpdateAccountStatus(acc.username, 'APPROVED', 'USER', [ViewMode.DASHBOARD])}
-                                        className="p-2.5 rounded-xl transition-all shadow-sm bg-emerald-600 text-white hover:bg-emerald-700"
-                                        title="Verify Identity"
-                                       >
-                                          <CheckCircle className="w-4 h-4" />
-                                       </button>
-                                     ) : (
-                                       <button 
-                                        onClick={() => onUpdateAccountStatus(acc.username, acc.status === 'APPROVED' ? 'DENIED' : 'APPROVED')}
-                                        className={`p-2.5 rounded-xl transition-all shadow-sm ${acc.status === 'APPROVED' ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-100'}`}
-                                        title={acc.status === 'APPROVED' ? 'Revoke Access' : 'Restore Access'}
-                                       >
-                                          {acc.status === 'APPROVED' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                                       </button>
-                                     )}
                                      <button 
                                        onClick={() => { if(confirm(`Delete staff @${acc.username}?`)) onUpdateAccountStatus(acc.username, 'DENIED'); }}
                                        className="p-2.5 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-xl transition-all"
@@ -533,12 +438,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 {changeRequests.length > 0 ? (
                    changeRequests.map(req => (
                      <div key={req.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm p-8 flex flex-col md:flex-row items-center gap-8 group hover:shadow-md transition-all">
-                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-inner ${req.type === 'UPDATE' ? 'bg-blue-50 text-blue-500' : req.type === 'ADD' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
-                           {req.type === 'UPDATE' ? <FileEdit className="w-8 h-8" /> : req.type === 'ADD' ? <Database className="w-8 h-8" /> : <Trash2 className="w-8 h-8" />}
+                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-inner ${req.type === 'UPDATE' ? 'bg-blue-50 text-blue-500' : req.type === 'DELETE' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                           {req.type === 'UPDATE' ? <FileEdit className="w-8 h-8" /> : req.type === 'DELETE' ? <Trash2 className="w-8 h-8" /> : <Database className="w-8 h-8" />}
                         </div>
                         <div className="flex-1 w-full text-center md:text-left">
                            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] ${req.type === 'UPDATE' ? 'bg-blue-100 text-blue-700' : req.type === 'ADD' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-[0.1em] ${req.type === 'UPDATE' ? 'bg-blue-100 text-blue-700' : req.type === 'DELETE' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                 {req.type} REQUEST
                               </span>
                               <span className="text-[10px] font-bold text-slate-400">ID: {req.id.slice(0, 8)}</span>
@@ -553,53 +458,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                      </div>
                    ))
                 ) : <EmptyState icon={LayoutDashboard} text="Queue clear: All changes processed" />}
-             </div>
-          </div>
-        )}
-
-        {activeSubTab === 'AUDIT_LOG' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
-             <SectionHeader 
-                icon={History} 
-                title="Operational Audit" 
-                sub="Timeline of verified system modifications" 
-                action={
-                  auditLogs.length > 0 && (
-                    <button 
-                      onClick={onClearAuditLogs}
-                      className="bg-rose-50 text-rose-600 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-rose-500 hover:text-white transition-all flex items-center gap-2 border border-rose-100"
-                    >
-                      <Trash2 className="w-4 h-4" /> Clear All Logs
-                    </button>
-                  )
-                }
-             />
-             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="divide-y divide-slate-50">
-                   {auditLogs.length > 0 ? (
-                      auditLogs.map(log => (
-                        <div key={log.id} className="p-5 px-8 flex items-center gap-6 hover:bg-slate-50/50 transition-colors group">
-                           <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 shadow-sm group-hover:bg-white transition-all">
-                              {getActionIcon(log.action)}
-                           </div>
-                           <div className="flex-1 min-w-0">
-                              <p className="text-sm font-black text-slate-800 tracking-tight truncate">{log.details}</p>
-                              <div className="flex items-center gap-3 mt-1">
-                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-lg">@{log.userId}</span>
-                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(log.timestamp).toLocaleString()}</span>
-                              </div>
-                           </div>
-                           <button 
-                             onClick={() => onDeleteAuditLog(log.id)}
-                             className="opacity-0 group-hover:opacity-100 p-2.5 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all"
-                             title="Delete Entry"
-                           >
-                             <Trash2 className="w-4 h-4" />
-                           </button>
-                        </div>
-                      ))
-                   ) : <EmptyState icon={History} text="Timeline Clear: No historical records found" />}
-                </div>
              </div>
           </div>
         )}

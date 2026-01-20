@@ -237,7 +237,7 @@ const App: React.FC = () => {
     else localStorage.removeItem('enerpack_user_v1');
   }, [currentUser]);
 
-  const addAuditLog = (action: AuditEntry['action'], details: string, itemId?: string) => {
+  const addAuditLog = useCallback((action: AuditEntry['action'], details: string, itemId?: string) => {
     if (!currentUser) return;
     const log: AuditEntry = {
       id: generateId(),
@@ -249,22 +249,22 @@ const App: React.FC = () => {
       itemId
     };
     setAuditLogs(prev => [log, ...prev].slice(0, 1000));
-  };
+  }, [currentUser]);
 
-  const handleUpdateStock = (id: string, delta: number) => {
+  const handleUpdateStock = useCallback((id: string, delta: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, closingStock: Math.max(0, Number((item.closingStock + delta).toFixed(2))) } : item));
     const item = inventory.find(i => i.id === id);
     if (item) {
       addAuditLog('UPDATE_ITEM', `Stock Adjustment: ${delta > 0 ? '+' : ''}${delta} for ${item.size} (${item.gsm})`, id);
     }
-  };
+  }, [addAuditLog, inventory]);
 
-  const handleRecordTransaction = (transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => {
+  const handleRecordTransaction = useCallback((transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => {
     const newTransaction: StockTransaction = { ...transaction, id: generateId(), timestamp: Date.now() };
     setTransactions(prev => [newTransaction, ...prev]);
-  };
+  }, []);
 
-  const handleAddItem = (item: Omit<InventoryItem, 'id'>) => {
+  const handleAddItem = useCallback((item: Omit<InventoryItem, 'id'>) => {
     if (!currentUser) return;
     const newId = generateId();
     if (currentUser.role === 'ADMIN') {
@@ -274,9 +274,9 @@ const App: React.FC = () => {
       const req: ChangeRequest = { id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'ADD', itemData: { ...item, id: newId }, status: 'PENDING' };
       setChangeRequests(prev => [...prev, req]);
     }
-  };
+  }, [currentUser, addAuditLog]);
 
-  const handleUpdateItem = (updatedItem: InventoryItem) => {
+  const handleUpdateItem = useCallback((updatedItem: InventoryItem) => {
     if (!currentUser) return;
     const oldItem = inventory.find(i => i.id === updatedItem.id);
     if (!oldItem) return;
@@ -289,55 +289,76 @@ const App: React.FC = () => {
       setChangeRequests(prev => [...prev, req]);
       setInventory(prev => prev.map(i => i.id === updatedItem.id ? { ...i, isPendingApproval: true } : i));
     }
-  };
+  }, [currentUser, addAuditLog, inventory]);
 
-  const handleDeleteItem = (id: string) => {
-    if (!currentUser) return;
-    const item = inventory.find(i => i.id === id);
-    if (!item) return;
+  const handleDeleteItem = useCallback((item: InventoryItem) => {
+    if (!currentUser || !item) return;
+    const id = item.id;
 
-    if (currentUser.role === 'ADMIN') {
-      if (confirm(`Delete ${item.size} permanently?`)) {
+    if (window.confirm("Do you want to delete this item?")) {
+      if (currentUser.role === 'ADMIN') {
         setInventory(prev => prev.filter(i => i.id !== id));
-        addAuditLog('DELETE_ITEM', `Deleted SKU: ${item.size}`, id);
+        addAuditLog('DELETE_ITEM', `Permanently deleted SKU: ${item.size}`, id);
+      } else {
+        const req: ChangeRequest = { 
+          id: generateId(), 
+          timestamp: Date.now(), 
+          requestedBy: currentUser.username, 
+          requestedByName: currentUser.name, 
+          type: 'DELETE', 
+          itemId: id, 
+          itemData: item, 
+          status: 'PENDING' 
+        };
+        setChangeRequests(prev => [req, ...prev]);
+        setInventory(prev => prev.map(i => i.id === id ? { ...i, isPendingApproval: true } : i));
       }
-    } else {
-      const req: ChangeRequest = { id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'UPDATE', itemId: id, itemData: item, status: 'PENDING' };
-      setChangeRequests(prev => [...prev, req]);
     }
-  };
+  }, [currentUser, addAuditLog]);
 
-  const handleProcessChangeRequest = (requestId: string, approved: boolean) => {
+  const handleProcessChangeRequest = useCallback((requestId: string, approved: boolean) => {
     if (!currentUser || currentUser.role !== 'ADMIN') return;
     const req = changeRequests.find(r => r.id === requestId);
     if (!req) return;
+    
     if (approved) {
-      if (req.type === 'ADD') setInventory(prev => [...prev, req.itemData as InventoryItem]);
-      else if (req.type === 'UPDATE' && req.itemId) setInventory(prev => prev.map(i => i.id === req.itemId ? { ...req.itemData as InventoryItem, isPendingApproval: false } : i));
+      if (req.type === 'ADD') {
+        setInventory(prev => [...prev, req.itemData as InventoryItem]);
+        addAuditLog('APPROVE_CHANGE', `Approved ADD for ${req.itemData.size}`, req.itemData.id);
+      } else if (req.type === 'UPDATE' && req.itemId) {
+        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...req.itemData as InventoryItem, isPendingApproval: false } : i));
+        addAuditLog('APPROVE_CHANGE', `Approved UPDATE for ${req.itemData.size}`, req.itemId);
+      } else if (req.type === 'DELETE' && req.itemId) {
+        setInventory(prev => prev.filter(i => i.id !== req.itemId));
+        addAuditLog('APPROVE_CHANGE', `Approved DELETE for ${req.itemData.size}`, req.itemId);
+      }
     } else {
-      if (req.type === 'UPDATE' && req.itemId) setInventory(prev => prev.map(i => i.id === req.itemId ? { ...i, isPendingApproval: false } : i));
+      if ((req.type === 'UPDATE' || req.type === 'DELETE') && req.itemId) {
+        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...i, isPendingApproval: false } : i));
+        addAuditLog('DENY_CHANGE', `Denied ${req.type} for ${req.itemData.size}`, req.itemId);
+      }
     }
     setChangeRequests(prev => prev.filter(r => r.id !== requestId));
-  };
+  }, [currentUser, addAuditLog, changeRequests]);
 
-  const handleLogout = () => { if (confirm('Log out?')) { setCurrentUser(null); setViewMode(ViewMode.DASHBOARD); } };
+  const handleLogout = () => { if (window.confirm('Log out?')) { setCurrentUser(null); setViewMode(ViewMode.DASHBOARD); } };
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
     setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
 
-  const handleUpdateAccountStatus = (username: string, status: 'APPROVED' | 'DENIED', newRole?: UserRole, allowedPages?: ViewMode[]) => {
+  const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], newRole?: UserRole, allowedPages?: ViewMode[]) => {
     setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: newRole || u.role, allowedPages: allowedPages || u.allowedPages } : u));
     addAuditLog('USER_VERIFY', `Personnel @${username} updated to ${status}`, username);
-  };
+  }, [addAuditLog]);
 
   const handleDeleteAuditLog = (id: string) => {
     setAuditLogs(prev => prev.filter(log => log.id !== id));
   };
 
   const handleClearAuditLogs = () => {
-    if (confirm("Are you absolutely sure you want to PERMANENTLY delete all audit logs? This cannot be undone.")) {
+    if (window.confirm("Are you absolutely sure you want to PERMANENTLY delete all audit logs? This cannot be undone.")) {
       setAuditLogs([]);
     }
   };

@@ -47,7 +47,7 @@ export interface ChangeRequest {
   timestamp: number;
   requestedBy: string;
   requestedByName: string;
-  type: 'UPDATE' | 'DELETE' | 'ADD';
+  type: 'UPDATE' | 'ADD' | 'DELETE';
   itemId?: string;
   itemData: Partial<InventoryItem>;
   oldData?: Partial<InventoryItem>;
