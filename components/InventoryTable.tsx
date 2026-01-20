@@ -14,7 +14,8 @@ import {
   Loader2,
   Lock,
   Clock,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import StockOperationModal from './StockOperationModal';
 import ItemEditModal from './ItemEditModal';
@@ -381,6 +382,8 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
   
   const renderedRows: React.ReactNode[] = [];
   items.forEach((item: InventoryItem, idx: number) => {
+    const isLowStock = item.closingStock < (item.minStock || 0);
+
     if (splitIndex !== undefined && idx === splitIndex) {
       renderedRows.push(
         <tr key={`subheading-split-${idx}`} className="bg-slate-100 print:bg-slate-200 h-[24px] subheading-row">
@@ -393,7 +396,15 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
       );
     }
     renderedRows.push(
-      <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-blue-50/50 transition-colors h-[24px] ${item.isPendingApproval ? 'bg-amber-50/50' : ''}`}>
+      <tr 
+        key={item.id} 
+        className={`
+          ${isLowStock ? 'bg-rose-100' : (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30')} 
+          hover:bg-blue-50/50 
+          transition-colors h-[24px] 
+          ${item.isPendingApproval ? 'bg-amber-50/50' : ''}
+        `}
+      >
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-bold text-slate-900 text-[11px] print:text-[10px] ${COL_WIDTHS.size} h-[24px]`}>
           <div className="h-[24px] flex items-center justify-center px-1 relative">
             {item.size}
@@ -403,8 +414,11 @@ const InventorySubTable = ({ items, splitIndex, splitLabel, targetCount, onModal
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} text-slate-500 font-medium text-[10px] print:text-[9px] ${COL_WIDTHS.gsm} h-[24px]`}>
           <div className="h-[24px] flex items-center justify-center px-1">{item.gsm}</div>
         </td>
-        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-extrabold text-[12px] text-[#1e40af] tabular-nums print:text-[11px] ${COL_WIDTHS.stock} h-[24px]`}>
-          <div className="h-[24px] flex items-center justify-center px-1">{item.closingStock}</div>
+        <td className={`p-0 border-r ${borderColor} border-b ${borderColor} font-extrabold text-[12px] ${isLowStock ? 'text-rose-600' : 'text-[#1e40af]'} tabular-nums print:text-[11px] ${COL_WIDTHS.stock} h-[24px]`}>
+          <div className={`h-[24px] flex items-center justify-center px-1 gap-1`}>
+            {item.closingStock}
+            {isLowStock && <AlertTriangle className="w-2.5 h-2.5 text-rose-500 animate-pulse" />}
+          </div>
         </td>
         <td className={`p-0 border-r ${borderColor} border-b ${borderColor} print:p-0 ${COL_WIDTHS.action} h-[24px]`}>
           <div className="h-[24px] flex items-center justify-center px-1 gap-1.5 print:hidden">

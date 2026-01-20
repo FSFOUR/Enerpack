@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
 import TransactionHistory from './components/TransactionHistory';
@@ -15,7 +16,7 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  MousePointer2
+  MousePointer2, UserPlus, Bell
 } from 'lucide-react';
 
 const generateId = () => {
@@ -24,6 +25,13 @@ const generateId = () => {
   }
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
+
+interface AppNotification {
+  id: string;
+  type: 'USER' | 'CHANGE';
+  message: string;
+  subTab: 'STAFFS' | 'APPROVAL';
+}
 
 // COMPREHENSIVE INITIAL INVENTORY DATA
 const INITIAL_DATA: InventoryItem[] = [
@@ -224,7 +232,13 @@ const App: React.FC = () => {
 
   // Explicitly default to Dashboard on every fresh load/refresh
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
+  const [adminSubTab, setAdminSubTab] = useState<'OVERVIEW' | 'STAFFS' | 'APPROVAL' | 'AUDIT_LOG' | 'SYNC'>('OVERVIEW');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Notification State
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const prevPendingUserCount = useRef(authorizedUsers.filter(a => a.status === 'PENDING').length);
+  const prevPendingChangeCount = useRef(changeRequests.length);
 
   // Sync state to LocalStorage
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
@@ -236,6 +250,43 @@ const App: React.FC = () => {
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
     else localStorage.removeItem('enerpack_user_v1');
   }, [currentUser]);
+
+  // Real-time Notification Monitor
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'ADMIN') return;
+
+    const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING').length;
+    const currentPendingChanges = changeRequests.length;
+
+    // Detect new user registration
+    if (currentPendingUsers > prevPendingUserCount.current) {
+      const newNotification: AppNotification = {
+        id: generateId(),
+        type: 'USER',
+        message: `New User Registration Request Detected!`,
+        subTab: 'STAFFS'
+      };
+      setNotifications(prev => [...prev, newNotification]);
+      // Auto dismiss after 6s
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 6000);
+    }
+
+    // Detect new change request
+    if (currentPendingChanges > prevPendingChangeCount.current) {
+      const newNotification: AppNotification = {
+        id: generateId(),
+        type: 'CHANGE',
+        message: `New Editor Change Proposal Arrival!`,
+        subTab: 'APPROVAL'
+      };
+      setNotifications(prev => [...prev, newNotification]);
+      // Auto dismiss after 6s
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 6000);
+    }
+
+    prevPendingUserCount.current = currentPendingUsers;
+    prevPendingChangeCount.current = currentPendingChanges;
+  }, [authorizedUsers, changeRequests, currentUser]);
 
   const addAuditLog = useCallback((action: AuditEntry['action'], details: string, itemId?: string) => {
     if (!currentUser) return;
@@ -348,8 +399,9 @@ const App: React.FC = () => {
     setAuthorizedUsers(prev => [...prev, newAccount]);
   }, []);
 
-  const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], newRole?: UserRole, allowedPages?: ViewMode[]) => {
-    setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: newRole || u.role, allowedPages: allowedPages || u.allowedPages } : u));
+  const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
+    // Fixed: changed undefined 'newRole' to the function parameter 'role'
+    setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u));
     addAuditLog('USER_VERIFY', `Personnel @${username} updated to ${status}`, username);
   }, [addAuditLog]);
 
@@ -361,6 +413,11 @@ const App: React.FC = () => {
     if (window.confirm("Are you absolutely sure you want to PERMANENTLY delete all audit logs? This cannot be undone.")) {
       setAuditLogs([]);
     }
+  };
+
+  const navigateToAdminSubTab = (subTab: typeof adminSubTab) => {
+    setViewMode(ViewMode.ADMIN_PANEL);
+    setAdminSubTab(subTab);
   };
 
   if (!currentUser) return <Login onLogin={setCurrentUser} authorizedUsers={authorizedUsers} onRequestSignup={handleRequestSignup} />;
@@ -416,7 +473,7 @@ const App: React.FC = () => {
       case ViewMode.JOB_CARD_GENERATOR:
         return <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
       case ViewMode.ADMIN_PANEL:
-        return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={handleClearAuditLogs} />;
+        return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={handleClearAuditLogs} activeSubTab={adminSubTab} onSubTabChange={setAdminSubTab} />;
       default:
         return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
     }
@@ -461,6 +518,7 @@ const App: React.FC = () => {
                  onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} 
                  badge={totalAdminAlerts > 0 ? totalAdminAlerts : undefined} 
                  badgeColor="bg-rose-500" 
+                 shake={totalAdminAlerts > 0}
                />
              </div>
            )}
@@ -482,7 +540,7 @@ const App: React.FC = () => {
           </div>
           <div className="w-8 h-8 relative flex items-center justify-center">
             {isAdmin && totalAdminAlerts > 0 && (
-              <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e]"></div>
+              <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e] animate-pulse"></div>
             )}
             <Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" />
           </div>
@@ -491,6 +549,31 @@ const App: React.FC = () => {
         {/* Workspace Container */}
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
+          
+          {/* Real-time Administrative Notifications */}
+          <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-xs md:max-w-sm pointer-events-none print:hidden">
+            {notifications.map(note => (
+              <div 
+                key={note.id} 
+                className="pointer-events-auto bg-white border-2 border-slate-100 rounded-3xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-8 duration-500 hover:scale-105 transition-transform cursor-pointer group"
+                onClick={() => {
+                  navigateToAdminSubTab(note.subTab);
+                  setNotifications(prev => prev.filter(n => n.id !== note.id));
+                }}
+              >
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                  {note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Operational Alert</p>
+                  <p className="text-xs font-bold text-slate-800 leading-tight">{note.message}</p>
+                </div>
+                <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-blue-50 transition-colors">
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </main>
       
@@ -499,9 +582,14 @@ const App: React.FC = () => {
   );
 };
 
-const NavBtn = ({ icon: Icon, label, active, onClick, badge, badgeColor = "bg-blue-500" }: any) => (
+const NavBtn = ({ icon: Icon, label, active, onClick, badge, badgeColor = "bg-blue-500", shake = false }: any) => (
   <button onClick={onClick} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 group ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300/60 hover:text-white hover:bg-white/5'}`}>
-    <div className="flex items-center gap-2.5"><Icon className={`w-4 h-4 transition-colors ${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} /><span className="text-[11px] tracking-tight">{label}</span></div>
+    <div className="flex items-center gap-2.5">
+      <div className={`${shake && !active ? 'animate-bounce' : ''}`}>
+        <Icon className={`w-4 h-4 transition-colors ${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
+      </div>
+      <span className="text-[11px] tracking-tight">{label}</span>
+    </div>
     <div className="flex items-center gap-1.5">{badge !== undefined && <span className={`${badgeColor} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full`}>{badge}</span>}{active && <ChevronRight className="w-3.5 h-3.5 text-blue-400" />}</div>
   </button>
 );
