@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import InventoryTable from './components/InventoryTable';
 import Dashboard from './components/Dashboard';
@@ -16,7 +15,7 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  MousePointer2, UserPlus, Bell
+  MousePointer2, UserPlus, Bell, LogIn, ShieldAlert
 } from 'lucide-react';
 
 const generateId = () => {
@@ -32,6 +31,13 @@ interface AppNotification {
   message: string;
   subTab: 'STAFFS' | 'APPROVAL';
 }
+
+const PUBLIC_GUEST: User = {
+  username: 'guest',
+  role: 'USER',
+  name: 'Public Guest',
+  allowedPages: [ViewMode.DASHBOARD, ViewMode.INVENTORY, ViewMode.FORECAST, ViewMode.PAPER_CALCULATOR, ViewMode.TRACKER]
+};
 
 // COMPREHENSIVE INITIAL INVENTORY DATA
 const INITIAL_DATA: InventoryItem[] = [
@@ -200,9 +206,9 @@ const INITIAL_DATA: InventoryItem[] = [
 ];
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+  const [currentUser, setCurrentUser] = useState<User>(() => {
     const s = localStorage.getItem('enerpack_user_v1');
-    return s ? JSON.parse(s) : null;
+    return s ? JSON.parse(s) : PUBLIC_GUEST;
   });
 
   const [authorizedUsers, setAuthorizedUsers] = useState<UserAccount[]>(() => {
@@ -230,17 +236,14 @@ const App: React.FC = () => {
     return s ? JSON.parse(s) : [];
   });
 
-  // Explicitly default to Dashboard on every fresh load/refresh
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [adminSubTab, setAdminSubTab] = useState<'OVERVIEW' | 'STAFFS' | 'APPROVAL' | 'AUDIT_LOG' | 'SYNC'>('OVERVIEW');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Notification State
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const prevPendingUserCount = useRef(authorizedUsers.filter(a => a.status === 'PENDING').length);
   const prevPendingChangeCount = useRef(changeRequests.length);
 
-  // Sync state to LocalStorage
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
@@ -248,17 +251,13 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('enerpack_audit_v1', JSON.stringify(auditLogs)); }, [auditLogs]);
   useEffect(() => { 
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
-    else localStorage.removeItem('enerpack_user_v1');
   }, [currentUser]);
 
-  // Real-time Notification Monitor
   useEffect(() => {
-    if (!currentUser || currentUser.role !== 'ADMIN') return;
-
+    if (currentUser.role !== 'ADMIN') return;
     const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING').length;
     const currentPendingChanges = changeRequests.length;
 
-    // Detect new user registration
     if (currentPendingUsers > prevPendingUserCount.current) {
       const newNotification: AppNotification = {
         id: generateId(),
@@ -267,11 +266,9 @@ const App: React.FC = () => {
         subTab: 'STAFFS'
       };
       setNotifications(prev => [...prev, newNotification]);
-      // Auto dismiss after 6s
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 6000);
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 8000);
     }
 
-    // Detect new change request
     if (currentPendingChanges > prevPendingChangeCount.current) {
       const newNotification: AppNotification = {
         id: generateId(),
@@ -280,8 +277,7 @@ const App: React.FC = () => {
         subTab: 'APPROVAL'
       };
       setNotifications(prev => [...prev, newNotification]);
-      // Auto dismiss after 6s
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 6000);
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 8000);
     }
 
     prevPendingUserCount.current = currentPendingUsers;
@@ -289,7 +285,6 @@ const App: React.FC = () => {
   }, [authorizedUsers, changeRequests, currentUser]);
 
   const addAuditLog = useCallback((action: AuditEntry['action'], details: string, itemId?: string) => {
-    if (!currentUser) return;
     const log: AuditEntry = {
       id: generateId(),
       timestamp: Date.now(),
@@ -305,9 +300,7 @@ const App: React.FC = () => {
   const handleUpdateStock = useCallback((id: string, delta: number) => {
     setInventory(prev => prev.map(item => item.id === id ? { ...item, closingStock: Math.max(0, Number((item.closingStock + delta).toFixed(2))) } : item));
     const item = inventory.find(i => i.id === id);
-    if (item) {
-      addAuditLog('UPDATE_ITEM', `Stock Adjustment: ${delta > 0 ? '+' : ''}${delta} for ${item.size} (${item.gsm})`, id);
-    }
+    if (item) addAuditLog('UPDATE_ITEM', `Stock Adjustment: ${delta > 0 ? '+' : ''}${delta} for ${item.size} (${item.gsm})`, id);
   }, [addAuditLog, inventory]);
 
   const handleRecordTransaction = useCallback((transaction: Omit<StockTransaction, 'id' | 'timestamp'>) => {
@@ -316,7 +309,6 @@ const App: React.FC = () => {
   }, []);
 
   const handleAddItem = useCallback((item: Omit<InventoryItem, 'id'>) => {
-    if (!currentUser) return;
     const newId = generateId();
     if (currentUser.role === 'ADMIN') {
       setInventory(prev => [...prev, { ...item, id: newId }]);
@@ -328,10 +320,8 @@ const App: React.FC = () => {
   }, [currentUser, addAuditLog]);
 
   const handleUpdateItem = useCallback((updatedItem: InventoryItem) => {
-    if (!currentUser) return;
     const oldItem = inventory.find(i => i.id === updatedItem.id);
     if (!oldItem) return;
-
     if (currentUser.role === 'ADMIN') {
       setInventory(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
       addAuditLog('UPDATE_ITEM', `Metadata Edit for ${updatedItem.size}`, updatedItem.id);
@@ -343,24 +333,14 @@ const App: React.FC = () => {
   }, [currentUser, addAuditLog, inventory]);
 
   const handleDeleteItem = useCallback((item: InventoryItem) => {
-    if (!currentUser || !item) return;
+    if (!item) return;
     const id = item.id;
-
     if (window.confirm("Do you want to delete this item?")) {
       if (currentUser.role === 'ADMIN') {
         setInventory(prev => prev.filter(i => i.id !== id));
         addAuditLog('DELETE_ITEM', `Permanently deleted SKU: ${item.size}`, id);
       } else {
-        const req: ChangeRequest = { 
-          id: generateId(), 
-          timestamp: Date.now(), 
-          requestedBy: currentUser.username, 
-          requestedByName: currentUser.name, 
-          type: 'DELETE', 
-          itemId: id, 
-          itemData: item, 
-          status: 'PENDING' 
-        };
+        const req: ChangeRequest = { id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'DELETE', itemId: id, itemData: item, status: 'PENDING' };
         setChangeRequests(prev => [req, ...prev]);
         setInventory(prev => prev.map(i => i.id === id ? { ...i, isPendingApproval: true } : i));
       }
@@ -368,31 +348,26 @@ const App: React.FC = () => {
   }, [currentUser, addAuditLog]);
 
   const handleProcessChangeRequest = useCallback((requestId: string, approved: boolean) => {
-    if (!currentUser || currentUser.role !== 'ADMIN') return;
+    if (currentUser.role !== 'ADMIN') return;
     const req = changeRequests.find(r => r.id === requestId);
     if (!req) return;
-    
     if (approved) {
-      if (req.type === 'ADD') {
-        setInventory(prev => [...prev, req.itemData as InventoryItem]);
-        addAuditLog('APPROVE_CHANGE', `Approved ADD for ${req.itemData.size}`, req.itemData.id);
-      } else if (req.type === 'UPDATE' && req.itemId) {
-        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...req.itemData as InventoryItem, isPendingApproval: false } : i));
-        addAuditLog('APPROVE_CHANGE', `Approved UPDATE for ${req.itemData.size}`, req.itemId);
-      } else if (req.type === 'DELETE' && req.itemId) {
-        setInventory(prev => prev.filter(i => i.id !== req.itemId));
-        addAuditLog('APPROVE_CHANGE', `Approved DELETE for ${req.itemData.size}`, req.itemId);
-      }
+      if (req.type === 'ADD') setInventory(prev => [...prev, req.itemData as InventoryItem]);
+      else if (req.type === 'UPDATE' && req.itemId) setInventory(prev => prev.map(i => i.id === req.itemId ? { ...req.itemData as InventoryItem, isPendingApproval: false } : i));
+      else if (req.type === 'DELETE' && req.itemId) setInventory(prev => prev.filter(i => i.id !== req.itemId));
+      addAuditLog('APPROVE_CHANGE', `Approved ${req.type} for ${req.itemData.size}`, req.itemId || req.itemData.id);
     } else {
-      if ((req.type === 'UPDATE' || req.type === 'DELETE') && req.itemId) {
-        setInventory(prev => prev.map(i => i.id === req.itemId ? { ...i, isPendingApproval: false } : i));
-        addAuditLog('DENY_CHANGE', `Denied ${req.type} for ${req.itemData.size}`, req.itemId);
-      }
+      if (req.itemId) setInventory(prev => prev.map(i => i.id === req.itemId ? { ...i, isPendingApproval: false } : i));
+      addAuditLog('DENY_CHANGE', `Denied ${req.type} for ${req.itemData.size}`, req.itemId);
     }
     setChangeRequests(prev => prev.filter(r => r.id !== requestId));
   }, [currentUser, addAuditLog, changeRequests]);
 
-  const handleLogout = () => { if (window.confirm('Log out?')) { setCurrentUser(null); setViewMode(ViewMode.DASHBOARD); } };
+  const handleDeleteAuditLog = useCallback((id: string) => {
+    setAuditLogs(prev => prev.filter(log => log.id !== id));
+  }, []);
+
+  const handleLogout = () => { if (window.confirm('Log out?')) { setCurrentUser(PUBLIC_GUEST); setViewMode(ViewMode.DASHBOARD); } };
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
@@ -400,30 +375,18 @@ const App: React.FC = () => {
   }, []);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
-    // Fixed: changed undefined 'newRole' to the function parameter 'role'
     setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u));
     addAuditLog('USER_VERIFY', `Personnel @${username} updated to ${status}`, username);
   }, [addAuditLog]);
-
-  const handleDeleteAuditLog = (id: string) => {
-    setAuditLogs(prev => prev.filter(log => log.id !== id));
-  };
-
-  const handleClearAuditLogs = () => {
-    if (window.confirm("Are you absolutely sure you want to PERMANENTLY delete all audit logs? This cannot be undone.")) {
-      setAuditLogs([]);
-    }
-  };
 
   const navigateToAdminSubTab = (subTab: typeof adminSubTab) => {
     setViewMode(ViewMode.ADMIN_PANEL);
     setAdminSubTab(subTab);
   };
 
-  if (!currentUser) return <Login onLogin={setCurrentUser} authorizedUsers={authorizedUsers} onRequestSignup={handleRequestSignup} />;
-
   const isAdmin = currentUser.role === 'ADMIN';
-  const canEditCurrentPage = isAdmin || (currentUser.role === 'EDITOR' && currentUser.allowedPages?.includes(viewMode));
+  const isGuest = currentUser.username === 'guest';
+  const canEditCurrentPage = !isGuest && (isAdmin || (currentUser.role === 'EDITOR' && currentUser.allowedPages?.includes(viewMode)));
   const pendingUserCount = authorizedUsers.filter(a => a.status === 'PENDING').length;
   const pendingChangeCount = changeRequests.length;
   const totalAdminAlerts = pendingUserCount + pendingChangeCount;
@@ -450,54 +413,39 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (viewMode) {
-      case ViewMode.DASHBOARD:
-        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
-      case ViewMode.INVENTORY:
-        return <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={handleAddItem} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} isAdmin={canEditCurrentPage} />;
-      case ViewMode.TRACKER:
-        return <InventoryTracker items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} onRecordTransaction={handleRecordTransaction} onUpdateStock={handleUpdateStock} isAdmin={canEditCurrentPage} />;
-      case ViewMode.STOCK_IN_LOGS:
-        return <TransactionHistory type="IN" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.STOCK_OUT_LOGS:
-        return <TransactionHistory type="OUT" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.REORDER_HISTORY:
-        return <TransactionHistory type="REORDER" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.PENDING_WORKS:
-        return <PendingWorks transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateTransaction={(id, upd) => setTransactions(prev => prev.map(t => t.id === id ? {...t, ...upd} : t))} onUpdatePriority={(id, p) => setTransactions(prev => prev.map(t => t.id === id ? {...t, priority: p} : t))} isAdmin={canEditCurrentPage} />;
-      case ViewMode.REORDER_ALERTS:
-        return <ReorderPage items={inventory} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateItem={handleUpdateItem} onRecordTransaction={handleRecordTransaction} isAdmin={canEditCurrentPage} />;
-      case ViewMode.FORECAST:
-        return <ForecastPage items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.PAPER_CALCULATOR:
-        return <PaperCalculator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.JOB_CARD_GENERATOR:
-        return <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.ADMIN_PANEL:
-        return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={handleClearAuditLogs} activeSubTab={adminSubTab} onSubTabChange={setAdminSubTab} />;
-      default:
-        return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
+      case ViewMode.DASHBOARD: return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
+      case ViewMode.INVENTORY: return <InventoryTable items={inventory} transactions={transactions} onUpdateStock={handleUpdateStock} onAddItem={handleAddItem} onRecordTransaction={handleRecordTransaction} onBulkUpdate={setInventory} onUpdateItem={handleUpdateItem} onDeleteItem={handleDeleteItem} isAdmin={canEditCurrentPage} />;
+      case ViewMode.TRACKER: return <InventoryTracker items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} onRecordTransaction={handleRecordTransaction} onUpdateStock={handleUpdateStock} isAdmin={canEditCurrentPage} />;
+      case ViewMode.STOCK_IN_LOGS: return <TransactionHistory type="IN" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.STOCK_OUT_LOGS: return <TransactionHistory type="OUT" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.REORDER_HISTORY: return <TransactionHistory type="REORDER" transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.PENDING_WORKS: return <PendingWorks transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateTransaction={(id, upd) => setTransactions(prev => prev.map(t => t.id === id ? {...t, ...upd} : t))} onUpdatePriority={(id, p) => setTransactions(prev => prev.map(t => t.id === id ? {...t, priority: p} : t))} isAdmin={canEditCurrentPage} />;
+      case ViewMode.REORDER_ALERTS: return <ReorderPage items={inventory} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateItem={handleUpdateItem} onRecordTransaction={handleRecordTransaction} isAdmin={canEditCurrentPage} />;
+      case ViewMode.FORECAST: return <ForecastPage items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.PAPER_CALCULATOR: return <PaperCalculator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.JOB_CARD_GENERATOR: return <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
+      case ViewMode.ADMIN_PANEL: return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={() => setAuditLogs([])} activeSubTab={adminSubTab} onSubTabChange={setAdminSubTab} />;
+      case ViewMode.LOGIN: return <Login onLogin={(u) => { setCurrentUser(u); setViewMode(ViewMode.DASHBOARD); }} authorizedUsers={authorizedUsers} onRequestSignup={handleRequestSignup} />;
+      default: return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
     }
   };
 
   return (
     <div className="h-screen w-full bg-[#0c4a6e] flex overflow-hidden font-sans print:h-auto">
-      {/* Sidebar - Sharp edges, strict overlay on mobile */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0c4a6e] transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'} md:static flex flex-col shrink-0 overflow-y-auto print:hidden border-r border-white/5`}>
         <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg">
-              <span className="font-black text-[#0c4a6e] text-sm brand-font">EP</span>
-            </div>
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg"><span className="font-black text-[#0c4a6e] text-sm brand-font">EP</span></div>
             <div><h2 className="text-white font-bold text-xl tracking-tight uppercase leading-none brand-font">Ener Pack</h2></div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-white/60 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="px-5 py-3 border-b border-white/5 flex items-center gap-3">
-          <div className="w-7 h-7 rounded-full bg-blue-400/20 flex items-center justify-center text-blue-300"><UserIcon className="w-3.5 h-3.5" /></div>
+          <div className={`w-7 h-7 rounded-full ${isGuest ? 'bg-white/10 text-white/40' : 'bg-blue-400/20 text-blue-300'} flex items-center justify-center`}><UserIcon className="w-3.5 h-3.5" /></div>
           <div className="flex flex-col overflow-hidden">
             <span className="text-white text-[11px] font-bold truncate leading-tight">{currentUser.name}</span>
-            <span className={`text-[8px] font-black uppercase tracking-widest ${isAdmin ? 'text-emerald-400' : currentUser.role === 'EDITOR' ? 'text-amber-400' : 'text-blue-300'}`}>{currentUser.role}</span>
+            <span className={`text-[8px] font-black uppercase tracking-widest ${isAdmin ? 'text-emerald-400' : currentUser.role === 'EDITOR' ? 'text-amber-400' : 'text-blue-300'}`}>{isGuest ? 'Guest Access' : currentUser.role}</span>
           </div>
         </div>
 
@@ -511,72 +459,43 @@ const App: React.FC = () => {
            {isAdmin && (
              <div className="mb-3">
                <h3 className="px-3 text-[9px] font-black text-blue-200/30 uppercase tracking-[0.15em] mb-1.5">Infrastructure</h3>
-               <NavBtn 
-                 icon={Settings2} 
-                 label="Admin Panel" 
-                 active={viewMode === ViewMode.ADMIN_PANEL} 
-                 onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} 
-                 badge={totalAdminAlerts > 0 ? totalAdminAlerts : undefined} 
-                 badgeColor="bg-rose-500" 
-                 shake={totalAdminAlerts > 0}
-               />
+               <NavBtn icon={Settings2} label="Admin Panel" active={viewMode === ViewMode.ADMIN_PANEL} onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} badge={totalAdminAlerts > 0 ? totalAdminAlerts : undefined} badgeColor="bg-rose-500" shake={totalAdminAlerts > 0} />
              </div>
            )}
         </div>
 
         <div className="p-4 border-t border-white/5 bg-black/10">
-           <button onClick={handleLogout} className="flex items-center gap-2.5 text-rose-300 hover:text-rose-400 transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-rose-400/10">
-              <LogOut className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Sign Out</span>
-           </button>
+           {isGuest ? (
+             <button onClick={() => setViewMode(ViewMode.LOGIN)} className="flex items-center gap-2.5 text-blue-300 hover:text-white transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-white/5">
+                <LogIn className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Editor Log In</span>
+             </button>
+           ) : (
+             <button onClick={handleLogout} className="flex items-center gap-2.5 text-rose-300 hover:text-rose-400 transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-rose-400/10">
+                <LogOut className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Sign Out</span>
+             </button>
+           )}
         </div>
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#0c4a6e]">
         <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 z-40">
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-1.5 text-white/80 bg-white/10 rounded-lg hover:bg-white/20"><Menu className="w-5 h-5" /></button>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div>
-            <h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">Ener Pack</h2>
-          </div>
-          <div className="w-8 h-8 relative flex items-center justify-center">
-            {isAdmin && totalAdminAlerts > 0 && (
-              <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e] animate-pulse"></div>
-            )}
-            <Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" />
-          </div>
+          <div className="flex items-center gap-2"><div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div><h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">Ener Pack</h2></div>
+          <div className="w-8 h-8 relative flex items-center justify-center">{isAdmin && totalAdminAlerts > 0 && (<div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e] animate-pulse"></div>)}<Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" /></div>
         </header>
-
-        {/* Workspace Container */}
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
-          
-          {/* Real-time Administrative Notifications */}
           <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-xs md:max-w-sm pointer-events-none print:hidden">
             {notifications.map(note => (
-              <div 
-                key={note.id} 
-                className="pointer-events-auto bg-white border-2 border-slate-100 rounded-3xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-8 duration-500 hover:scale-105 transition-transform cursor-pointer group"
-                onClick={() => {
-                  navigateToAdminSubTab(note.subTab);
-                  setNotifications(prev => prev.filter(n => n.id !== note.id));
-                }}
-              >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
-                  {note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Operational Alert</p>
-                  <p className="text-xs font-bold text-slate-800 leading-tight">{note.message}</p>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-blue-50 transition-colors">
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500" />
-                </div>
+              <div key={note.id} className="pointer-events-auto bg-white border-2 border-slate-100 rounded-3xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-8 duration-500 hover:scale-105 transition-transform cursor-pointer group" onClick={() => { navigateToAdminSubTab(note.subTab); setNotifications(prev => prev.filter(n => n.id !== note.id)); }}>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>{note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}</div>
+                <div className="flex-1 min-w-0"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Operational Alert</p><p className="text-xs font-bold text-slate-800 leading-tight">{note.message}</p></div>
+                <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-blue-50 transition-colors"><ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500" /></div>
               </div>
             ))}
           </div>
         </div>
       </main>
-      
       {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />}
     </div>
   );
@@ -584,12 +503,7 @@ const App: React.FC = () => {
 
 const NavBtn = ({ icon: Icon, label, active, onClick, badge, badgeColor = "bg-blue-500", shake = false }: any) => (
   <button onClick={onClick} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 group ${active ? 'bg-white/10 text-white font-bold' : 'text-slate-300/60 hover:text-white hover:bg-white/5'}`}>
-    <div className="flex items-center gap-2.5">
-      <div className={`${shake && !active ? 'animate-bounce' : ''}`}>
-        <Icon className={`w-4 h-4 transition-colors ${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} />
-      </div>
-      <span className="text-[11px] tracking-tight">{label}</span>
-    </div>
+    <div className="flex items-center gap-2.5"><div className={`${shake && !active ? 'animate-bounce' : ''}`}><Icon className={`w-4 h-4 transition-colors ${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`} /></div><span className="text-[11px] tracking-tight">{label}</span></div>
     <div className="flex items-center gap-1.5">{badge !== undefined && <span className={`${badgeColor} text-white text-[8px] font-black px-1.5 py-0.5 rounded-full`}>{badge}</span>}{active && <ChevronRight className="w-3.5 h-3.5 text-blue-400" />}</div>
   </button>
 );

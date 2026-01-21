@@ -66,7 +66,8 @@ export enum ViewMode {
   FORECAST = 'FORECAST',
   PAPER_CALCULATOR = 'PAPER_CALCULATOR',
   JOB_CARD_GENERATOR = 'JOB_CARD_GENERATOR',
-  ADMIN_PANEL = 'ADMIN_PANEL'
+  ADMIN_PANEL = 'ADMIN_PANEL',
+  LOGIN = 'LOGIN'
 }
 
 export interface StockTransaction {
