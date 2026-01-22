@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle, ShieldCheck, ArrowRight, Smartphone } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { User as UserType, UserAccount } from '../types';
 
 interface LoginProps {
@@ -114,7 +114,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
             <span className="font-black text-4xl text-[#0c4a6e] brand-font">EP</span>
           </div>
           <h1 className="text-white text-5xl font-black tracking-[0.1em] mb-1 uppercase brand-font">ENERPACK</h1>
-          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">Personnel Hub</p>
+          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">OPERATIONS</p>
         </div>
 
         <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
@@ -123,13 +123,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               onClick={() => { setMode('LOGIN'); setError(''); setSuccess(''); }}
               className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'LOGIN' ? 'bg-white text-[#0c4a6e] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <LogIn className="w-3.5 h-3.5" /> Sign In
+              <LogIn className="w-3.5 h-3.5" /> Sign in
             </button>
             <button 
               onClick={() => { setMode('REGISTER'); setError(''); setSuccess(''); }}
               className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'REGISTER' ? 'bg-white text-[#0c4a6e] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <UserPlus className="w-3.5 h-3.5" /> Request Access
+              <UserPlus className="w-3.5 h-3.5" /> Register
             </button>
           </div>
 
@@ -207,20 +207,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    {mode === 'LOGIN' ? 'Initiate Link' : 'Submit for Verification'}
+                    {mode === 'LOGIN' ? 'Login' : 'Register'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
           </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-4">
-           <div className="flex items-center gap-4 bg-black/20 px-6 py-2 rounded-full border border-white/5">
-              <ShieldCheck className="w-3 h-3 text-blue-400" />
-              <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-widest">Enerpack Cryptographic Node</span>
-           </div>
         </div>
       </div>
     </div>
