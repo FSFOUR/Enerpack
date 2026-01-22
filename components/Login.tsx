@@ -69,6 +69,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
     setError('');
 
     const cleanUsername = username.toLowerCase().trim();
+    const cleanFullName = fullName.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 
     if (cleanUsername.length < 3) {
       setError('Username too short.');
@@ -76,8 +77,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password.length < 4) {
+      setError('Password too weak.');
       setIsLoading(false);
       return;
     }
@@ -90,12 +91,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
     setTimeout(() => {
       onRequestSignup({
-        name: fullName.trim(),
+        name: cleanFullName,
         username: cleanUsername,
         password: password
       });
       
-      setSuccess('Registration submitted! Awaiting admin approval.');
+      setSuccess('Request Submitted. Notify Admin to approve your terminal.');
       setMode('LOGIN');
       setFullName('');
       setIsLoading(false);
@@ -104,7 +105,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
   return (
     <div className="min-h-screen w-full bg-[#0c4a6e] flex items-center justify-center p-4 relative overflow-hidden font-sans text-slate-800">
-      {/* Background Ambience */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-sky-500/10 rounded-full blur-[150px] pointer-events-none"></div>
 
@@ -114,7 +114,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
             <span className="font-black text-4xl text-[#0c4a6e] brand-font">EP</span>
           </div>
           <h1 className="text-white text-5xl font-black tracking-[0.1em] mb-1 uppercase brand-font">ENERPACK</h1>
-          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">Operations.</p>
+          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">Personnel Hub</p>
         </div>
 
         <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
@@ -129,7 +129,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               onClick={() => { setMode('REGISTER'); setError(''); setSuccess(''); }}
               className={`flex-1 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${mode === 'REGISTER' ? 'bg-white text-[#0c4a6e] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <UserPlus className="w-3.5 h-3.5" /> Register
+              <UserPlus className="w-3.5 h-3.5" /> Request Access
             </button>
           </div>
 
@@ -151,13 +151,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
             <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-5">
               {mode === 'REGISTER' && (
                 <div className="group">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Full Name</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Display Name</label>
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                     <input 
                       type="text" required
                       className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                      placeholder="Your Name"
+                      placeholder="e.g. John Doe"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                     />
@@ -166,13 +166,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               )}
 
               <div className="group">
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Username</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">System ID (Username)</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                   <input 
                     type="text" required
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                    placeholder="Enter Username"
+                    placeholder="Enter ID"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
@@ -180,7 +180,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               </div>
 
               <div className="group">
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Password</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Secure Passcode</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><Lock className="w-5 h-5" /></div>
                   <input 
@@ -207,7 +207,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    {mode === 'LOGIN' ? 'Login' : 'Submit Registration'}
+                    {mode === 'LOGIN' ? 'Initiate Link' : 'Submit for Verification'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -219,7 +219,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
         <div className="flex flex-col items-center gap-4">
            <div className="flex items-center gap-4 bg-black/20 px-6 py-2 rounded-full border border-white/5">
               <ShieldCheck className="w-3 h-3 text-blue-400" />
-              <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-widest">Secure Infrastructure Terminal</span>
+              <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-widest">Enerpack Cryptographic Node</span>
            </div>
         </div>
       </div>

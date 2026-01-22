@@ -36,10 +36,21 @@ const PUBLIC_GUEST: User = {
   username: 'guest',
   role: 'USER',
   name: 'Public Guest',
-  allowedPages: [ViewMode.DASHBOARD, ViewMode.INVENTORY, ViewMode.FORECAST, ViewMode.PAPER_CALCULATOR, ViewMode.TRACKER]
+  allowedPages: [
+    ViewMode.DASHBOARD, 
+    ViewMode.INVENTORY, 
+    ViewMode.TRACKER, 
+    ViewMode.STOCK_IN_LOGS, 
+    ViewMode.STOCK_OUT_LOGS, 
+    ViewMode.PENDING_WORKS, 
+    ViewMode.REORDER_ALERTS, 
+    ViewMode.REORDER_HISTORY, 
+    ViewMode.FORECAST, 
+    ViewMode.PAPER_CALCULATOR, 
+    ViewMode.JOB_CARD_GENERATOR
+  ]
 };
 
-// COMPREHENSIVE INITIAL INVENTORY DATA
 const INITIAL_DATA: InventoryItem[] = [
   // 280 GSM SINGLE SIZE
   { id: '280-54', size: '54', gsm: '280', closingStock: 1019, minStock: 500, category: 'SINGLE' },
@@ -244,6 +255,21 @@ const App: React.FC = () => {
   const prevPendingUserCount = useRef(authorizedUsers.filter(a => a.status === 'PENDING').length);
   const prevPendingChangeCount = useRef(changeRequests.length);
 
+  // Sync state across tabs instantly
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.newValue) return;
+      const parsed = JSON.parse(e.newValue);
+      if (e.key === 'enerpack_accounts_v1') setAuthorizedUsers(parsed);
+      if (e.key === 'enerpack_inventory_v11') setInventory(parsed);
+      if (e.key === 'enerpack_transactions_v1') setTransactions(parsed);
+      if (e.key === 'enerpack_changes_v1') setChangeRequests(parsed);
+      if (e.key === 'enerpack_audit_v1') setAuditLogs(parsed);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
@@ -253,31 +279,33 @@ const App: React.FC = () => {
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
   }, [currentUser]);
 
+  // Admin Instant Notifications
   useEffect(() => {
     if (currentUser.role !== 'ADMIN') return;
     const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING').length;
     const currentPendingChanges = changeRequests.length;
 
     if (currentPendingUsers > prevPendingUserCount.current) {
+      const newUser = authorizedUsers.find(a => a.status === 'PENDING');
       const newNotification: AppNotification = {
         id: generateId(),
         type: 'USER',
-        message: `New User Registration Request Detected!`,
+        message: `New Terminal Request from @${newUser?.username || 'user'}!`,
         subTab: 'STAFFS'
       };
       setNotifications(prev => [...prev, newNotification]);
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 8000);
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 10000);
     }
 
     if (currentPendingChanges > prevPendingChangeCount.current) {
       const newNotification: AppNotification = {
         id: generateId(),
         type: 'CHANGE',
-        message: `New Editor Change Proposal Arrival!`,
+        message: `Inventory change proposal requires approval!`,
         subTab: 'APPROVAL'
       };
       setNotifications(prev => [...prev, newNotification]);
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 8000);
+      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 10000);
     }
 
     prevPendingUserCount.current = currentPendingUsers;
@@ -371,8 +399,10 @@ const App: React.FC = () => {
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
-    setAuthorizedUsers(prev => [...prev, newAccount]);
-  }, []);
+    const updatedUsers = [...authorizedUsers, newAccount];
+    setAuthorizedUsers(updatedUsers);
+    localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updatedUsers));
+  }, [authorizedUsers]);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
     setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u));
@@ -387,6 +417,7 @@ const App: React.FC = () => {
   const isAdmin = currentUser.role === 'ADMIN';
   const isGuest = currentUser.username === 'guest';
   const canEditCurrentPage = !isGuest && (isAdmin || (currentUser.role === 'EDITOR' && currentUser.allowedPages?.includes(viewMode)));
+  
   const pendingUserCount = authorizedUsers.filter(a => a.status === 'PENDING').length;
   const pendingChangeCount = changeRequests.length;
   const totalAdminAlerts = pendingUserCount + pendingChangeCount;
@@ -467,11 +498,11 @@ const App: React.FC = () => {
         <div className="p-4 border-t border-white/5 bg-black/10">
            {isGuest ? (
              <button onClick={() => setViewMode(ViewMode.LOGIN)} className="flex items-center gap-2.5 text-blue-300 hover:text-white transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-white/5">
-                <LogIn className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Editor Log In</span>
+                <LogIn className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Personnel Login</span>
              </button>
            ) : (
              <button onClick={handleLogout} className="flex items-center gap-2.5 text-rose-300 hover:text-rose-400 transition-colors w-full px-3 py-2.5 rounded-xl hover:bg-rose-400/10">
-                <LogOut className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Sign Out</span>
+                <LogOut className="w-4 h-4" /><span className="text-[11px] font-bold uppercase tracking-widest">Log Out</span>
              </button>
            )}
         </div>
