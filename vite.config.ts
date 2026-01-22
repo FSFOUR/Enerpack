@@ -8,13 +8,18 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // Polyfill process.env.API_KEY for the Gemini Service so it works in the browser build
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
       // Prevent crash if other process.env fields are accessed by dependencies
       'process.env': {}
     },
+    server: {
+      host: true,
+      port: 3000
+    },
     build: {
       outDir: 'dist',
-      sourcemap: false
+      sourcemap: false,
+      chunkSizeWarningLimit: 1600,
     }
   };
 });

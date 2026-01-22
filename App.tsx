@@ -255,7 +255,7 @@ const App: React.FC = () => {
   const prevPendingUserCount = useRef(authorizedUsers.filter(a => a.status === 'PENDING').length);
   const prevPendingChangeCount = useRef(changeRequests.length);
 
-  // Sync state across tabs instantly
+  // Sync state across tabs instantly for a shared database feel on a single machine
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (!e.newValue) return;
@@ -279,29 +279,31 @@ const App: React.FC = () => {
     if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
   }, [currentUser]);
 
-  // Admin Instant Notifications
+  // Admin Instant Notifications Logic
   useEffect(() => {
     if (currentUser.role !== 'ADMIN') return;
     const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING').length;
     const currentPendingChanges = changeRequests.length;
 
+    // Detect new registration requests
     if (currentPendingUsers > prevPendingUserCount.current) {
-      const newUser = authorizedUsers.find(a => a.status === 'PENDING');
+      const newUser = authorizedUsers.filter(a => a.status === 'PENDING').slice(-1)[0];
       const newNotification: AppNotification = {
         id: generateId(),
         type: 'USER',
-        message: `New Terminal Request from @${newUser?.username || 'user'}!`,
+        message: `Personnel Link Request: @${newUser?.username || 'New User'}`,
         subTab: 'STAFFS'
       };
       setNotifications(prev => [...prev, newNotification]);
       setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 10000);
     }
 
+    // Detect new inventory change requests
     if (currentPendingChanges > prevPendingChangeCount.current) {
       const newNotification: AppNotification = {
         id: generateId(),
         type: 'CHANGE',
-        message: `Inventory change proposal requires approval!`,
+        message: `System Modification pending approval!`,
         subTab: 'APPROVAL'
       };
       setNotifications(prev => [...prev, newNotification]);
@@ -399,15 +401,18 @@ const App: React.FC = () => {
 
   const handleRequestSignup = useCallback((signupData: Omit<UserAccount, 'role' | 'status' | 'createdAt'>) => {
     const newAccount: UserAccount = { ...signupData, role: 'USER', status: 'PENDING', createdAt: Date.now(), allowedPages: [ViewMode.DASHBOARD] };
-    const updatedUsers = [...authorizedUsers, newAccount];
-    setAuthorizedUsers(updatedUsers);
-    localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updatedUsers));
-  }, [authorizedUsers]);
+    const currentAccounts = JSON.parse(localStorage.getItem('enerpack_accounts_v1') || '[]');
+    const updated = [...currentAccounts, newAccount];
+    setAuthorizedUsers(updated);
+    localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
+  }, []);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
-    setAuthorizedUsers(prev => prev.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u));
+    const updated = authorizedUsers.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u);
+    setAuthorizedUsers(updated);
+    localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
     addAuditLog('USER_VERIFY', `Personnel @${username} updated to ${status}`, username);
-  }, [addAuditLog]);
+  }, [addAuditLog, authorizedUsers]);
 
   const navigateToAdminSubTab = (subTab: typeof adminSubTab) => {
     setViewMode(ViewMode.ADMIN_PANEL);
@@ -467,7 +472,7 @@ const App: React.FC = () => {
         <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/10">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-lg"><span className="font-black text-[#0c4a6e] text-sm brand-font">EP</span></div>
-            <div><h2 className="text-white font-bold text-xl tracking-tight uppercase leading-none brand-font">Ener Pack</h2></div>
+            <div><h2 className="text-white font-bold text-xl tracking-tight uppercase leading-none brand-font">ENERPACK</h2></div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-white/60 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
@@ -511,7 +516,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#0c4a6e]">
         <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 z-40">
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-1.5 text-white/80 bg-white/10 rounded-lg hover:bg-white/20"><Menu className="w-5 h-5" /></button>
-          <div className="flex items-center gap-2"><div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div><h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">Ener Pack</h2></div>
+          <div className="flex items-center gap-2"><div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div><h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">ENERPACK</h2></div>
           <div className="w-8 h-8 relative flex items-center justify-center">{isAdmin && totalAdminAlerts > 0 && (<div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e] animate-pulse"></div>)}<Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" /></div>
         </header>
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
