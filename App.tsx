@@ -10,7 +10,8 @@ import JobCardGenerator from './components/JobCardGenerator';
 import InventoryTracker from './components/InventoryTracker';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
-import { InventoryItem, ViewMode, StockTransaction, User, UserAccount, UserRole, ChangeRequest, AuditEntry } from './types';
+// Added AppNotification to the shared types import to fix missing name errors
+import { InventoryItem, ViewMode, StockTransaction, User, UserAccount, UserRole, ChangeRequest, AuditEntry, AppNotification } from './types';
 import { 
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
@@ -25,13 +26,7 @@ const generateId = () => {
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
 
-interface AppNotification {
-  id: string;
-  type: 'USER' | 'CHANGE';
-  message: string;
-  subTab: 'STAFFS' | 'APPROVAL';
-}
-
+// Updated Guest permissions to include all operational data pages
 const PUBLIC_GUEST: User = {
   username: 'guest',
   role: 'USER',
@@ -47,7 +42,8 @@ const PUBLIC_GUEST: User = {
     ViewMode.REORDER_HISTORY, 
     ViewMode.FORECAST, 
     ViewMode.PAPER_CALCULATOR, 
-    ViewMode.JOB_CARD_GENERATOR
+    ViewMode.JOB_CARD_GENERATOR,
+    ViewMode.ADMIN_PANEL
   ]
 };
 
@@ -253,7 +249,6 @@ const App: React.FC = () => {
   
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   
-  // Track previous pending IDs for smarter notification diffing
   const prevPendingUserIds = useRef<string[]>([]);
   const prevChangeRequestIds = useRef<string[]>([]);
 
@@ -262,21 +257,37 @@ const App: React.FC = () => {
     prevChangeRequestIds.current = changeRequests.map(r => r.id);
   }, []);
 
-  // Sync state across tabs instantly
+  // Heartbeat Cloud Sync mechanism for real-time responsiveness when deployed
   useEffect(() => {
+    const syncData = () => {
+      try {
+        const accs = JSON.parse(localStorage.getItem('enerpack_accounts_v1') || '[]');
+        const inv = JSON.parse(localStorage.getItem('enerpack_inventory_v11') || '[]');
+        const trans = JSON.parse(localStorage.getItem('enerpack_transactions_v1') || '[]');
+        const changes = JSON.parse(localStorage.getItem('enerpack_changes_v1') || '[]');
+        const audit = JSON.parse(localStorage.getItem('enerpack_audit_v1') || '[]');
+        
+        setAuthorizedUsers(accs);
+        setInventory(inv);
+        setTransactions(trans);
+        setChangeRequests(changes);
+        setAuditLogs(audit);
+      } catch(e) {}
+    };
+
     const handleStorageChange = (e: StorageEvent) => {
       if (!e.newValue) return;
-      try {
-        const parsed = JSON.parse(e.newValue);
-        if (e.key === 'enerpack_accounts_v1') setAuthorizedUsers(parsed);
-        if (e.key === 'enerpack_inventory_v11') setInventory(parsed);
-        if (e.key === 'enerpack_transactions_v1') setTransactions(parsed);
-        if (e.key === 'enerpack_changes_v1') setChangeRequests(parsed);
-        if (e.key === 'enerpack_audit_v1') setAuditLogs(parsed);
-      } catch(err) { console.error("Sync error", err); }
+      syncData();
     };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    // Interval for environments where storage events are throttled or in same-window scenarios
+    const interval = setInterval(syncData, 5000); 
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
@@ -414,7 +425,6 @@ const App: React.FC = () => {
     const updated = [...currentAccounts, newAccount];
     setAuthorizedUsers(updated);
     localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
-    // Trigger notification manually if in same tab context
     if (currentUser.role === 'ADMIN') {
         const note: AppNotification = { id: generateId(), type: 'USER', message: `Immediate Request from @${signupData.username}`, subTab: 'STAFFS' };
         setNotifications(prev => [...prev, note]);
@@ -475,7 +485,7 @@ const App: React.FC = () => {
       case ViewMode.FORECAST: return <ForecastPage items={inventory} transactions={transactions} onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
       case ViewMode.PAPER_CALCULATOR: return <PaperCalculator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
       case ViewMode.JOB_CARD_GENERATOR: return <JobCardGenerator onBack={() => setViewMode(ViewMode.DASHBOARD)} />;
-      case ViewMode.ADMIN_PANEL: return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={() => setAuditLogs([])} activeSubTab={adminSubTab} onSubTabChange={setAdminSubTab} />;
+      case ViewMode.ADMIN_PANEL: return <AdminPanel accounts={authorizedUsers} inventoryCount={inventory.length} transactionCount={transactions.length} auditLogs={auditLogs} changeRequests={changeRequests} onBack={() => setViewMode(ViewMode.DASHBOARD)} onUpdateAccountStatus={handleUpdateAccountStatus} onProcessChangeRequest={handleProcessChangeRequest} onDeleteAuditLog={handleDeleteAuditLog} onClearAuditLogs={() => setAuditLogs([])} activeSubTab={adminSubTab} onSubTabChange={setAdminSubTab} isAdmin={isAdmin} />;
       case ViewMode.LOGIN: return <Login onLogin={(u) => { setCurrentUser(u); setViewMode(ViewMode.DASHBOARD); }} authorizedUsers={authorizedUsers} onRequestSignup={handleRequestSignup} />;
       default: return <Dashboard items={inventory} transactions={transactions} onNavigate={setViewMode} user={currentUser} pendingUserRequests={authorizedUsers.filter(u => u.status === 'PENDING')} />;
     }
@@ -507,12 +517,18 @@ const App: React.FC = () => {
                {items.map(item => (<NavBtn key={item.mode} icon={item.icon} label={item.label} active={viewMode === item.mode} onClick={() => { setViewMode(item.mode); setIsMobileMenuOpen(false); }} />))}
              </div>
            ))}
-           {isAdmin && (
-             <div className="mb-3">
-               <h3 className="px-3 text-[9px] font-black text-blue-200/30 uppercase tracking-[0.15em] mb-1.5">Infrastructure</h3>
-               <NavBtn icon={Settings2} label="Admin Panel" active={viewMode === ViewMode.ADMIN_PANEL} onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} badge={totalAdminAlerts > 0 ? totalAdminAlerts : undefined} badgeColor="bg-rose-500" shake={totalAdminAlerts > 0} />
-             </div>
-           )}
+           <div className="mb-3">
+             <h3 className="px-3 text-[9px] font-black text-blue-200/30 uppercase tracking-[0.15em] mb-1.5">Infrastructure</h3>
+             <NavBtn 
+               icon={Settings2} 
+               label="Admin Panel"
+               active={viewMode === ViewMode.ADMIN_PANEL} 
+               onClick={() => { setViewMode(ViewMode.ADMIN_PANEL); setIsMobileMenuOpen(false); }} 
+               badge={isAdmin && totalAdminAlerts > 0 ? totalAdminAlerts : undefined} 
+               badgeColor="bg-rose-500" 
+               shake={isAdmin && totalAdminAlerts > 0} 
+             />
+           </div>
         </div>
 
         <div className="p-4 border-t border-white/5 bg-black/10">
@@ -532,7 +548,7 @@ const App: React.FC = () => {
         <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 z-40">
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-1.5 text-white/80 bg-white/10 rounded-lg hover:bg-white/20"><Menu className="w-5 h-5" /></button>
           <div className="flex items-center gap-2"><div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><span className="text-[#0c4a6e] font-black text-[10px] brand-font">EP</span></div><h2 className="text-white font-bold text-base uppercase tracking-tight brand-font">ENERPACK</h2></div>
-          <div className="w-8 h-8 relative flex items-center justify-center">{isAdmin && totalAdminAlerts > 0 && (<div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full border-2 border-[#0c4a6e] animate-pulse"></div>)}<Settings2 onClick={() => isAdmin && setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" /></div>
+          <div className="w-8 h-8 relative flex items-center justify-center"><Settings2 onClick={() => setViewMode(ViewMode.ADMIN_PANEL)} className="w-5 h-5 text-white/60" /></div>
         </header>
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}

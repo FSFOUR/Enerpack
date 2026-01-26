@@ -111,3 +111,14 @@ export interface JobCardData {
   supervisorSign?: string;
   accountantSign?: string;
 }
+
+/**
+ * Added AppNotification interface to handle system alerts and operational notifications.
+ * This resolves the missing name errors in App.tsx.
+ */
+export interface AppNotification {
+  id: string;
+  type: 'USER' | 'CHANGE';
+  message: string;
+  subTab: 'OVERVIEW' | 'STAFFS' | 'APPROVAL' | 'AUDIT_LOG' | 'SYNC';
+}

@@ -119,13 +119,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
         {/* System Header */}
         <div className="text-center">
           <div className="inline-flex w-24 h-24 bg-white rounded-[2.5rem] items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] mb-6 transform hover:scale-105 transition-transform group relative">
-             <div className="absolute -top-2 -right-2 bg-emerald-500 w-5 h-5 rounded-full border-4 border-[#0c4a6e] animate-pulse"></div>
             <span className="font-black text-4xl text-[#0c4a6e] brand-font">EP</span>
           </div>
           <h1 className="text-white text-5xl font-black tracking-[0.1em] mb-1 uppercase brand-font">ENERPACK</h1>
           <div className="flex items-center justify-center gap-2 opacity-80">
-            <Wifi className="w-3 h-3 text-emerald-400" />
-            <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em]">OPERATIONS — CLOUD LINK ACTIVE</p>
+            <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em]">Operations</p>
           </div>
         </div>
 
@@ -160,7 +158,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                     <span className="text-sm font-black text-emerald-600 font-mono">#{requestId}</span>
                   </div>
                 )}
-                <p className="text-[8px] font-bold text-emerald-600/60 text-center uppercase tracking-widest">Admin notification sent via Google Cloud Sync</p>
               </div>
             )}
 
