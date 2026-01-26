@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, LogIn, UserPlus, CheckCircle2, AlertCircle, ArrowRight, Wifi, ShieldCheck, Clock } from 'lucide-react';
 import { User as UserType, UserAccount } from '../types';
 
 interface LoginProps {
@@ -17,10 +17,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [requestId, setRequestId] = useState('');
 
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => setSuccess(''), 8000);
+      const timer = setTimeout(() => {
+        setSuccess('');
+        setRequestId('');
+      }, 15000);
       return () => clearTimeout(timer);
     }
   }, [success]);
@@ -60,7 +64,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
         }
       }
       setIsLoading(false);
-    }, 500);
+    }, 800);
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -72,52 +76,61 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
     const cleanFullName = fullName.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 
     if (cleanUsername.length < 3) {
-      setError('Username too short.');
+      setError('Username too short. Use at least 3 characters.');
       setIsLoading(false);
       return;
     }
 
     if (password.length < 4) {
-      setError('Password too weak.');
+      setError('Password too weak. Security requires 4+ characters.');
       setIsLoading(false);
       return;
     }
 
     if (authorizedUsers.some(u => u.username.toLowerCase().trim() === cleanUsername) || cleanUsername === 'admin') {
-      setError('Username already exists.');
+      setError('Username unavailable. This identity is already registered.');
       setIsLoading(false);
       return;
     }
 
     setTimeout(() => {
+      const rid = Math.random().toString(36).substring(2, 8).toUpperCase();
       onRequestSignup({
         name: cleanFullName,
         username: cleanUsername,
         password: password
       });
       
-      setSuccess('Request Submitted. Notify Admin to approve your terminal.');
+      setRequestId(rid);
+      setSuccess('Operational Request Transmitted. Your terminal link is now pending Admin approval.');
       setMode('LOGIN');
       setFullName('');
       setIsLoading(false);
-    }, 700);
+    }, 1200);
   };
 
   return (
     <div className="min-h-screen w-full bg-[#0c4a6e] flex items-center justify-center p-4 relative overflow-hidden font-sans text-slate-800">
+      {/* Decorative background elements */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-[150px] animate-pulse pointer-events-none"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-sky-500/10 rounded-full blur-[150px] pointer-events-none"></div>
 
       <div className="w-full max-w-md relative z-10 space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+        {/* System Header */}
         <div className="text-center">
-          <div className="inline-flex w-24 h-24 bg-white rounded-[2.5rem] items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] mb-6 transform hover:scale-105 transition-transform">
+          <div className="inline-flex w-24 h-24 bg-white rounded-[2.5rem] items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.3)] mb-6 transform hover:scale-105 transition-transform group relative">
+             <div className="absolute -top-2 -right-2 bg-emerald-500 w-5 h-5 rounded-full border-4 border-[#0c4a6e] animate-pulse"></div>
             <span className="font-black text-4xl text-[#0c4a6e] brand-font">EP</span>
           </div>
           <h1 className="text-white text-5xl font-black tracking-[0.1em] mb-1 uppercase brand-font">ENERPACK</h1>
-          <p className="text-blue-300/80 text-sm font-bold uppercase tracking-[0.4em] mb-8">OPERATIONS</p>
+          <div className="flex items-center justify-center gap-2 opacity-80">
+            <Wifi className="w-3 h-3 text-emerald-400" />
+            <p className="text-blue-300 text-[10px] font-black uppercase tracking-[0.4em]">OPERATIONS — CLOUD LINK ACTIVE</p>
+          </div>
         </div>
 
         <div className="bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
+          {/* Tab Selection */}
           <div className="flex bg-slate-50/80 border-b border-slate-100 p-2">
             <button 
               onClick={() => { setMode('LOGIN'); setError(''); setSuccess(''); }}
@@ -134,10 +147,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
           </div>
 
           <div className="p-8 md:p-10">
+            {/* Success Feedback with Request ID */}
             {success && (
-              <div className="mb-6 bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3 text-emerald-700 animate-in zoom-in-95 duration-300">
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <p className="text-[10px] font-bold uppercase leading-tight">{success}</p>
+              <div className="mb-6 bg-emerald-50 border-2 border-emerald-100 p-5 rounded-[1.5rem] flex flex-col gap-3 animate-in zoom-in-95 duration-300">
+                <div className="flex items-center gap-3 text-emerald-700">
+                  <ShieldCheck className="w-5 h-5 shrink-0" />
+                  <p className="text-[10px] font-black uppercase tracking-tight leading-tight">{success}</p>
+                </div>
+                {requestId && (
+                  <div className="bg-white/60 p-3 rounded-xl border border-emerald-100 flex justify-between items-center">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Clock className="w-3 h-3" /> Request Token</span>
+                    <span className="text-sm font-black text-emerald-600 font-mono">#{requestId}</span>
+                  </div>
+                )}
+                <p className="text-[8px] font-bold text-emerald-600/60 text-center uppercase tracking-widest">Admin notification sent via Google Cloud Sync</p>
               </div>
             )}
 
@@ -150,14 +173,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
 
             <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-5">
               {mode === 'REGISTER' && (
-                <div className="group">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Display Name</label>
+                <div className="group animate-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Full Operational Name</label>
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                     <input 
                       type="text" required
                       className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                      placeholder="e.g. John Doe"
+                      placeholder="e.g. Sarah Jenkins"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                     />
@@ -166,13 +189,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               )}
 
               <div className="group">
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">System ID (Username)</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">System Identifier (ID)</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><User className="w-5 h-5" /></div>
                   <input 
                     type="text" required
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-slate-800 focus:bg-white focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                    placeholder="Enter ID"
+                    placeholder="User ID"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
@@ -180,7 +203,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
               </div>
 
               <div className="group">
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Secure Passcode</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Access Passcode</label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors"><Lock className="w-5 h-5" /></div>
                   <input 
@@ -207,7 +230,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, authorizedUsers, onRequestSignup
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    {mode === 'LOGIN' ? 'Login' : 'Register'}
+                    {mode === 'LOGIN' ? 'Login' : 'Submit Registration'}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

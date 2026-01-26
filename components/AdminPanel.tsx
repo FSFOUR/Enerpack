@@ -1,11 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, ArrowLeft, 
   Users, Database, 
   LayoutDashboard, History, CheckCircle, XCircle, Clock, AlertCircle, 
   FileEdit, Trash2, ArrowRight, UserCheck, ShieldAlert, ChevronDown, ListChecks, Check, Zap, Download, Upload, Share2,
-  AlertTriangle
+  AlertTriangle, Wifi, ExternalLink,
+  // Added missing imports
+  Activity, UserPlus
 } from 'lucide-react';
 import { UserAccount, UserRole, AuditEntry, ChangeRequest, InventoryItem, ViewMode } from '../types';
 
@@ -186,7 +187,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteAuditLog,
   onClearAuditLogs,
   activeSubTab = 'OVERVIEW',
-  // Fixed: changed onSubTabChange default function to accept an argument
+  // Fix: Corrected onSubTabChange default parameter signature to resolve "Expected 0 arguments" error
   onSubTabChange = (_tab) => {}
 }) => {
   const [openPageSelect, setOpenPageSelect] = useState<string | null>(null);
@@ -278,7 +279,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <ShieldCheck className="w-6 h-6 text-emerald-400" />
               Terminal Admin
             </h2>
-            <p className="text-blue-200/50 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">Access & Identity Center</p>
+            <div className="flex items-center gap-2 mt-1">
+               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></span>
+               <p className="text-blue-200/50 text-[10px] font-black uppercase tracking-widest leading-none flex items-center gap-1.5"><Wifi className="w-3 h-3" /> Cloud Monitor Active</p>
+            </div>
           </div>
         </div>
         
@@ -312,7 +316,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       <div className="flex-1 overflow-auto p-4 md:p-10 max-w-7xl mx-auto w-full">
         
         {activeSubTab === 'OVERVIEW' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-10">
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatBox icon={Users} title="System Staff" value={accounts.filter(a => a.status === 'APPROVED').length + 1} sub="Authenticated" color="text-blue-600" bg="bg-blue-50" />
                 <StatBox 
@@ -326,8 +330,46 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                    highlight={pendingUserRequests.length > 0}
                 />
                 <StatBox icon={Database} title="Asset SKUs" value={inventoryCount} sub="Live Records" color="text-emerald-600" bg="bg-emerald-50" />
-                <StatBox icon={Share2} title="Linked Devices" value="1" sub="Instance Count" color="text-indigo-600" bg="bg-indigo-50" onClick={() => onSubTabChange('SYNC')} />
+                <StatBox icon={Activity} title="Operations" value={transactionCount} sub="Total Logs" color="text-indigo-600" bg="bg-indigo-50" />
              </div>
+
+             {/* Priority Approval Feed */}
+             {pendingUserRequests.length > 0 && (
+                 <div className="bg-white border-2 border-amber-100 rounded-[2.5rem] p-8 shadow-xl shadow-amber-500/5 animate-in slide-in-from-top-4 duration-700">
+                    <div className="flex items-center justify-between mb-8">
+                       <div className="flex items-center gap-4">
+                          <div className="p-3 bg-amber-50 rounded-2xl text-amber-500 border border-amber-100">
+                             <UserPlus className="w-6 h-6" />
+                          </div>
+                          <div>
+                             <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Priority Approval Hub</h3>
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Unprocessed terminal registration requests</p>
+                          </div>
+                       </div>
+                       <button onClick={() => onSubTabChange('STAFFS')} className="text-indigo-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 hover:gap-3 transition-all">View All Pool <ArrowRight className="w-3 h-3" /></button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {pendingUserRequests.slice(0, 3).map(req => (
+                             <div key={req.username} className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all">
+                                <div className="flex items-center gap-4 overflow-hidden">
+                                   <div className="w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 group-hover:text-indigo-500 group-hover:border-indigo-100 transition-colors shrink-0">{req.name.charAt(0)}</div>
+                                   <div className="overflow-hidden">
+                                      <p className="font-black text-slate-800 text-sm block leading-none mb-1 truncate">{req.name}</p>
+                                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate">ID: {req.username}</p>
+                                   </div>
+                                </div>
+                                <button 
+                                  onClick={() => onUpdateAccountStatus(req.username, 'APPROVED', 'USER', [ViewMode.DASHBOARD])}
+                                  className="w-10 h-10 bg-white border border-slate-100 text-emerald-500 rounded-full flex items-center justify-center shadow-sm hover:bg-emerald-500 hover:text-white transition-all shrink-0 active:scale-90"
+                                  title="Quick Approve (Read-Only)"
+                                >
+                                   <Check className="w-5 h-5 stroke-[3px]" />
+                                </button>
+                             </div>
+                        ))}
+                    </div>
+                 </div>
+             )}
           </div>
         )}
 

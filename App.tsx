@@ -15,7 +15,7 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  MousePointer2, UserPlus, Bell, LogIn, ShieldAlert
+  MousePointer2, UserPlus, Bell, LogIn, ShieldAlert, Wifi
 } from 'lucide-react';
 
 const generateId = () => {
@@ -252,19 +252,28 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const prevPendingUserCount = useRef(authorizedUsers.filter(a => a.status === 'PENDING').length);
-  const prevPendingChangeCount = useRef(changeRequests.length);
+  
+  // Track previous pending IDs for smarter notification diffing
+  const prevPendingUserIds = useRef<string[]>([]);
+  const prevChangeRequestIds = useRef<string[]>([]);
 
-  // Sync state across tabs instantly for a shared database feel on a single machine
+  useEffect(() => {
+    prevPendingUserIds.current = authorizedUsers.filter(a => a.status === 'PENDING').map(u => u.username);
+    prevChangeRequestIds.current = changeRequests.map(r => r.id);
+  }, []);
+
+  // Sync state across tabs instantly
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (!e.newValue) return;
-      const parsed = JSON.parse(e.newValue);
-      if (e.key === 'enerpack_accounts_v1') setAuthorizedUsers(parsed);
-      if (e.key === 'enerpack_inventory_v11') setInventory(parsed);
-      if (e.key === 'enerpack_transactions_v1') setTransactions(parsed);
-      if (e.key === 'enerpack_changes_v1') setChangeRequests(parsed);
-      if (e.key === 'enerpack_audit_v1') setAuditLogs(parsed);
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (e.key === 'enerpack_accounts_v1') setAuthorizedUsers(parsed);
+        if (e.key === 'enerpack_inventory_v11') setInventory(parsed);
+        if (e.key === 'enerpack_transactions_v1') setTransactions(parsed);
+        if (e.key === 'enerpack_changes_v1') setChangeRequests(parsed);
+        if (e.key === 'enerpack_audit_v1') setAuditLogs(parsed);
+      } catch(err) { console.error("Sync error", err); }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -275,44 +284,46 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
   useEffect(() => { localStorage.setItem('enerpack_changes_v1', JSON.stringify(changeRequests)); }, [changeRequests]);
   useEffect(() => { localStorage.setItem('enerpack_audit_v1', JSON.stringify(auditLogs)); }, [auditLogs]);
-  useEffect(() => { 
-    if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser));
-  }, [currentUser]);
+  useEffect(() => { if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser)); }, [currentUser]);
 
-  // Admin Instant Notifications Logic
+  // High-Resolution Notification Engine
   useEffect(() => {
     if (currentUser.role !== 'ADMIN') return;
-    const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING').length;
-    const currentPendingChanges = changeRequests.length;
 
-    // Detect new registration requests
-    if (currentPendingUsers > prevPendingUserCount.current) {
-      const newUser = authorizedUsers.filter(a => a.status === 'PENDING').slice(-1)[0];
-      const newNotification: AppNotification = {
-        id: generateId(),
-        type: 'USER',
-        message: `Personnel Link Request: @${newUser?.username || 'New User'}`,
-        subTab: 'STAFFS'
-      };
-      setNotifications(prev => [...prev, newNotification]);
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 10000);
+    const currentPendingUsers = authorizedUsers.filter(a => a.status === 'PENDING');
+    const newPendingUsers = currentPendingUsers.filter(u => !prevPendingUserIds.current.includes(u.username));
+    
+    if (newPendingUsers.length > 0) {
+      newPendingUsers.forEach(user => {
+        const newNotification: AppNotification = {
+          id: generateId(),
+          type: 'USER',
+          message: `Personnel Link Request: @${user.username}`,
+          subTab: 'STAFFS'
+        };
+        setNotifications(prev => [...prev, newNotification]);
+        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 12000);
+      });
+      prevPendingUserIds.current = currentPendingUsers.map(u => u.username);
     }
 
-    // Detect new inventory change requests
-    if (currentPendingChanges > prevPendingChangeCount.current) {
-      const newNotification: AppNotification = {
-        id: generateId(),
-        type: 'CHANGE',
-        message: `System Modification pending approval!`,
-        subTab: 'APPROVAL'
-      };
-      setNotifications(prev => [...prev, newNotification]);
-      setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 10000);
+    const currentChangeIds = changeRequests.map(r => r.id);
+    const newChanges = changeRequests.filter(r => !prevChangeRequestIds.current.includes(r.id));
+    
+    if (newChanges.length > 0) {
+      newChanges.forEach(req => {
+        const newNotification: AppNotification = {
+          id: generateId(),
+          type: 'CHANGE',
+          message: `System Modification pending: ${req.itemData.size || 'Record'}`,
+          subTab: 'APPROVAL'
+        };
+        setNotifications(prev => [...prev, newNotification]);
+        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== newNotification.id)), 12000);
+      });
+      prevChangeRequestIds.current = currentChangeIds;
     }
-
-    prevPendingUserCount.current = currentPendingUsers;
-    prevPendingChangeCount.current = currentPendingChanges;
-  }, [authorizedUsers, changeRequests, currentUser]);
+  }, [authorizedUsers, changeRequests, currentUser.role]);
 
   const addAuditLog = useCallback((action: AuditEntry['action'], details: string, itemId?: string) => {
     const log: AuditEntry = {
@@ -393,9 +404,7 @@ const App: React.FC = () => {
     setChangeRequests(prev => prev.filter(r => r.id !== requestId));
   }, [currentUser, addAuditLog, changeRequests]);
 
-  const handleDeleteAuditLog = useCallback((id: string) => {
-    setAuditLogs(prev => prev.filter(log => log.id !== id));
-  }, []);
+  const handleDeleteAuditLog = useCallback((id: string) => { setAuditLogs(prev => prev.filter(log => log.id !== id)); }, []);
 
   const handleLogout = () => { if (window.confirm('Log out?')) { setCurrentUser(PUBLIC_GUEST); setViewMode(ViewMode.DASHBOARD); } };
 
@@ -405,7 +414,13 @@ const App: React.FC = () => {
     const updated = [...currentAccounts, newAccount];
     setAuthorizedUsers(updated);
     localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
-  }, []);
+    // Trigger notification manually if in same tab context
+    if (currentUser.role === 'ADMIN') {
+        const note: AppNotification = { id: generateId(), type: 'USER', message: `Immediate Request from @${signupData.username}`, subTab: 'STAFFS' };
+        setNotifications(prev => [...prev, note]);
+        setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== note.id)), 12000);
+    }
+  }, [currentUser.role]);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
     const updated = authorizedUsers.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u);
