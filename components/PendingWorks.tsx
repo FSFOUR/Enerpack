@@ -1,6 +1,7 @@
+
 import React, { useState, useRef } from 'react';
 import { StockTransaction } from '../types';
-import { ArrowLeft, Clock, Search, Truck, Download, Lock, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, Search, Truck, Download, Loader2 } from 'lucide-react';
 
 interface PendingWorksProps {
   transactions: StockTransaction[];
@@ -44,11 +45,12 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
     t.size.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (t.workName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (t.company || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (t.status || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (t.status || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (t.itemCode || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const confirmDelivery = () => {
-      if (!deliveryModal || !isAdmin) return;
+      if (!deliveryModal) return;
       onUpdateTransaction(deliveryModal.id, { status: 'Delivered', vehicle: deliveryModal.vehicle, storageLocation: deliveryModal.location });
       setDeliveryModal(null);
   };
@@ -57,7 +59,7 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
     if (typeof (window as any).XLSX === 'undefined') return;
     const wb = (window as any).XLSX.utils.book_new();
     const ws = (window as any).XLSX.utils.json_to_sheet(displayedTransactions.map(t => ({
-        DATE: t.date, SIZE: t.size, GSM: t.gsm, QTY: t.quantity, UNIT: t.unit, COMPANY: t.company, WORK_NAME: t.workName, CUT_SIZE: t.cuttingSize, SHEETS: t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? t.quantity * 144 : t.quantity), PRIORITY: t.priority, STATUS: t.status, REMARKS: t.remarks
+        DATE: t.date, SIZE: t.size, GSM: t.gsm, QTY: t.quantity, UNIT: t.unit, COMPANY: t.company, ITEM_CODE: t.itemCode, WORK_NAME: t.workName, CUT_SIZE: t.cuttingSize, SHEETS: t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? t.quantity * 144 : t.quantity), PRIORITY: t.priority, STATUS: t.status, REMARKS: t.remarks
     })));
     (window as any).XLSX.utils.book_append_sheet(wb, ws, "Pending Works");
     (window as any).XLSX.writeFile(wb, `Pending_Works_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -90,12 +92,12 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
       <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm bg-white gap-3 md:gap-0 no-print">
         <div className="flex items-center gap-4 w-full md:w-auto px-4">
             <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-slate-800 transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-bold text-sm">Back</span></button>
-            <h2 className="text-lg md:text-xl font-black text-orange-700 flex items-center gap-2 border-l border-slate-100 pl-4 ml-2 uppercase tracking-tighter"><Clock className="w-6 h-6" />PENDING WORKS {!isAdmin && <span className="text-[10px] font-black text-orange-400 bg-orange-50 px-3 py-1 rounded-full ml-2 uppercase tracking-widest border border-orange-100 flex items-center gap-1"><Lock className="w-3 h-3" /> Locked</span>}</h2>
+            <h2 className="text-lg md:text-xl font-black text-orange-700 flex items-center gap-2 border-l border-slate-100 pl-4 ml-2 uppercase tracking-tighter"><Clock className="w-6 h-6" />PENDING WORKS</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto px-4">
              <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                <input type="text" placeholder="Search operational queue..." className="pl-10 pr-4 py-2 rounded-2xl border border-slate-100 text-sm w-full md:w-72 focus:outline-none focus:ring-4 focus:ring-orange-500/10 bg-slate-50 text-center font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder="Search operational queue..." className="pl-10 pr-4 py-2 rounded-2xl border border-slate-100 text-sm w-full md:w-72 focus:outline-none focus:ring-4 focus:ring-orange-500/10 bg-slate-50 text-center font-black" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <button onClick={handleExport} className="bg-emerald-600 text-white px-5 py-2 rounded-2xl text-sm shadow-lg shadow-emerald-500/10 hover:bg-emerald-700 flex items-center gap-2 font-black uppercase tracking-widest transition-all"><Download className="w-4 h-4" /> Export</button>
         </div>
@@ -103,7 +105,7 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
 
       <div ref={pendingContainerRef} className="flex-1 overflow-auto p-6">
         <div className="overflow-x-auto rounded-[2.5rem] border border-slate-200 shadow-xl bg-white mobile-bottom-scroll">
-            <div className="min-w-[1000px] p-4">
+            <div className="min-w-[1100px] p-4">
                 <table className="w-full text-xs text-center border-collapse">
                     <thead className="bg-orange-600 text-white sticky top-0 z-10 rounded-t-[2rem]">
                         <tr>
@@ -112,6 +114,7 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                             <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">GSM</th>
                             <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">QTY</th>
                             <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">COMPANY</th>
+                            <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">ITEM CODE</th>
                             <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">WORK NAME</th>
                             <th className="p-3 border border-white/10 whitespace-nowrap uppercase tracking-widest">CUT SIZE</th>
                             <th className="p-3 border border-white/10 bg-orange-700 font-black whitespace-nowrap uppercase tracking-widest">SHEETS</th>
@@ -122,28 +125,37 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {displayedTransactions.map(t => (
-                            <tr key={t.id} className="odd:bg-white even:bg-orange-50/30 hover:bg-amber-50 transition-colors">
+                            <tr key={t.id} className="odd:bg-white even:bg-orange-50/30 hover:bg-amber-50 transition-colors font-black">
                                 <td className="p-3 border border-gray-100 text-slate-500">{t.date}</td>
-                                <td className="p-3 border border-gray-100 font-black text-slate-800">{t.size}</td>
-                                <td className="p-3 border border-gray-100 font-bold">{t.gsm}</td>
-                                <td className="p-3 border border-gray-100 font-black text-rose-600">{t.quantity} <span className="text-[9px] text-slate-400 font-normal uppercase">{t.unit}</span></td>
-                                <td className="p-3 border border-gray-100 font-black uppercase text-[10px] text-slate-700">{t.company}</td>
-                                <td className="p-3 border border-gray-100 min-w-[300px] max-w-[450px] truncate text-left px-5 font-medium" title={t.workName}>{t.workName}</td>
-                                <td className="p-3 border border-gray-100 font-black text-indigo-600">{t.cuttingSize}</td>
-                                <td className="p-3 border border-gray-100 font-black text-blue-700 bg-blue-50/50">
+                                <td className="p-3 border border-gray-100 text-slate-800">{t.size}</td>
+                                <td className="p-3 border border-gray-100">{t.gsm}</td>
+                                <td className="p-3 border border-gray-100 text-rose-600">{t.quantity} <span className="text-[9px] text-slate-400 font-normal uppercase">{t.unit}</span></td>
+                                <td className="p-3 border border-gray-100 uppercase text-[10px] text-slate-700">{t.company}</td>
+                                <td className="p-3 border border-gray-100 text-indigo-600 uppercase">{t.itemCode || '-'}</td>
+                                <td className="p-3 border border-gray-100 min-w-[300px] max-w-[450px] truncate text-left px-5" title={t.workName}>{t.workName}</td>
+                                <td className="p-3 border border-gray-100 text-indigo-600">{t.cuttingSize}</td>
+                                <td className="p-3 border border-gray-100 text-blue-700 bg-blue-50/50">
                                     {t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity)}
                                 </td>
                                 <td className="p-3 border border-gray-100 bg-white w-[110px]">
-                                    <select className={`w-full p-1.5 border-0 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer transition-all ${getPriorityColor(t.priority || 'Medium')}`} value={t.priority || 'Medium'} onChange={(e) => onUpdatePriority(t.id, e.target.value)} disabled={!isAdmin}>{PRIORITY_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}</select>
+                                    <select 
+                                      className={`w-full p-1.5 border-0 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer transition-all ${getPriorityColor(t.priority || 'Medium')}`} 
+                                      value={t.priority || 'Medium'} 
+                                      onChange={(e) => onUpdatePriority(t.id, e.target.value)}
+                                    >
+                                      {PRIORITY_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
+                                    </select>
                                 </td>
                                 <td className="p-3 border border-gray-100 bg-white w-[130px]">
-                                    {isAdmin ? (
-                                      <select className="w-full p-1.5 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest text-center bg-slate-50 hover:bg-white cursor-pointer transition-all" value={t.status} onChange={(e) => { if (e.target.value === 'Delivered') setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' }); else onUpdateTransaction(t.id, { status: e.target.value }); }}>{STATUS_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}</select>
-                                    ) : (
-                                      <div className="flex items-center justify-center gap-2 text-slate-400 font-black uppercase text-[9px] tracking-widest"><Lock className="w-3 h-3" /> {t.status}</div>
-                                    )}
+                                    <select 
+                                      className="w-full p-1.5 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest text-center bg-slate-50 hover:bg-white cursor-pointer transition-all" 
+                                      value={t.status} 
+                                      onChange={(e) => { if (e.target.value === 'Delivered') setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' }); else onUpdateTransaction(t.id, { status: e.target.value }); }}
+                                    >
+                                      {STATUS_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
+                                    </select>
                                 </td>
-                                <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
+                                <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate font-medium">{t.remarks}</td>
                             </tr>
                         ))}
                     </tbody>

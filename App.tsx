@@ -10,7 +10,6 @@ import JobCardGenerator from './components/JobCardGenerator';
 import InventoryTracker from './components/InventoryTracker';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
-// Added AppNotification to the shared types import to fix missing name errors
 import { InventoryItem, ViewMode, StockTransaction, User, UserAccount, UserRole, ChangeRequest, AuditEntry, AppNotification } from './types';
 import { 
   Gauge, PackagePlus, PackageMinus, BellRing, 
@@ -26,7 +25,6 @@ const generateId = () => {
   return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 };
 
-// Updated Guest permissions to include all operational data pages
 const PUBLIC_GUEST: User = {
   username: 'guest',
   role: 'USER',
@@ -555,7 +553,7 @@ const App: React.FC = () => {
           <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-xs md:max-w-sm pointer-events-none print:hidden">
             {notifications.map(note => (
               <div key={note.id} className="pointer-events-auto bg-white border-2 border-slate-100 rounded-3xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-8 duration-500 hover:scale-105 transition-transform cursor-pointer group" onClick={() => { navigateToAdminSubTab(note.subTab); setNotifications(prev => prev.filter(n => n.id !== note.id)); }}>
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>{note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}</div>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-50 text-white' : 'bg-rose-500 text-white'}`}>{note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}</div>
                 <div className="flex-1 min-w-0"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Operational Alert</p><p className="text-xs font-bold text-slate-800 leading-tight">{note.message}</p></div>
                 <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-blue-50 transition-colors"><ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500" /></div>
               </div>

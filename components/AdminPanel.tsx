@@ -372,7 +372,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <div className="flex items-center gap-4 overflow-hidden">
                                        <div className="w-10 h-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center font-black text-slate-400 group-hover:text-indigo-500 group-hover:border-indigo-100 transition-colors shrink-0">{req.name.charAt(0)}</div>
                                        <div className="overflow-hidden">
-                                          <p className="font-black text-slate-800 text-sm leading-none mb-1 truncate">{req.name}</p>
+                                          <p className="font-black text-slate-800 text-sm block leading-none mb-1 truncate">{req.name}</p>
                                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate">ID: {req.username}</p>
                                        </div>
                                     </div>
