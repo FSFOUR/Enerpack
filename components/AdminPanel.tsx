@@ -36,7 +36,7 @@ const PAGE_LIST = [
   { mode: ViewMode.REORDER_HISTORY, label: "Reorder History" },
   { mode: ViewMode.FORECAST, label: "Forecast" },
   { mode: ViewMode.PAPER_CALCULATOR, label: "Calculator" },
-  { mode: ViewMode.JOB_CARD_GENERATOR, label: "Job Cards" },
+  { mode: ViewMode.JOB_CARD_GENERATOR, label: "Job Card Generator" },
 ];
 
 const TabBtn = ({ active, onClick, icon: Icon, label, badge, badgeColor = "bg-amber-500" }: any) => (

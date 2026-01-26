@@ -94,16 +94,16 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
 
       <div className="p-4 border-b bg-white flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm gap-3 md:gap-0 no-print">
         <div className="flex items-center gap-4 w-full md:w-auto px-4">
-            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-bold text-sm">Back</span></button>
-            <h2 className={`text-lg md:text-xl font-bold pl-4 ml-2 border-l-2 ${getTitleColor()}`}>{getTitle()}</h2>
+            <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors"><ArrowLeft className="w-5 h-5" /><span className="font-black text-sm uppercase">Back</span></button>
+            <h2 className={`text-lg md:text-xl font-black pl-4 ml-2 border-l-2 uppercase tracking-tighter ${getTitleColor()}`}>{getTitle()}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto px-4">
             <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input type="text" placeholder="Search logs..." className="pl-9 pr-4 py-2 rounded-2xl border border-gray-200 text-sm w-full md:w-64 focus:outline-none bg-slate-50 text-center font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder="Search logs..." className="pl-9 pr-4 py-2 rounded-2xl border border-gray-200 text-sm w-full md:w-64 focus:outline-none bg-slate-50 text-center font-black" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-rose-700 flex items-center gap-2 font-bold transition-all"><FileText className="w-4 h-4" /> PDF</button>
-            <button onClick={handleExport} className="bg-emerald-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-emerald-700 flex items-center gap-2 font-bold transition-all"><Download className="w-4 h-4" /> Excel</button>
+            <button onClick={handleDownloadPDF} className="bg-rose-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-rose-700 flex items-center gap-2 font-black uppercase transition-all"><FileText className="w-4 h-4" /> PDF</button>
+            <button onClick={handleExport} className="bg-emerald-600 text-white px-4 py-2 rounded-2xl text-sm shadow-lg hover:bg-emerald-700 flex items-center gap-2 font-black uppercase transition-all"><Download className="w-4 h-4" /> Excel</button>
         </div>
       </div>
 
@@ -114,74 +114,74 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                     <thead className={`${getHeaderColor()} text-white sticky top-0 z-10 rounded-t-[2rem]`}>
                         {type === 'IN' && (
                             <tr>
-                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">DATE</th>
-                                <th className="p-3 border border-white/10">MONTH</th>
-                                <th className="p-3 border border-white/10">SIZE</th>
-                                <th className="p-3 border border-white/10">GSM</th>
-                                <th className="p-3 border border-white/10">IN</th>
-                                <th className="p-3 border border-white/10">COMPANY</th>
-                                <th className="p-3 border border-white/10">INVOICE</th>
-                                <th className="p-3 border border-white/10">STORAGE LOC</th>
-                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem] uppercase tracking-widest">DATE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">MONTH</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">SIZE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">GSM</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">IN</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">COMPANY</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">INVOICE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">STORAGE LOC</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem] uppercase tracking-widest">REMARKS</th>
                             </tr>
                         )}
                         {type === 'OUT' && (
                             <tr>
-                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">DATE</th>
-                                <th className="p-3 border border-white/10">SIZE</th>
-                                <th className="p-3 border border-white/10">GSM</th>
-                                <th className="p-3 border border-white/10">OUT</th>
-                                <th className="p-3 border border-white/10">UNIT</th>
-                                <th className="p-3 border border-white/10">ITEM CODE</th>
-                                <th className="p-3 border border-white/10">WORK NAME</th>
-                                <th className="p-3 border border-white/10">CUT SIZE</th>
-                                <th className="p-3 border border-white/10 bg-red-900 font-black">SHEETS</th>
-                                <th className="p-3 border border-white/10">STATUS</th>
-                                <th className="p-3 border border-white/10">VEHICLE</th>
-                                <th className="p-3 border border-white/10">LOCATION</th>
-                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem] uppercase tracking-widest">DATE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">SIZE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">GSM</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">OUT</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">UNIT</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">ITEM CODE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">WORK NAME</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">CUT SIZE</th>
+                                <th className="p-3 border border-white/10 bg-red-900 font-black uppercase tracking-widest">SHEETS</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">STATUS</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">VEHICLE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">LOCATION</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem] uppercase tracking-widest">REMARKS</th>
                             </tr>
                         )}
                         {type === 'REORDER' && (
                             <tr>
-                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem]">ORDER DATE</th>
-                                <th className="p-3 border border-white/10">SIZE</th>
-                                <th className="p-3 border border-white/10">GSM</th>
-                                <th className="p-3 border border-white/10">QUANTITY</th>
-                                <th className="p-3 border border-white/10">COMPANY</th>
-                                <th className="p-3 border border-white/10">RECEIVED</th>
-                                <th className="p-3 border border-white/10">REC QTY</th>
-                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem]">REMARKS</th>
+                                <th className="p-3 border border-white/10 first:rounded-tl-[1.5rem] uppercase tracking-widest">ORDER DATE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">SIZE</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">GSM</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">QUANTITY</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">COMPANY</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">RECEIVED</th>
+                                <th className="p-3 border border-white/10 uppercase tracking-widest">REC QTY</th>
+                                <th className="p-3 border border-white/10 last:rounded-tr-[1.5rem] uppercase tracking-widest">REMARKS</th>
                             </tr>
                         )}
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {displayedTransactions.map(t => (
-                            <tr key={t.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-amber-50 transition-colors">
+                            <tr key={t.id} className="odd:bg-white even:bg-slate-50/50 hover:bg-amber-50 transition-colors font-black">
                                 {type === 'IN' && (
                                     <>
-                                        <td className="p-3 border border-gray-100">{t.date}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-500">{t.date}</td>
                                         <td className="p-3 border border-gray-100">{t.month}</td>
-                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-800">{t.size}</td>
                                         <td className="p-3 border border-gray-100">{t.gsm}</td>
-                                        <td className="p-3 border border-gray-100 font-black text-emerald-600">{t.quantity}</td>
-                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold">{t.company}</td>
+                                        <td className="p-3 border border-gray-100 text-emerald-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px]">{t.company}</td>
                                         <td className="p-3 border border-gray-100">{t.invoice}</td>
-                                        <td className="p-3 border border-gray-100 font-medium">{t.storageLocation}</td>
-                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
+                                        <td className="p-3 border border-gray-100">{t.storageLocation}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate font-medium">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'OUT' && (
                                     <>
-                                        <td className="p-3 border border-gray-100">{t.date}</td>
-                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-500">{t.date}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-800">{t.size}</td>
                                         <td className="p-3 border border-gray-100">{t.gsm}</td>
-                                        <td className="p-3 border border-gray-100 font-black text-rose-600">{t.quantity}</td>
-                                        <td className="p-3 border border-gray-100 text-slate-400 font-bold">{t.unit}</td>
-                                        <td className="p-3 border border-gray-100 text-indigo-600 font-bold">{t.itemCode}</td>
-                                        <td className="p-3 border border-gray-100 max-w-xs truncate text-left font-medium">{t.workName}</td>
-                                        <td className="p-3 border border-gray-100 font-bold text-slate-600">{t.cuttingSize}</td>
-                                        <td className="p-3 border border-gray-100 font-black text-blue-700 bg-blue-50/30">
+                                        <td className="p-3 border border-gray-100 text-rose-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-400">{t.unit}</td>
+                                        <td className="p-3 border border-gray-100 text-indigo-600">{t.itemCode}</td>
+                                        <td className="p-3 border border-gray-100 max-w-xs truncate text-left">{t.workName}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-600">{t.cuttingSize}</td>
+                                        <td className="p-3 border border-gray-100 text-blue-700 bg-blue-50/30">
                                             {t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity)}
                                         </td>
                                         <td className={`p-3 border border-gray-100`}>
@@ -189,21 +189,21 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ type, transacti
                                                 {t.status}
                                             </span>
                                         </td>
-                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold text-slate-400">{t.vehicle}</td>
-                                        <td className="p-3 border border-gray-100 uppercase text-[10px] font-bold text-slate-400">{t.storageLocation}</td>
-                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px] text-slate-400">{t.vehicle}</td>
+                                        <td className="p-3 border border-gray-100 uppercase text-[10px] text-slate-400">{t.storageLocation}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate font-medium">{t.remarks}</td>
                                     </>
                                 )}
                                 {type === 'REORDER' && (
                                     <>
-                                        <td className="p-3 border border-gray-100">{t.date}</td>
-                                        <td className="p-3 border border-gray-100 font-bold text-slate-800">{t.size}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-500">{t.date}</td>
+                                        <td className="p-3 border border-gray-100 text-slate-800">{t.size}</td>
                                         <td className="p-3 border border-gray-100">{t.gsm}</td>
-                                        <td className="p-3 border border-gray-100 font-black text-purple-600">{t.quantity}</td>
-                                        <td className="p-3 border border-gray-100 font-bold uppercase">{t.company}</td>
-                                        <td className="p-3 border border-gray-100 font-black text-emerald-600">{t.receivedDate || '-'}</td>
-                                        <td className="p-3 border border-gray-100 font-bold">{t.receivedQty || '-'}</td>
-                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate">{t.remarks}</td>
+                                        <td className="p-3 border border-gray-100 text-purple-600">{t.quantity}</td>
+                                        <td className="p-3 border border-gray-100 uppercase">{t.company}</td>
+                                        <td className="p-3 border border-gray-100 text-emerald-600">{t.receivedDate || '-'}</td>
+                                        <td className="p-3 border border-gray-100">{t.receivedQty || '-'}</td>
+                                        <td className="p-3 border border-gray-100 italic text-slate-400 max-w-xs truncate font-medium">{t.remarks}</td>
                                     </>
                                 )}
                             </tr>
