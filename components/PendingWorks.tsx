@@ -243,22 +243,34 @@ const PendingWorks: React.FC<PendingWorksProps> = ({ transactions, onBack, onUpd
                                     {t.sheets !== undefined ? t.sheets : (t.unit === 'GROSS' ? (t.quantity * 144).toFixed(0) : t.quantity)}
                                 </td>
                                 <td className="p-3 border border-gray-100 bg-white w-[110px]">
-                                    <select 
-                                      className={`w-full p-1.5 border-0 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer transition-all ${getPriorityColor(t.priority || 'Medium')}`} 
-                                      value={t.priority || 'Medium'} 
-                                      onChange={(e) => onUpdatePriority(t.id, e.target.value)}
-                                    >
-                                      {PRIORITY_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
-                                    </select>
+                                    {isAdmin ? (
+                                      <select 
+                                        className={`w-full p-1.5 border-0 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm cursor-pointer transition-all ${getPriorityColor(t.priority || 'Medium')}`} 
+                                        value={t.priority || 'Medium'} 
+                                        onChange={(e) => onUpdatePriority(t.id, e.target.value)}
+                                      >
+                                        {PRIORITY_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
+                                      </select>
+                                    ) : (
+                                      <div className={`w-full p-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center border ${getPriorityColor(t.priority || 'Medium')}`}>
+                                          {t.priority || 'Medium'}
+                                      </div>
+                                    )}
                                 </td>
                                 <td className="p-3 border border-gray-100 bg-white w-[130px]">
-                                    <select 
-                                      className={`w-full p-1.5 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest text-center cursor-pointer transition-all ${t.status === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 hover:bg-white'}`} 
-                                      value={t.status} 
-                                      onChange={(e) => { if (e.target.value === 'Delivered') setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' }); else onUpdateTransaction(t.id, { status: e.target.value }); }}
-                                    >
-                                      {STATUS_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
-                                    </select>
+                                    {isAdmin ? (
+                                      <select 
+                                        className={`w-full p-1.5 border border-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest text-center cursor-pointer transition-all ${t.status === 'Cancelled' ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 hover:bg-white'}`} 
+                                        value={t.status} 
+                                        onChange={(e) => { if (e.target.value === 'Delivered') setDeliveryModal({ id: t.id, vehicle: 'KL65S7466', location: '' }); else onUpdateTransaction(t.id, { status: e.target.value }); }}
+                                      >
+                                        {STATUS_OPTIONS.map(opt => (<option key={opt} value={opt}>{opt}</option>))}
+                                      </select>
+                                    ) : (
+                                      <div className={`w-full p-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center border ${t.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>
+                                          {t.status}
+                                      </div>
+                                    )}
                                 </td>
                                 <td className="p-3 border border-gray-100 italic max-w-xs truncate font-medium">{t.remarks}</td>
                                 <td className="p-3 border border-gray-100">
