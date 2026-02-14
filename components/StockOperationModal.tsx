@@ -18,6 +18,7 @@ const STATUS_OPTIONS = [
   "Waiting for Reel",
   "Pending",
   "Delivered",
+  "Cancelled",
   "Other"
 ];
 

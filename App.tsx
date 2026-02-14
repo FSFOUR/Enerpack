@@ -15,7 +15,8 @@ import {
   Gauge, PackagePlus, PackageMinus, BellRing, 
   Calculator, Telescope, LogOut, Boxes, ChevronRight, Settings2, 
   User as UserIcon, Menu, X, Activity, History, FileStack, 
-  MousePointer2, UserPlus, Bell, LogIn, ShieldAlert, Wifi, Globe
+  MousePointer2, UserPlus, Bell, LogIn, ShieldAlert, Wifi, Globe, 
+  UserPen
 } from 'lucide-react';
 
 const generateId = () => {
@@ -270,7 +271,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleBroadcast = (event: MessageEvent) => {
-      const { type, payload } = event.data;
+      const { type, payload, sourceRole, sourceName, details, action } = event.data;
+      
       if (type === 'USER_REGISTERED') {
         setAuthorizedUsers(prev => {
           if (prev.some(u => u.username === payload.username)) return prev;
@@ -279,13 +281,23 @@ const App: React.FC = () => {
           return updated;
         });
       }
+      
       if (type === 'DATA_MODIFIED') {
         syncAllData();
+        // If an editor performed an update, show real-time pop-up to Admin
+        if (currentUser.role === 'ADMIN' && sourceRole === 'EDITOR') {
+          setNotifications(prev => [...prev, {
+            id: generateId(),
+            type: 'CHANGE',
+            message: `Editor ${sourceName}: ${details || 'Performed system update'}`,
+            subTab: action === 'ADD_ITEM' || action === 'UPDATE_ITEM' ? 'APPROVAL' : 'AUDIT_LOG'
+          }]);
+        }
       }
     };
     opsChannel.addEventListener('message', handleBroadcast);
     return () => opsChannel.removeEventListener('message', handleBroadcast);
-  }, [syncAllData]);
+  }, [syncAllData, currentUser.role, currentUser.username]);
 
   useEffect(() => {
     window.addEventListener('storage', (e) => { if (e.newValue) syncAllData(); });
@@ -323,7 +335,14 @@ const App: React.FC = () => {
   const addAuditLog = useCallback((action: AuditEntry['action'], details: string, itemId?: string) => {
     const log: AuditEntry = { id: generateId(), timestamp: Date.now(), userId: currentUser.username, userName: currentUser.name, action, details, itemId };
     setAuditLogs(prev => [log, ...prev].slice(0, 1000));
-    opsChannel.postMessage({ type: 'DATA_MODIFIED' });
+    // Enhanced broadcast with source metadata for real-time notifications
+    opsChannel.postMessage({ 
+      type: 'DATA_MODIFIED', 
+      sourceName: currentUser.name, 
+      sourceRole: currentUser.role,
+      action: action,
+      details: details
+    });
   }, [currentUser]);
 
   const handleUpdateStock = useCallback((id: string, delta: number) => {
@@ -344,6 +363,7 @@ const App: React.FC = () => {
       addAuditLog('ADD_ITEM', `Added ${item.size}`, newId);
     } else {
       setChangeRequests(prev => [...prev, { id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'ADD', itemData: { ...item, id: newId }, status: 'PENDING' }]);
+      addAuditLog('ADD_ITEM', `Proposed New SKU: ${item.size}`, newId);
     }
   }, [currentUser, addAuditLog]);
 
@@ -356,6 +376,7 @@ const App: React.FC = () => {
     } else {
       setChangeRequests(prev => [...prev, { id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'UPDATE', itemId: updatedItem.id, itemData: updatedItem, oldData: oldItem, status: 'PENDING' }]);
       setInventory(prev => prev.map(i => i.id === updatedItem.id ? { ...i, isPendingApproval: true } : i));
+      addAuditLog('UPDATE_ITEM', `Proposed Modification for ${updatedItem.size}`, updatedItem.id);
     }
   }, [currentUser, addAuditLog, inventory]);
 
@@ -368,6 +389,7 @@ const App: React.FC = () => {
       } else {
         setChangeRequests(prev => [{ id: generateId(), timestamp: Date.now(), requestedBy: currentUser.username, requestedByName: currentUser.name, type: 'DELETE', itemId: item.id, itemData: item, status: 'PENDING' }, ...prev]);
         setInventory(prev => prev.map(i => i.id === item.id ? { ...i, isPendingApproval: true } : i));
+        addAuditLog('DELETE_ITEM', `Proposed Deletion for ${item.size}`, item.id);
       }
     }
   }, [currentUser, addAuditLog]);
@@ -511,7 +533,7 @@ const App: React.FC = () => {
           <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 max-w-xs pointer-events-none">
             {notifications.map(note => (
               <div key={note.id} className="pointer-events-auto bg-white border-2 border-slate-100 rounded-3xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-8 duration-500 hover:scale-105 transition-transform cursor-pointer group" onClick={() => { navigateToAdminSubTab(note.subTab); setNotifications(prev => prev.filter(n => n.id !== note.id)); }}>
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-50 text-white' : 'bg-rose-50 text-white'}`}>{note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <Activity className="w-6 h-6" />}</div>
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${note.type === 'USER' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>{note.type === 'USER' ? <UserPlus className="w-6 h-6" /> : <UserPen className="w-6 h-6" />}</div>
                 <div className="flex-1 min-w-0"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-600 transition-colors">Operational Alert</p><p className="text-xs font-bold text-slate-800 leading-tight">{note.message}</p></div>
                 <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-blue-50 transition-colors" onClick={(e) => { e.stopPropagation(); setNotifications(prev => prev.filter(n => n.id !== note.id)); }}><X className="w-4 h-4 text-slate-300 hover:text-rose-500" /></div>
               </div>
