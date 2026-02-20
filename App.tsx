@@ -28,6 +28,18 @@ const generateId = () => {
 
 const opsChannel = new BroadcastChannel('enerpack_ops_network');
 
+const syncWithServer = async (endpoint: string, data: any) => {
+  try {
+    await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch (e) {
+    console.error(`Failed to sync ${endpoint}:`, e);
+  }
+};
+
 const PUBLIC_GUEST: User = {
   username: 'guest',
   role: 'USER',
@@ -249,6 +261,7 @@ const App: React.FC = () => {
   const [adminSubTab, setAdminSubTab] = useState<'OVERVIEW' | 'STAFFS' | 'APPROVAL' | 'AUDIT_LOG' | 'SYNC'>('OVERVIEW');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
   
   const prevPendingUserIds = useRef<string[]>([]);
   const prevChangeRequestIds = useRef<string[]>([]);
@@ -268,6 +281,63 @@ const App: React.FC = () => {
       setAuditLogs(audit);
     } catch(e) {}
   }, []);
+
+  const fetchInitialState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/state');
+      const data = await res.json();
+      if (data.authorizedUsers.length > 0) setAuthorizedUsers(data.authorizedUsers);
+      if (data.inventory.length > 0) setInventory(data.inventory);
+      if (data.transactions.length > 0) setTransactions(data.transactions);
+      if (data.changeRequests.length > 0) setChangeRequests(data.changeRequests);
+      if (data.auditLogs.length > 0) setAuditLogs(data.auditLogs);
+    } catch (e) {
+      console.error("Failed to fetch initial state:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInitialState();
+    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'USER_REGISTERED') {
+        setAuthorizedUsers(prev => {
+          if (prev.some(u => u.username === data.payload.username)) return prev;
+          return [...prev, data.payload];
+        });
+      }
+
+      if (data.type === 'STATE_UPDATED') {
+        if (data.payload.authorizedUsers) setAuthorizedUsers(data.payload.authorizedUsers);
+        if (data.payload.inventory) setInventory(data.payload.inventory);
+        if (data.payload.transactions) setTransactions(data.payload.transactions);
+        if (data.payload.changeRequests) setChangeRequests(data.payload.changeRequests);
+        if (data.payload.auditLogs) setAuditLogs(data.payload.auditLogs);
+      }
+      
+      if (data.type === 'DATA_MODIFIED') {
+        // If an editor performed an update, show real-time pop-up to Admin
+        if (currentUser.role === 'ADMIN' && data.sourceRole === 'EDITOR') {
+          setNotifications(prev => [...prev, {
+            id: generateId(),
+            type: 'CHANGE',
+            message: `Editor ${data.sourceName}: ${data.details || 'Performed system update'}`,
+            subTab: data.action === 'ADD_ITEM' || data.action === 'UPDATE_ITEM' ? 'APPROVAL' : 'AUDIT_LOG'
+          }]);
+        }
+      }
+    };
+
+    return () => ws.close();
+  }, [fetchInitialState, currentUser.role]);
 
   useEffect(() => {
     const handleBroadcast = (event: MessageEvent) => {
@@ -305,11 +375,11 @@ const App: React.FC = () => {
     return () => { window.removeEventListener('storage', syncAllData); clearInterval(interval); };
   }, [syncAllData]);
 
-  useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); }, [inventory]);
-  useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); }, [transactions]);
+  useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); syncWithServer('inventory', inventory); }, [inventory]);
+  useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); syncWithServer('transactions', transactions); }, [transactions]);
   useEffect(() => { localStorage.setItem('enerpack_accounts_v1', JSON.stringify(authorizedUsers)); }, [authorizedUsers]);
-  useEffect(() => { localStorage.setItem('enerpack_changes_v1', JSON.stringify(changeRequests)); }, [changeRequests]);
-  useEffect(() => { localStorage.setItem('enerpack_audit_v1', JSON.stringify(auditLogs)); }, [auditLogs]);
+  useEffect(() => { localStorage.setItem('enerpack_changes_v1', JSON.stringify(changeRequests)); syncWithServer('change-requests', changeRequests); }, [changeRequests]);
+  useEffect(() => { localStorage.setItem('enerpack_audit_v1', JSON.stringify(auditLogs)); syncWithServer('audit-logs', auditLogs); }, [auditLogs]);
   useEffect(() => { if (currentUser) localStorage.setItem('enerpack_user_v1', JSON.stringify(currentUser)); }, [currentUser]);
 
   useEffect(() => {
@@ -336,13 +406,15 @@ const App: React.FC = () => {
     const log: AuditEntry = { id: generateId(), timestamp: Date.now(), userId: currentUser.username, userName: currentUser.name, action, details, itemId };
     setAuditLogs(prev => [log, ...prev].slice(0, 1000));
     // Enhanced broadcast with source metadata for real-time notifications
-    opsChannel.postMessage({ 
+    const msg = { 
       type: 'DATA_MODIFIED', 
       sourceName: currentUser.name, 
       sourceRole: currentUser.role,
       action: action,
       details: details
-    });
+    };
+    opsChannel.postMessage(msg);
+    syncWithServer('broadcast', msg);
   }, [currentUser]);
 
   const handleUpdateStock = useCallback((id: string, delta: number) => {
@@ -417,13 +489,17 @@ const App: React.FC = () => {
       localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
       return updated;
     });
-    opsChannel.postMessage({ type: 'USER_REGISTERED', payload: newAccount });
+    syncWithServer('register', newAccount);
+    const msg = { type: 'USER_REGISTERED', payload: newAccount };
+    opsChannel.postMessage(msg);
+    syncWithServer('broadcast', msg);
   }, []);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
     const updated = authorizedUsers.map(u => u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u);
     setAuthorizedUsers(updated);
     localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
+    syncWithServer('update-user', { username, status, role, allowedPages });
     addAuditLog('USER_VERIFY', `User @${username} set to ${status}`, username);
   }, [addAuditLog, authorizedUsers]);
 
@@ -526,7 +602,9 @@ const App: React.FC = () => {
         <header className="md:hidden bg-[#0c4a6e] px-4 py-3 flex items-center justify-between shrink-0 z-40">
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-1.5 text-white/80 bg-white/10 rounded-lg"><Menu className="w-5 h-5" /></button>
           <div className="flex items-center gap-2"><div className="w-6 h-6 bg-white rounded-md flex items-center justify-center font-black text-[#0c4a6e] text-[10px]">EP</div><h2 className="text-white font-bold text-base brand-font">ENERPACK</h2></div>
-          <div className="w-8 h-8 relative flex items-center justify-center"><Wifi className="w-4 h-4 text-emerald-400" /></div>
+          <div className="w-8 h-8 relative flex items-center justify-center">
+            <Wifi className={`w-4 h-4 ${wsConnected ? 'text-emerald-400' : 'text-rose-400 animate-pulse'}`} />
+          </div>
         </header>
         <div className="flex-1 overflow-hidden relative bg-[#f1f5f9] shadow-[inset_0_2px_15px_rgba(0,0,0,0.1)]">
           {renderContent()}
