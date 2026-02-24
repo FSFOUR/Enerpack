@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createHttpServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
-import fs from "fs";
 import { 
   InventoryItem, 
   StockTransaction, 
@@ -13,7 +12,6 @@ import {
 } from "./types";
 
 const PORT = 3000;
-const DATA_FILE = "./system_state.json";
 
 // In-memory "cloud" state
 let authorizedUsers: UserAccount[] = [];
@@ -53,34 +51,7 @@ let transactions: StockTransaction[] = [];
 let changeRequests: ChangeRequest[] = [];
 let auditLogs: AuditEntry[] = [];
 
-// Persistence Helpers
-const saveState = () => {
-  try {
-    const data = { authorizedUsers, inventory, transactions, changeRequests, auditLogs };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error("Failed to save state:", e);
-  }
-};
-
-const loadState = () => {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-      if (data.authorizedUsers) authorizedUsers = data.authorizedUsers;
-      if (data.inventory) inventory = data.inventory;
-      if (data.transactions) transactions = data.transactions;
-      if (data.changeRequests) changeRequests = data.changeRequests;
-      if (data.auditLogs) auditLogs = data.auditLogs;
-      console.log("State loaded from disk.");
-    }
-  } catch (e) {
-    console.error("Failed to load state:", e);
-  }
-};
-
 async function startServer() {
-  loadState();
   const app = express();
   app.use(express.json());
   
@@ -114,7 +85,6 @@ async function startServer() {
       return res.status(400).json({ error: "Username already exists" });
     }
     authorizedUsers.push(newUser);
-    saveState();
     broadcast({ type: "USER_REGISTERED", payload: newUser });
     res.json({ status: "ok" });
   });
@@ -124,7 +94,6 @@ async function startServer() {
     authorizedUsers = authorizedUsers.map(u => 
       u.username === username ? { ...u, status, role: role || u.role, allowedPages: allowedPages || u.allowedPages } : u
     );
-    saveState();
     broadcast({ type: "USER_UPDATED", payload: { username, status, role, allowedPages } });
     broadcast({ type: "STATE_UPDATED", payload: { authorizedUsers } });
     res.json({ status: "ok" });
@@ -132,28 +101,24 @@ async function startServer() {
 
   app.post("/api/inventory", (req, res) => {
     inventory = req.body;
-    saveState();
     broadcast({ type: "STATE_UPDATED", payload: { inventory } });
     res.json({ status: "ok" });
   });
 
   app.post("/api/transactions", (req, res) => {
     transactions = req.body;
-    saveState();
     broadcast({ type: "STATE_UPDATED", payload: { transactions } });
     res.json({ status: "ok" });
   });
 
   app.post("/api/change-requests", (req, res) => {
     changeRequests = req.body;
-    saveState();
     broadcast({ type: "STATE_UPDATED", payload: { changeRequests } });
     res.json({ status: "ok" });
   });
 
   app.post("/api/audit-logs", (req, res) => {
     auditLogs = req.body;
-    saveState();
     broadcast({ type: "STATE_UPDATED", payload: { auditLogs } });
     res.json({ status: "ok" });
   });

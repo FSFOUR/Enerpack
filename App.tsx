@@ -337,16 +337,43 @@ const App: React.FC = () => {
     };
 
     return () => ws.close();
-  }, [fetchInitialState, currentUser.role, currentUser.name]);
+  }, [fetchInitialState, currentUser.role]);
 
   useEffect(() => {
-    window.addEventListener('storage', (e) => { 
-      if (e.key === 'enerpack_user_v1') {
-        const s = localStorage.getItem('enerpack_user_v1');
-        if (s) setCurrentUser(JSON.parse(s));
+    const handleBroadcast = (event: MessageEvent) => {
+      const { type, payload, sourceRole, sourceName, details, action } = event.data;
+      
+      if (type === 'USER_REGISTERED') {
+        setAuthorizedUsers(prev => {
+          if (prev.some(u => u.username === payload.username)) return prev;
+          const updated = [...prev, payload];
+          localStorage.setItem('enerpack_accounts_v1', JSON.stringify(updated));
+          return updated;
+        });
       }
-    });
-  }, []);
+      
+      if (type === 'DATA_MODIFIED') {
+        syncAllData();
+        // If an editor performed an update, show real-time pop-up to Admin
+        if (currentUser.role === 'ADMIN' && sourceRole === 'EDITOR') {
+          setNotifications(prev => [...prev, {
+            id: generateId(),
+            type: 'CHANGE',
+            message: `Editor ${sourceName}: ${details || 'Performed system update'}`,
+            subTab: action === 'ADD_ITEM' || action === 'UPDATE_ITEM' ? 'APPROVAL' : 'AUDIT_LOG'
+          }]);
+        }
+      }
+    };
+    opsChannel.addEventListener('message', handleBroadcast);
+    return () => opsChannel.removeEventListener('message', handleBroadcast);
+  }, [syncAllData, currentUser.role, currentUser.username]);
+
+  useEffect(() => {
+    window.addEventListener('storage', (e) => { if (e.newValue) syncAllData(); });
+    const interval = setInterval(syncAllData, 3000); 
+    return () => { window.removeEventListener('storage', syncAllData); clearInterval(interval); };
+  }, [syncAllData]);
 
   useEffect(() => { localStorage.setItem('enerpack_inventory_v11', JSON.stringify(inventory)); syncWithServer('inventory', inventory); }, [inventory]);
   useEffect(() => { localStorage.setItem('enerpack_transactions_v1', JSON.stringify(transactions)); syncWithServer('transactions', transactions); }, [transactions]);
@@ -386,6 +413,7 @@ const App: React.FC = () => {
       action: action,
       details: details
     };
+    opsChannel.postMessage(msg);
     syncWithServer('broadcast', msg);
   }, [currentUser]);
 
@@ -462,6 +490,9 @@ const App: React.FC = () => {
       return updated;
     });
     syncWithServer('register', newAccount);
+    const msg = { type: 'USER_REGISTERED', payload: newAccount };
+    opsChannel.postMessage(msg);
+    syncWithServer('broadcast', msg);
   }, []);
 
   const handleUpdateAccountStatus = useCallback((username: string, status: UserAccount['status'], role?: UserRole, allowedPages?: ViewMode[]) => {
