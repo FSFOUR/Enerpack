@@ -1,0 +1,3710 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import { GoogleGenAI, Type } from "@google/genai";
+import { 
+  LayoutDashboard, 
+  Package, 
+  Search, 
+  LogIn, 
+  LogOut as LogOutIcon, 
+  Clock, 
+  Bell, 
+  History, 
+  TrendingUp, 
+  Calculator, 
+  FileText, 
+  Settings,
+  User,
+  ChevronRight,
+  Box,
+  Layers,
+  Activity,
+  AlertCircle,
+  Plus,
+  Minus,
+  Edit2,
+  Trash2,
+  FileSpreadsheet,
+  Download,
+  X,
+  Save,
+  Truck,
+  Calendar,
+  AlertTriangle,
+  RotateCcw,
+  Info,
+  Maximize2,
+  Maximize,
+  Hash,
+  Wand2,
+  FilePlus,
+  Eye,
+  Printer,
+  Trash,
+  FileUp
+} from 'lucide-react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import { motion, AnimatePresence } from 'motion/react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// --- Mock Data ---
+const movementData = [
+  { name: 'JUL', value: 300 },
+  { name: 'AUG', value: 300 },
+  { name: 'SEP', value: 300 },
+  { name: 'OCT', value: 300 },
+  { name: 'NOV', value: 300 },
+  { name: 'DEC', value: 450 },
+];
+
+const distributionData = [
+  { name: '280 GSM', value: 44, color: '#3b82f6' },
+  { name: '200 GSM', value: 21, color: '#1e293b' },
+  { name: '130 GSM', value: 9, color: '#f97316' },
+  { name: '140GYT GSM', value: 9, color: '#10b981' },
+];
+
+const highVelocityData = [
+  { name: '54 X 280', value: 600, max: 1000 },
+  { name: '56 X 280', value: 420, max: 1000 },
+  { name: '60 X 200', value: 210, max: 1000 },
+];
+
+const inventoryData = [
+  {
+    title: "280 GSM SECTION",
+    subSections: [
+      {
+        title: "SINGLE SIZE",
+        items: [
+          { size: "54", gsm: "280", stock: 1279, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "56", gsm: "280", stock: 243, isLow: true, minQuantity: 100, remarks: "" },
+          { size: "58", gsm: "280", stock: 1604, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "59", gsm: "280", stock: 442, isLow: true, minQuantity: 100, remarks: "" },
+          { size: "60", gsm: "280", stock: 1351, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "63", gsm: "280", stock: 568, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "65", gsm: "280", stock: 1453, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "68", gsm: "280", stock: 984, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "70", gsm: "280", stock: 714, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "73", gsm: "280", stock: 941, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "76", gsm: "280", stock: 926, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "78", gsm: "280", stock: 0, isLow: true, minQuantity: 100, remarks: "" },
+          { size: "80", gsm: "280", stock: 2029, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "83", gsm: "280", stock: 1337, isLow: false },
+          { size: "86", gsm: "280", stock: 298, isLow: true },
+          { size: "88", gsm: "280", stock: 1953, isLow: false },
+          { size: "90", gsm: "280", stock: 3384, isLow: false },
+          { size: "93", gsm: "280", stock: 1262, isLow: false },
+          { size: "96", gsm: "280", stock: 1315, isLow: false },
+          { size: "98", gsm: "280", stock: 1330, isLow: false },
+          { size: "100", gsm: "280", stock: 1999, isLow: false },
+          { size: "104", gsm: "280", stock: 955, isLow: false },
+          { size: "108", gsm: "280", stock: 1568, isLow: false },
+        ]
+      },
+      {
+        title: "DOUBLE SIZE",
+        items: [
+          { size: "57.5*76", gsm: "280", stock: 71, isLow: true },
+          { size: "58*78", gsm: "280", stock: 346, isLow: true },
+          { size: "59*78", gsm: "280", stock: 71, isLow: true },
+          { size: "59*87.5", gsm: "280", stock: 24, isLow: true },
+          { size: "59*95", gsm: "280", stock: 142, isLow: true },
+          { size: "60*77.5", gsm: "280", stock: 44, isLow: true },
+          { size: "61*83", gsm: "280", stock: 75, isLow: true },
+          { size: "62*68", gsm: "280", stock: 135, isLow: true },
+          { size: "63*75", gsm: "280", stock: 161, isLow: true },
+          { size: "64*67", gsm: "280", stock: 44, isLow: true },
+          { size: "65*88.5", gsm: "280", stock: 66, isLow: true },
+          { size: "67*75", gsm: "280", stock: 101, isLow: true },
+          { size: "68*69", gsm: "280", stock: 132, isLow: true },
+          { size: "68*91.5", gsm: "280", stock: 4, isLow: true },
+          { size: "70*72", gsm: "280", stock: 13, isLow: true },
+          { size: "70*76", gsm: "280", stock: 119, isLow: true },
+          { size: "70*79", gsm: "280", stock: 80, isLow: true },
+          { size: "72*91.5", gsm: "280", stock: 65, isLow: true },
+          { size: "73*81", gsm: "280", stock: 144, isLow: true },
+          { size: "75*108.5", gsm: "280", stock: 16, isLow: true },
+          { size: "76*111", gsm: "280", stock: 123, isLow: true },
+          { size: "76*72", gsm: "280", stock: 240, isLow: true },
+          { size: "78*70.5", gsm: "280", stock: 94, isLow: true },
+          { size: "78*107", gsm: "280", stock: 19, isLow: true },
+          { size: "82*111", gsm: "280", stock: 40, isLow: true },
+          { size: "88*63", gsm: "280", stock: 72, isLow: true },
+          { size: "90*66", gsm: "280", stock: 108, isLow: true },
+          { size: "94.5*80.3", gsm: "280", stock: 32, isLow: true },
+          { size: "100*74", gsm: "280", stock: 20, isLow: true },
+          { size: "108*76", gsm: "280", stock: 103, isLow: true },
+          { size: "47*64", gsm: "280", stock: 59, isLow: true },
+          { size: "54*73.5", gsm: "280", stock: 55, isLow: true },
+          { size: "54*86", gsm: "280", stock: 157, isLow: true },
+          { size: "56*68.5", gsm: "280", stock: 33, isLow: true },
+          { size: "56*75", gsm: "280", stock: 39, isLow: true },
+          { size: "56*86", gsm: "280", stock: 323, isLow: true },
+          { size: "57*68.5", gsm: "280", stock: 125, isLow: true },
+        ]
+      }
+    ]
+  },
+  {
+    title: "250 & 230 GSM SECTION",
+    subSections: [
+      {
+        title: "250 DOUBLE",
+        items: [
+          { size: "50*64.5", gsm: "250", stock: 255, isLow: true },
+        ]
+      },
+      {
+        title: "230 DOUBLE",
+        items: [
+          { size: "54*78", gsm: "230", stock: 55, isLow: true },
+          { size: "59*91", gsm: "230", stock: 42, isLow: true },
+          { size: "82*98", gsm: "230", stock: 42, isLow: true },
+          { size: "86*110", gsm: "230", stock: 56, isLow: true },
+          { size: "100*67", gsm: "230", stock: 42, isLow: true },
+        ]
+      }
+    ]
+  },
+  {
+    title: "200 GSM SECTION",
+    subSections: [
+      {
+        title: "SINGLE SIZE",
+        items: [
+          { size: "65", gsm: "200", stock: 0, isLow: true },
+          { size: "68", gsm: "200", stock: 1082, isLow: false },
+          { size: "70", gsm: "200", stock: 0, isLow: true },
+          { size: "73", gsm: "200", stock: 0, isLow: true },
+          { size: "75", gsm: "200", stock: 0, isLow: true },
+          { size: "80", gsm: "200", stock: 277, isLow: true },
+          { size: "90", gsm: "200", stock: 45, isLow: true },
+        ]
+      },
+      {
+        title: "DOUBLE SIZE",
+        items: [
+          { size: "50*89", gsm: "200", stock: 239, isLow: true },
+          { size: "51*80", gsm: "200", stock: 174, isLow: true },
+          { size: "52*68.5", gsm: "200", stock: 75, isLow: true },
+          { size: "52*76.5", gsm: "200", stock: 145, isLow: true },
+          { size: "53*83", gsm: "200", stock: 601, isLow: false },
+          { size: "54*86", gsm: "200", stock: 524, isLow: false },
+          { size: "56*82", gsm: "200", stock: 377, isLow: true },
+          { size: "56*86", gsm: "200", stock: 671, isLow: false },
+          { size: "57*85.5", gsm: "200", stock: 52, isLow: true },
+          { size: "57*89", gsm: "200", stock: 7, isLow: true },
+          { size: "57*90", gsm: "200", stock: 311, isLow: true },
+          { size: "59*91", gsm: "200", stock: 657, isLow: false },
+          { size: "59.5*93", gsm: "200", stock: 270, isLow: true },
+          { size: "62.5*95", gsm: "200", stock: 276, isLow: true },
+          { size: "63*64", gsm: "200", stock: 326, isLow: true },
+          { size: "63.5*99", gsm: "200", stock: 436, isLow: true },
+          { size: "65*101", gsm: "200", stock: 0, isLow: true },
+          { size: "68*69", gsm: "200", stock: 133, isLow: true },
+          { size: "72*48", gsm: "200", stock: 79, isLow: true },
+          { size: "73*74", gsm: "200", stock: 50, isLow: true },
+          { size: "41*83", gsm: "200", stock: 0, isLow: true },
+          { size: "42.5*57.5", gsm: "200", stock: 215, isLow: true },
+          { size: "43*73", gsm: "200", stock: 283, isLow: true },
+          { size: "44.5*64", gsm: "200", stock: 114, isLow: true },
+          { size: "45*76.5", gsm: "200", stock: 62, isLow: true },
+          { size: "46.5*90", gsm: "200", stock: 54, isLow: true },
+          { size: "47*70.5", gsm: "200", stock: 0, isLow: true },
+          { size: "50*72", gsm: "200", stock: 0, isLow: true },
+          { size: "50*79", gsm: "200", stock: 976, isLow: false },
+          { size: "50*81", gsm: "200", stock: 337, isLow: true },
+          { size: "50*83", gsm: "200", stock: 48, isLow: true },
+        ]
+      }
+    ]
+  },
+  {
+    title: "150, 100 GSM SECTION",
+    subSections: [
+      {
+        title: "150",
+        items: [
+          { size: "68", gsm: "150", stock: 387, isLow: true },
+          { size: "84", gsm: "150", stock: 0, isLow: true },
+          { size: "92", gsm: "150", stock: 140, isLow: true },
+          { size: "104", gsm: "150", stock: 67, isLow: true },
+          { size: "108", gsm: "150", stock: 85, isLow: true },
+        ]
+      },
+      {
+        title: "100",
+        items: [
+          { size: "60", gsm: "100", stock: 150, isLow: true },
+          { size: "66", gsm: "100", stock: 116, isLow: true },
+          { size: "92", gsm: "100", stock: 396, isLow: true },
+          { size: "100", gsm: "100", stock: 416, isLow: true },
+          { size: "106", gsm: "100", stock: 227, isLow: true },
+          { size: "108", gsm: "100", stock: 167, isLow: true },
+        ]
+      }
+    ]
+  },
+  {
+    title: "140 GYT, 130 GSM SECTION",
+    subSections: [
+      {
+        title: "140 GYT",
+        items: [
+          { size: "53", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "57", gsm: "140GYT", stock: 792, isLow: false },
+          { size: "60", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "65", gsm: "140GYT", stock: 173, isLow: true },
+          { size: "70", gsm: "140GYT", stock: 1016, isLow: false },
+          { size: "73", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "77", gsm: "140GYT", stock: 1805, isLow: false },
+          { size: "82", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "85", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "88", gsm: "140GYT", stock: 0, isLow: true },
+          { size: "90", gsm: "140GYT", stock: 956, isLow: false },
+          { size: "95", gsm: "140GYT", stock: 991, isLow: false },
+          { size: "100", gsm: "140GYT", stock: 942, isLow: false },
+          { size: "104", gsm: "140GYT", stock: 271, isLow: true },
+          { size: "108", gsm: "140GYT", stock: 0, isLow: true },
+        ]
+      },
+      {
+        title: "130",
+        items: [
+          { size: "54", gsm: "130", stock: 76, isLow: true },
+          { size: "56", gsm: "130", stock: 0, isLow: true },
+          { size: "58", gsm: "130", stock: 190, isLow: true },
+          { size: "59", gsm: "130", stock: 44, isLow: true },
+          { size: "61", gsm: "130", stock: 175, isLow: true },
+          { size: "63", gsm: "130", stock: 0, isLow: true },
+          { size: "68", gsm: "130", stock: 0, isLow: true },
+          { size: "75", gsm: "130", stock: 55, isLow: true },
+          { size: "86", gsm: "130", stock: 0, isLow: true },
+          { size: "90", gsm: "130", stock: 99, isLow: true },
+          { size: "100", gsm: "130", stock: 0, isLow: true },
+          { size: "102", gsm: "130", stock: 0, isLow: true },
+          { size: "106", gsm: "130", stock: 35, isLow: true },
+          { size: "108", gsm: "130", stock: 0, isLow: true },
+        ]
+      }
+    ]
+  },
+];
+
+// --- Components ---
+
+const InventoryRow = ({ 
+  item, 
+  sectionTitle, 
+  subTitle, 
+  onIncrement, 
+  onDecrement, 
+  onEdit, 
+  onDelete 
+}: { 
+  item: any, 
+  sectionTitle: string, 
+  subTitle: string,
+  onIncrement: (st: string, sbt: string, sz: string) => void,
+  onDecrement: (st: string, sbt: string, sz: string) => void,
+  onEdit: (st: string, sbt: string, item: any) => void,
+  onDelete: (st: string, sbt: string, sz: string) => void
+}) => (
+  <>
+    <td className={cn(
+      "px-4 py-2 border-l border-r border-slate-400 text-center font-black text-sm w-20",
+      item.isLow && "bg-rose-50/50"
+    )}>{item.size}</td>
+    <td className={cn(
+      "px-4 py-2 border-r border-slate-400 text-center text-slate-400 text-sm w-16",
+      item.isLow && "bg-rose-50/50"
+    )}>{item.gsm}</td>
+    <td className={cn(
+      "px-4 py-2 border-r border-slate-400 text-center text-sm font-bold w-20",
+      item.isLow ? "text-rose-500 bg-rose-50/50" : "text-blue-700"
+    )}>
+      <div className="flex items-center justify-center gap-1">
+        {item.stock} {item.isLow && <AlertCircle size={10} />}
+      </div>
+    </td>
+    <td className={cn(
+      "px-4 py-2 border-r border-slate-400 w-28",
+      item.isLow && "bg-rose-50/50"
+    )}>
+      <div className="flex items-center justify-center gap-1">
+        <button 
+          onClick={() => onIncrement(sectionTitle, subTitle, item.size)}
+          className="p-1 border border-emerald-200 text-emerald-600 rounded hover:bg-emerald-50"
+        >
+          <Plus size={10} />
+        </button>
+        <button 
+          onClick={() => onDecrement(sectionTitle, subTitle, item.size)}
+          className="p-1 border border-rose-200 text-rose-600 rounded hover:bg-rose-50"
+        >
+          <Minus size={10} />
+        </button>
+        <button 
+          onClick={() => onEdit(sectionTitle, subTitle, item)}
+          className="p-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+        >
+          <Edit2 size={10} />
+        </button>
+        <button 
+          onClick={() => onDelete(sectionTitle, subTitle, item.size)}
+          className="p-1 border border-slate-400 text-slate-400 rounded hover:bg-slate-50"
+        >
+          <Trash2 size={10} />
+        </button>
+      </div>
+    </td>
+  </>
+);
+
+const InventoryTableSection = ({ 
+  section,
+  onIncrement,
+  onDecrement,
+  onEdit,
+  onDelete
+}: { 
+  section: any,
+  onIncrement: (st: string, sbt: string, sz: string) => void,
+  onDecrement: (st: string, sbt: string, sz: string) => void,
+  onEdit: (st: string, sbt: string, item: any) => void,
+  onDelete: (st: string, sbt: string, sz: string) => void
+}) => {
+  const allItems: any[] = [];
+  if (section.subSections) {
+    section.subSections.forEach((sub: any) => {
+      const excludedTitles = ["SINGLE SIZE", "150", "100"];
+      if (!excludedTitles.includes(sub.title)) {
+        allItems.push({ isHeader: true, title: sub.title });
+      }
+      sub.items.forEach((item: any) => allItems.push({ ...item, subTitle: sub.title }));
+    });
+  }
+
+  const half = Math.ceil(allItems.length / 2);
+  const leftCol = allItems.slice(0, half);
+  const rightCol = allItems.slice(half);
+  const maxRows = half;
+
+  return (
+    <div className="mb-8 bg-white rounded-3xl shadow-sm border border-slate-400 overflow-hidden">
+      <div className="px-6 py-3 bg-[#0f2a43] flex items-center justify-center border-b border-white/10">
+        <h3 className="text-sm font-bold text-white uppercase tracking-widest">{section.title}</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-sm font-bold uppercase tracking-wider table-fixed">
+          <thead>
+            <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-400">
+              <th className="px-4 py-3 border-l border-r border-slate-400 text-center w-20 text-xs tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-xs tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-xs tracking-widest">ACTION</th>
+              
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-xs tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-xs tracking-widest">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: maxRows }).map((_, idx) => (
+              <tr key={idx} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
+                {/* Left Column */}
+                {leftCol[idx] ? (
+                  leftCol[idx].isHeader ? (
+                    <td colSpan={4} className="bg-[#0f2a43] py-1.5 px-4 text-center text-[10px] font-bold text-white uppercase tracking-widest border-l border-r border-slate-400">
+                      {leftCol[idx].title}
+                    </td>
+                  ) : (
+                    <InventoryRow 
+                      item={leftCol[idx]} 
+                      sectionTitle={section.title} 
+                      subTitle={leftCol[idx].subTitle}
+                      onIncrement={onIncrement}
+                      onDecrement={onDecrement}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
+                  )
+                ) : (
+                  <td colSpan={4} className="border-l border-r border-slate-400 px-4 py-2"></td>
+                )}
+
+                {/* Right Column */}
+                {rightCol[idx] ? (
+                  rightCol[idx].isHeader ? (
+                    <td colSpan={4} className="bg-[#0f2a43] py-1.5 px-4 text-center text-[10px] font-bold text-white uppercase tracking-widest border-r border-slate-400">
+                      {rightCol[idx].title}
+                    </td>
+                  ) : (
+                    <InventoryRow 
+                      item={rightCol[idx]} 
+                      sectionTitle={section.title} 
+                      subTitle={rightCol[idx].subTitle}
+                      onIncrement={onIncrement}
+                      onDecrement={onDecrement}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
+                  )
+                ) : (
+                  <td colSpan={4} className="border-r border-slate-400 px-4 py-2"></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const SidebarItem = ({ 
+  icon: Icon, 
+  label, 
+  active, 
+  onClick 
+}: { 
+  icon: any, 
+  label: string, 
+  active?: boolean, 
+  onClick?: () => void 
+}) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors",
+      active 
+        ? "bg-blue-600/20 text-white border-l-4 border-blue-500" 
+        : "text-slate-400 hover:bg-slate-800 hover:text-white"
+    )}
+  >
+    <div className="flex items-center gap-3">
+      <Icon size={18} />
+      <span>{label}</span>
+    </div>
+    {active && <ChevronRight size={14} />}
+  </button>
+);
+
+const SectionHeader = ({ label }: { label: string }) => (
+  <div className="px-4 py-2 mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+    {label}
+  </div>
+);
+
+const StatCard = ({ 
+  label, 
+  value, 
+  icon: Icon, 
+  trend, 
+  status,
+  iconBg
+}: { 
+  label: string, 
+  value: string | number, 
+  icon: any, 
+  trend?: string,
+  status?: string,
+  iconBg: string
+}) => (
+  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 flex items-center justify-between">
+    <div>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <h3 className="text-3xl font-bold text-slate-800">{value}</h3>
+      {trend && <p className="text-xs font-medium text-emerald-500 mt-1 flex items-center gap-1">
+        <TrendingUp size={12} /> {trend}
+      </p>}
+      {status && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-wider">
+        ⚠ {status}
+      </p>}
+    </div>
+    <div className={cn("p-4 rounded-2xl", iconBg)}>
+      <Icon className="text-slate-600" size={24} />
+    </div>
+  </div>
+);
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [inventory, setInventory] = useState(inventoryData);
+  const [showNewSkuForm, setShowNewSkuForm] = useState(false);
+  const [newSkuSize, setNewSkuSize] = useState('');
+  const [newSkuGsm, setNewSkuGsm] = useState('280');
+  const [newSkuStock, setNewSkuStock] = useState('0');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const [editingItem, setEditingItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string } | null>(null);
+  const [stockInItem, setStockInItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
+  const [stockOutItem, setStockOutItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
+
+  // Quick Tracker State
+  const [quickTrackerSearch, setQuickTrackerSearch] = useState('');
+  const [selectedQuickTrackerItem, setSelectedQuickTrackerItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
+  const [quickTrackerMode, setQuickTrackerMode] = useState<'IN' | 'OUT'>('OUT');
+  const [quickTrackerQty, setQuickTrackerQty] = useState('');
+  const [quickTrackerHistory, setQuickTrackerHistory] = useState<any[]>([]);
+
+  // Stock In Logs State
+  const [stockInLogs, setStockInLogs] = useState<any[]>([
+    {
+      id: 1,
+      date: '2026-03-12',
+      month: 'March',
+      size: '56',
+      gsm: '280',
+      quantity: 1000,
+      company: 'SREEPATHI',
+      invoice: 'JB/25-26/1536',
+      storageLoc: '',
+      remarks: ''
+    }
+  ]);
+  const [searchLogQuery, setSearchLogQuery] = useState('');
+  const [editingLog, setEditingLog] = useState<any | null>(null);
+
+  // Stock Out Logs State
+  const [stockOutLogs, setStockOutLogs] = useState<any[]>([
+    { id: 1, date: '2026-01-10', size: '60', gsm: '280', out: 450, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 4500, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 2, date: '2026-01-15', size: '54', gsm: '280', out: 300, unit: 'GROSS', itemCode: 'FW10058', workName: 'Walkaroo', cutSize: '50', sheets: 3000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 3, date: '2026-02-05', size: '60', gsm: '280', out: 500, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 5000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 4, date: '2026-02-20', size: '56', gsm: '280', out: 200, unit: 'GROSS', itemCode: 'FW10059', workName: 'Paragon', cutSize: '52', sheets: 2000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 5, date: '2026-03-01', size: '60', gsm: '280', out: 350, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 3500, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 6, date: '2026-03-10', size: '54', gsm: '280', out: 400, unit: 'GROSS', itemCode: 'FW10058', workName: 'Walkaroo', cutSize: '50', sheets: 4000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
+    { id: 7, date: '2026-03-12', size: '60', gsm: '280', out: 100, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 1000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' }
+  ]);
+  const [searchStockOutLogQuery, setSearchStockOutLogQuery] = useState('');
+  const [searchAlertsQuery, setSearchAlertsQuery] = useState('');
+  const [reorderTracking, setReorderTracking] = useState<Record<string, any>>({});
+  const [reorderHistory, setReorderHistory] = useState<any[]>([]);
+  const [searchReorderHistoryQuery, setSearchReorderHistoryQuery] = useState('');
+  const [searchForecastQuery, setSearchForecastQuery] = useState('');
+  const [calcInputs, setCalcInputs] = useState({
+    gsm: '280',
+    width: '60',
+    length: '100',
+    quantity: '1000'
+  });
+
+  // Job Card Generator State
+  const [whatsappOrder, setWhatsappOrder] = useState('');
+  const [jobCards, setJobCards] = useState<any[]>([]);
+  const [cardPrefix, setCardPrefix] = useState<'EP' | 'FP'>('EP');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Pending Works State
+  const [pendingWorks, setPendingWorks] = useState<any[]>([
+    {
+      id: 1,
+      date: '2026-03-12',
+      size: '60',
+      gsm: '280',
+      qty: 100,
+      unit: 'CUTTING',
+      company: 'SREEPATHI',
+      itemCode: 'FW10057',
+      workName: 'VKC Casual',
+      cutSize: '55',
+      sheets: 1000,
+      priority: 'MEDIUM',
+      status: 'CUTTING',
+      remarks: ''
+    }
+  ]);
+  const [searchPendingQuery, setSearchPendingQuery] = useState('');
+  const [editingPendingWork, setEditingPendingWork] = useState<any | null>(null);
+  const [deliveringWork, setDeliveringWork] = useState<any | null>(null);
+  const [deliveryFormData, setDeliveryFormData] = useState({ 
+    vehicleNumber: 'KL65S7466', 
+    deliveryLocation: '',
+    deliveryDate: new Date().toISOString().split('T')[0]
+  });
+
+  const handleSaveReorder = (key: string, item: any) => {
+    const tracking = reorderTracking[key];
+    if (!tracking || !tracking.company || tracking.ordQty === '0') {
+      alert('Please enter supplier and order quantity');
+      return;
+    }
+
+    const newHistoryEntry = {
+      id: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      size: item.size,
+      gsm: item.gsm,
+      min: item.minQuantity || 500,
+      curr: item.stock,
+      short: (item.minQuantity || 500) - item.stock,
+      company: tracking.company,
+      ordQty: tracking.ordQty,
+      ordDate: tracking.ordDate,
+      expDelivery: tracking.expDelivery,
+      status: tracking.status,
+      remarks: tracking.remarks
+    };
+
+    setReorderHistory(prev => [newHistoryEntry, ...prev]);
+    alert('Reorder log saved successfully!');
+  };
+
+  const getFinancialYear = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    if (month >= 3) { // April is month 3
+      return `${year.toString().slice(-2)}-${(year + 1).toString().slice(-2)}`;
+    } else {
+      return `${(year - 1).toString().slice(-2)}-${year.toString().slice(-2)}`;
+    }
+  };
+
+  const generateJobCardNo = (prefix: string, index: number) => {
+    const fy = getFinancialYear();
+    const serial = (index + 1).toString().padStart(3, '0');
+    return `${prefix}/${fy}/${serial}`;
+  };
+
+  const handleAiGenerate = async () => {
+    if (!whatsappOrder.trim()) {
+      alert('Please paste a WhatsApp order first.');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Parse the following WhatsApp order and extract job card details. 
+        Return an array of objects with these fields: date, itemCode, workName, size, gsm, totalGross, deliveryLoc, loadingDate.
+        If multiple items are in the order, return multiple objects.
+        Order: ${whatsappOrder}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                date: { type: Type.STRING },
+                itemCode: { type: Type.STRING },
+                workName: { type: Type.STRING },
+                size: { type: Type.STRING },
+                gsm: { type: Type.STRING },
+                totalGross: { type: Type.STRING },
+                deliveryLoc: { type: Type.STRING },
+                loadingDate: { type: Type.STRING },
+              },
+              required: ["workName", "size", "gsm"]
+            }
+          }
+        }
+      });
+
+      const parsedCards = JSON.parse(response.text);
+      const newCards = parsedCards.map((card: any, index: number) => ({
+        ...card,
+        id: Date.now() + index,
+        jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
+        loadingDate: '' // Keep loading date empty as requested
+      }));
+
+      setJobCards(prev => [...prev, ...newCards]);
+    } catch (error) {
+      console.error('AI Generation Error:', error);
+      alert('Failed to parse order. Please try again or use manual entry.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleManualBlankCard = () => {
+    const newCard = {
+      id: Date.now(),
+      jobCardNo: generateJobCardNo(cardPrefix, jobCards.length),
+      date: new Date().toISOString().split('T')[0],
+      itemCode: '',
+      workName: '',
+      size: '',
+      gsm: '',
+      totalGross: '',
+      deliveryLoc: '',
+      loadingDate: ''
+    };
+    setJobCards(prev => [...prev, newCard]);
+  };
+
+  const handleIncrement = (sectionTitle: string, subTitle: string, size: string) => {
+    const section = inventory.find(s => s.title === sectionTitle);
+    const sub = section?.subSections.find(ss => ss.title === subTitle);
+    const item = sub?.items.find(i => i.size === size);
+    
+    if (item) {
+      const now = new Date();
+      setStockInItem({
+        sectionTitle,
+        subTitle,
+        item,
+        formData: {
+          date: now.toISOString().split('T')[0],
+          month: now.toLocaleString('default', { month: 'long' }),
+          company: '',
+          quantity: '',
+          invoiceNo: '',
+          storageLocation: '',
+          remarks: ''
+        }
+      });
+    }
+  };
+
+  const handleConfirmStockIn = () => {
+    if (!stockInItem || !stockInItem.formData.quantity) return;
+    
+    const quantity = parseInt(stockInItem.formData.quantity) || 0;
+    updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity);
+    
+    const newLog = {
+      id: Date.now(),
+      date: stockInItem.formData.date,
+      month: stockInItem.formData.month,
+      size: stockInItem.item.size,
+      gsm: stockInItem.item.gsm,
+      quantity: quantity,
+      company: stockInItem.formData.company,
+      invoice: stockInItem.formData.invoiceNo,
+      storageLoc: stockInItem.formData.storageLocation,
+      remarks: stockInItem.formData.remarks
+    };
+    
+    setStockInLogs(prev => [newLog, ...prev]);
+    setStockInItem(null);
+  };
+
+  const handleDecrement = (sectionTitle: string, subTitle: string, size: string) => {
+    const section = inventory.find(s => s.title === sectionTitle);
+    const sub = section?.subSections.find(ss => ss.title === subTitle);
+    const item = sub?.items.find(i => i.size === size);
+    
+    if (item) {
+      const now = new Date();
+      setStockOutItem({
+        sectionTitle,
+        subTitle,
+        item,
+        formData: {
+          date: now.toISOString().split('T')[0],
+          month: now.toLocaleString('default', { month: 'long' }),
+          company: '',
+          quantity: '',
+          itemCode: '',
+          workName: '',
+          unit: 'GROSS',
+          cuttingSize: '',
+          sheets: '',
+          status: 'Cutting',
+          priority: 'Medium',
+          remarks: ''
+        }
+      });
+    }
+  };
+
+  const handleConfirmStockOut = () => {
+    if (!stockOutItem || !stockOutItem.formData.quantity) return;
+    
+    const quantity = parseInt(stockOutItem.formData.quantity) || 0;
+    updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity);
+    
+    // Move to Pending Works
+    const newPendingWork = {
+      id: Date.now(),
+      date: stockOutItem.formData.date,
+      size: stockOutItem.item.size,
+      gsm: stockOutItem.item.gsm,
+      qty: quantity,
+      unit: stockOutItem.formData.unit,
+      company: stockOutItem.formData.company,
+      itemCode: stockOutItem.formData.itemCode,
+      workName: stockOutItem.formData.workName,
+      cutSize: stockOutItem.formData.cuttingSize,
+      sheets: parseInt(stockOutItem.formData.sheets) || 0,
+      priority: stockOutItem.formData.priority.toUpperCase(),
+      status: stockOutItem.formData.status.toUpperCase(),
+      remarks: stockOutItem.formData.remarks
+    };
+    
+    setPendingWorks(prev => [newPendingWork, ...prev]);
+    setStockOutItem(null);
+  };
+
+  const updateStock = (sectionTitle: string, subTitle: string, size: string, delta: number) => {
+    setInventory(prev => prev.map(section => {
+      if (section.title === sectionTitle) {
+        return {
+          ...section,
+          subSections: section.subSections.map(sub => {
+            if (sub.title === subTitle) {
+              return {
+                ...sub,
+                items: sub.items.map(item => {
+                  if (item.size === size) {
+                    const newStock = Math.max(0, item.stock + delta);
+                    return { ...item, stock: newStock, isLow: newStock < (item.minQuantity || 100) };
+                  }
+                  return item;
+                })
+              };
+            }
+            return sub;
+          })
+        };
+      }
+      return section;
+    }));
+  };
+
+  const handleDelete = (sectionTitle: string, subTitle: string, size: string) => {
+    setDeletingItem({ sectionTitle, subTitle, size });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingItem) return;
+    const { sectionTitle, subTitle, size } = deletingItem;
+    
+    setInventory(prev => prev.map(section => {
+      if (section.title === sectionTitle) {
+        return {
+          ...section,
+          subSections: section.subSections.map(sub => {
+            if (sub.title === subTitle) {
+              return {
+                ...sub,
+                items: sub.items.filter(item => item.size !== size)
+              };
+            }
+            return sub;
+          })
+        };
+      }
+      return section;
+    }));
+    setDeletingItem(null);
+  };
+
+  const handleEdit = (sectionTitle: string, subTitle: string, item: any) => {
+    setEditingItem({ 
+      sectionTitle, 
+      subTitle, 
+      item: { 
+        ...item,
+        minQuantity: item.minQuantity || 100,
+        remarks: item.remarks || ""
+      } 
+    });
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingItem) return;
+    const { sectionTitle, subTitle, item } = editingItem;
+    
+    setInventory(prev => prev.map(section => {
+      if (section.title === sectionTitle) {
+        return {
+          ...section,
+          subSections: section.subSections.map(sub => {
+            if (sub.title === subTitle) {
+              return {
+                ...sub,
+                items: sub.items.map(i => {
+                  if (i.size === editingItem.item.size || i.size === item.size) {
+                    return { ...item, isLow: item.stock < (item.minQuantity || 100) };
+                  }
+                  return i;
+                })
+              };
+            }
+            return sub;
+          })
+        };
+      }
+      return section;
+    }));
+    setEditingItem(null);
+  };
+
+  const handleAddSku = () => {
+    if (!newSkuSize) return;
+    
+    const newItem = {
+      size: newSkuSize,
+      gsm: newSkuGsm,
+      stock: parseInt(newSkuStock) || 0,
+      isLow: (parseInt(newSkuStock) || 0) < 100,
+      minQuantity: 100,
+      remarks: ""
+    };
+
+    const updatedInventory = inventory.map(section => {
+      if (section.title.includes(newSkuGsm)) {
+        return {
+          ...section,
+          subSections: section.subSections.map((sub, idx) => {
+            // Add to the first subsection of the matching GSM section
+            if (idx === 0) {
+              return {
+                ...sub,
+                items: [newItem, ...sub.items]
+              };
+            }
+            return sub;
+          })
+        };
+      }
+      return section;
+    });
+
+    setInventory(updatedInventory);
+    setShowNewSkuForm(false);
+    setNewSkuSize('');
+    setNewSkuStock('0');
+  };
+
+  const handleExportXLSX = () => {
+    const data = inventory.flatMap(section => 
+      section.subSections.flatMap(sub => 
+        sub.items.map(item => ({
+          'Section': section.title,
+          'Subsection': sub.title,
+          'Size': item.size,
+          'GSM': item.gsm,
+          'Stock': item.stock,
+          'Status': item.isLow ? 'Low Stock' : 'In Stock'
+        }))
+      )
+    );
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    XLSX.writeFile(wb, "EnerPack_Inventory.xlsx");
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    const renderHeader = (pageTitle: string) => {
+      doc.setFontSize(16);
+      doc.setTextColor(15, 42, 67);
+      doc.text("ENER PACK INVENTORY", 14, 15);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text("CENTRAL WAREHOUSE TERMINAL", 14, 20);
+      doc.setFontSize(10);
+      doc.setTextColor(15, 42, 67);
+      doc.text(pageTitle, pageWidth - 14, 15, { align: 'right' });
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 25, pageWidth - 14, 25);
+    };
+
+    const renderSection = (section: any, startY: number) => {
+      const allItems: any[] = [];
+      section.subSections.forEach((sub: any) => {
+        const excludedTitles = ["SINGLE SIZE", "150", "100"];
+        if (!excludedTitles.includes(sub.title)) {
+          allItems.push({ isHeader: true, title: sub.title });
+        }
+        sub.items.forEach((item: any) => allItems.push(item));
+      });
+
+      const half = Math.ceil(allItems.length / 2);
+      const leftCol = allItems.slice(0, half);
+      const rightCol = allItems.slice(half);
+      
+      const tableRows = [];
+      for (let i = 0; i < half; i++) {
+        const left = leftCol[i];
+        const right = rightCol[i];
+        
+        const row: any[] = [];
+        // Left part
+        if (left) {
+          if (left.isHeader) {
+            row.push({ content: left.title, colSpan: 3, styles: { fillColor: [15, 42, 67], textColor: [255, 255, 255], halign: 'center', fontSize: 7, fontStyle: 'bold' } });
+          } else {
+            row.push(left.size, left.gsm, left.stock.toString());
+          }
+        } else {
+          row.push('', '', '');
+        }
+        
+        // Right part
+        if (right) {
+          if (right.isHeader) {
+            row.push({ content: right.title, colSpan: 3, styles: { fillColor: [15, 42, 67], textColor: [255, 255, 255], halign: 'center', fontSize: 7, fontStyle: 'bold' } });
+          } else {
+            row.push(right.size, right.gsm, right.stock.toString());
+          }
+        } else {
+          row.push('', '', '');
+        }
+        tableRows.push(row);
+      }
+
+      autoTable(doc, {
+        startY: startY,
+        head: [[{ content: section.title, colSpan: 6, styles: { fillColor: [15, 42, 67], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold', fontSize: 9 } }],
+               ['SIZE', 'GSM', 'STOCK', 'SIZE', 'GSM', 'STOCK']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [248, 250, 252], textColor: [100, 116, 139], fontSize: 7, halign: 'center', fontStyle: 'bold' },
+        columnStyles: {
+          0: { halign: 'center', fontStyle: 'bold', cellWidth: 35 },
+          1: { halign: 'center', textColor: [148, 163, 184], cellWidth: 21 },
+          2: { halign: 'center', fontStyle: 'bold', cellWidth: 35 },
+          3: { halign: 'center', fontStyle: 'bold', cellWidth: 35 },
+          4: { halign: 'center', textColor: [148, 163, 184], cellWidth: 21 },
+          5: { halign: 'center', fontStyle: 'bold', cellWidth: 35 },
+        },
+        styles: { fontSize: 7.5, cellPadding: 1.2, lineColor: [203, 213, 225], lineWidth: 0.1 },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const rowIndex = data.row.index;
+            const colIndex = data.column.index;
+            
+            if (colIndex < 3 && leftCol[rowIndex] && !leftCol[rowIndex].isHeader && leftCol[rowIndex].isLow) {
+                if (colIndex === 2) data.cell.styles.textColor = [244, 63, 94];
+                data.cell.styles.fillColor = [255, 241, 242];
+            }
+            if (colIndex >= 3 && rightCol[rowIndex] && !rightCol[rowIndex].isHeader && rightCol[rowIndex].isLow) {
+                if (colIndex === 5) data.cell.styles.textColor = [244, 63, 94];
+                data.cell.styles.fillColor = [255, 241, 242];
+            }
+          }
+        }
+      });
+      
+      return (doc as any).lastAutoTable.finalY;
+    };
+
+    // Page 1: 280 and 250 Sections
+    renderHeader("Page 1/2");
+    let currentY1 = 30;
+    
+    const section280 = inventory.find(s => s.title.includes('280'));
+    if (section280) {
+      currentY1 = renderSection(section280, currentY1);
+    }
+    
+    const section250 = inventory.find(s => s.title.includes('250'));
+    if (section250) {
+      currentY1 = renderSection(section250, currentY1 + 6);
+    }
+
+    // Page 2: All other sections
+    doc.addPage();
+    renderHeader("Page 2/2");
+    let currentY2 = 30;
+    
+    const otherSections = inventory.filter(s => !s.title.includes('280') && !s.title.includes('250'));
+    otherSections.forEach((section, idx) => {
+      currentY2 = renderSection(section, currentY2 + (idx === 0 ? 0 : 6));
+    });
+
+    doc.save("EnerPack_Inventory_Report.pdf");
+  };
+
+  const totalSkus = inventory.reduce((acc, section) => 
+    acc + section.subSections.reduce((sacc, sub) => sacc + sub.items.length, 0), 0
+  );
+  
+  const lowStockCount = inventory.reduce((acc, section) => 
+    acc + section.subSections.reduce((sacc, sub) => 
+      sacc + sub.items.filter(item => item.isLow).length, 0
+    ), 0
+  );
+
+  const totalStock = inventory.reduce((acc, section) => 
+    acc + section.subSections.reduce((sacc, sub) => 
+      sacc + sub.items.reduce((isacc, item) => isacc + item.stock, 0), 0
+    ), 0
+  );
+
+  const filteredLogs = stockInLogs.filter(log => 
+    log.size.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+    log.company.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+    log.invoice.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+    log.month.toLowerCase().includes(searchLogQuery.toLowerCase())
+  );
+
+  const filteredPendingWorks = pendingWorks.filter(work => 
+    work.workName.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+    work.company.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+    work.itemCode.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+    work.size.toLowerCase().includes(searchPendingQuery.toLowerCase())
+  );
+
+  const currentSelectedEntry = selectedQuickTrackerItem ? (() => {
+    const section = inventory.find(s => s.title === selectedQuickTrackerItem.sectionTitle);
+    const sub = section?.subSections.find(ss => ss.title === selectedQuickTrackerItem.subTitle);
+    const item = sub?.items.find(i => i.size === selectedQuickTrackerItem.item.size && i.gsm === selectedQuickTrackerItem.item.gsm);
+    return item ? { ...selectedQuickTrackerItem, item } : null;
+  })() : null;
+
+  return (
+    <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#0f2a43] flex flex-col shrink-0">
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#0f2a43] font-bold">
+            EP
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight">ENERPACK</h1>
+        </div>
+
+        <div className="px-4 py-4 flex items-center gap-3 border-b border-slate-700/50 mb-4">
+          <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white">
+            <User size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-white">Master Administrator</p>
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Admin</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto custom-scrollbar">
+          <SectionHeader label="General" />
+          <SidebarItem 
+            icon={LayoutDashboard} 
+            label="Dashboard" 
+            active={activeTab === 'Dashboard'} 
+            onClick={() => setActiveTab('Dashboard')} 
+          />
+
+          <SectionHeader label="Inventory" />
+          <SidebarItem 
+            icon={Package} 
+            label="Full Inventory" 
+            active={activeTab === 'Full Inventory'} 
+            onClick={() => setActiveTab('Full Inventory')} 
+          />
+          <SidebarItem 
+            icon={Search} 
+            label="Quick Tracker" 
+            active={activeTab === 'Quick Tracker'} 
+            onClick={() => setActiveTab('Quick Tracker')} 
+          />
+
+          <SectionHeader label="Movement" />
+          <SidebarItem 
+            icon={LogIn} 
+            label="Stock In Logs" 
+            active={activeTab === 'Stock In Logs'} 
+            onClick={() => setActiveTab('Stock In Logs')} 
+          />
+          <SidebarItem 
+            icon={LogOutIcon} 
+            label="Stock Out Logs" 
+            active={activeTab === 'Stock Out Logs'}
+            onClick={() => setActiveTab('Stock Out Logs')}
+          />
+          <SidebarItem 
+            icon={Clock} 
+            label="Pending Works" 
+            active={activeTab === 'Pending Works'} 
+            onClick={() => setActiveTab('Pending Works')} 
+          />
+
+          <SectionHeader label="Planning" />
+          <SidebarItem 
+            icon={Bell} 
+            label="Reorder Alerts" 
+            active={activeTab === 'Reorder Alerts'} 
+            onClick={() => setActiveTab('Reorder Alerts')} 
+          />
+          <SidebarItem 
+            icon={History} 
+            label="Reorder History" 
+            active={activeTab === 'Reorder History'}
+            onClick={() => setActiveTab('Reorder History')}
+          />
+          <SidebarItem 
+            icon={TrendingUp} 
+            label="Demand Forecast" 
+            active={activeTab === 'Demand Forecast'}
+            onClick={() => setActiveTab('Demand Forecast')}
+          />
+
+          <SectionHeader label="Tools" />
+          <SidebarItem 
+            icon={Calculator} 
+            label="Calculator" 
+            active={activeTab === 'Calculator'}
+            onClick={() => setActiveTab('Calculator')}
+          />
+          <SidebarItem 
+            icon={FileText} 
+            label="Job Card Generator" 
+            active={activeTab === 'Job Card Generator'}
+            onClick={() => setActiveTab('Job Card Generator')}
+          />
+
+          <SectionHeader label="System" />
+          <SidebarItem icon={Settings} label="Admin Control" />
+        </nav>
+
+        <div className="p-4 mt-auto border-t border-slate-700/50">
+          <button className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest">
+            <LogOutIcon size={18} />
+            LOG OUT
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-8">
+        <AnimatePresence mode="wait">
+          {activeTab === 'Dashboard' && (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-8"
+            >
+              {/* Dashboard Header */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-slate-800 font-bold text-lg tracking-tight uppercase">WELCOME MASTER ADMINISTRATOR</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verified Ops Terminal — <span className="text-emerald-500">Online</span></p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-400 flex items-center gap-2">
+                    <Clock size={14} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard 
+                  label="Active SKUs" 
+                  value={totalSkus.toLocaleString()} 
+                  icon={Box} 
+                  iconBg="bg-emerald-50" 
+                />
+                <StatCard 
+                  label="Total Assets" 
+                  value={totalStock.toLocaleString()} 
+                  icon={Layers} 
+                  iconBg="bg-blue-50" 
+                />
+                <StatCard 
+                  label="Volume (MTD)" 
+                  value="0" 
+                  trend="5.2%" 
+                  icon={Activity} 
+                  iconBg="bg-indigo-50" 
+                />
+                <StatCard 
+                  label="Low Stock" 
+                  value={lowStockCount.toLocaleString()} 
+                  status={lowStockCount > 0 ? "Action Needed" : "All Good"} 
+                  icon={AlertCircle} 
+                  iconBg="bg-rose-50" 
+                />
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Global Movement Patterns</h3>
+                    <div className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                      H2 Analytics
+                    </div>
+                  </div>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={movementData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="name" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }}
+                          dy={10}
+                        />
+                        <YAxis hide />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3} 
+                          dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Distribution</h3>
+                    <button className="text-slate-400 hover:text-slate-600">
+                      <Settings size={16} />
+                    </button>
+                  </div>
+                  <div className="h-[200px] relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={distributionData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {distributionData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-2xl font-bold text-slate-800">145</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Categories</span>
+                    </div>
+                  </div>
+                  <div className="mt-8 space-y-3">
+                    {distributionData.map((item) => (
+                      <div key={item.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{item.name}</span>
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">{item.value}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Section */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-400">
+                <div className="flex items-center gap-2 mb-8">
+                  <TrendingUp className="text-blue-500" size={18} />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">High Velocity Inventory</h3>
+                </div>
+                <div className="space-y-8">
+                  {highVelocityData.map((item) => (
+                    <div key={item.name}>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{item.value} Units</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(item.value / item.max) * 100}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                          className="h-full bg-blue-500 rounded-full"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Full Inventory' && (
+            <motion.div
+              key="inventory"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="flex flex-col h-full"
+            >
+              {/* Inventory Header */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-slate-800 font-bold text-lg tracking-tight uppercase">ENER PACK INVENTORY</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Central Warehouse Terminal</p>
+                </div>
+                <div className="flex items-center gap-3 flex-1 max-w-2xl">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search SKU..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-400 rounded-xl py-2.5 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleExportXLSX}
+                    className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                  >
+                    <FileSpreadsheet size={14} /> XLSX
+                  </button>
+                  <button 
+                    onClick={handleExportPDF}
+                    className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                  >
+                    <FileText size={14} /> PDF
+                  </button>
+                  <button 
+                    onClick={() => setShowNewSkuForm(!showNewSkuForm)}
+                    className={cn(
+                      "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors whitespace-nowrap",
+                      showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                    )}
+                  >
+                    {showNewSkuForm ? <Minus size={14} /> : <Plus size={14} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
+                  </button>
+                </div>
+              </div>
+
+              {/* New SKU Form (As per snap) */}
+              <AnimatePresence>
+                {showNewSkuForm && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 mb-8">
+                      <div className="flex items-end gap-6">
+                        <div className="flex-1 space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SIZE</label>
+                          <input 
+                            type="text" 
+                            value={newSkuSize}
+                            onChange={(e) => setNewSkuSize(e.target.value)}
+                            placeholder="Enter size..."
+                            className="w-full bg-slate-50 border border-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          />
+                        </div>
+                        <div className="w-48 space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">GSM</label>
+                          <div className="relative">
+                            <select 
+                              value={newSkuGsm}
+                              onChange={(e) => setNewSkuGsm(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none font-bold"
+                            >
+                              <option value="280">280</option>
+                              <option value="250">250</option>
+                              <option value="230">230</option>
+                              <option value="200">200</option>
+                              <option value="150">150</option>
+                              <option value="100">100</option>
+                              <option value="140GYT">140GYT</option>
+                              <option value="130">130</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <ChevronRight className="rotate-90 text-slate-400" size={14} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="w-48 space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">INITIAL STOCK</label>
+                          <input 
+                            type="number" 
+                            value={newSkuStock}
+                            onChange={(e) => setNewSkuStock(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-bold"
+                          />
+                        </div>
+                        <button 
+                          onClick={handleAddSku}
+                          className="bg-blue-600 text-white px-8 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
+                        >
+                          ADD ITEM
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Inventory Grid Table */}
+              <div className="overflow-auto custom-scrollbar flex-1">
+                {inventory.map((section, idx) => {
+                  const filteredSubSections = section.subSections.map(sub => ({
+                    ...sub,
+                    items: sub.items.filter(item => 
+                      item.size.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      item.gsm.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                  })).filter(sub => sub.items.length > 0);
+
+                  if (filteredSubSections.length === 0) return null;
+
+                  return (
+                    <React.Fragment key={idx}>
+                      <InventoryTableSection 
+                        section={{ ...section, subSections: filteredSubSections }} 
+                        onIncrement={handleIncrement}
+                        onDecrement={handleDecrement}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+
+              {/* Edit Modal */}
+              <AnimatePresence>
+                {editingItem && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+                    >
+                      <div className="px-6 py-4 bg-[#1e3a8a] flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-white">Edit Item Details</h3>
+                        <button onClick={() => setEditingItem(null)} className="text-white/80 hover:text-white">
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="p-6 space-y-5">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-700">Size</label>
+                          <input 
+                            type="text" 
+                            value={editingItem.item.size}
+                            onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, size: e.target.value } })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-700">GSM / Section</label>
+                          <select 
+                            value={editingItem.item.gsm}
+                            onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, gsm: e.target.value } })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          >
+                            <option value="280">280</option>
+                            <option value="250">250</option>
+                            <option value="230">230</option>
+                            <option value="200">200</option>
+                            <option value="150">150</option>
+                            <option value="130">130</option>
+                            <option value="100">100</option>
+                            <option value="140GYT">140GYT</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-bold text-rose-600">Minimum Quantity (Low Stock Alert)</label>
+                          <input 
+                            type="number" 
+                            value={editingItem.item.minQuantity}
+                            onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, minQuantity: parseInt(e.target.value) || 0 } })}
+                            className="w-full bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold"
+                          />
+                          <p className="text-[10px] text-slate-400">Stock below this level will be highlighted red and listed in Reorder Page.</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-700">Remarks</label>
+                          <textarea 
+                            rows={3}
+                            value={editingItem.item.remarks}
+                            onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, remarks: e.target.value } })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-4 pt-2">
+                          <button 
+                            onClick={() => setEditingItem(null)}
+                            className="px-6 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleSaveEdit}
+                            className="flex items-center gap-2 bg-[#1e3a8a] text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-blue-900 transition-all shadow-lg shadow-blue-500/20"
+                          >
+                            <Save size={18} />
+                            Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Stock In Modal */}
+              <AnimatePresence>
+                {stockInItem && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden"
+                    >
+                      <div className="px-8 py-5 bg-[#22c55e] flex items-center justify-between">
+                        <h3 className="text-xl font-bold text-white tracking-tight">
+                          STOCK IN - {stockInItem.item.size} ({stockInItem.item.gsm})
+                        </h3>
+                        <button onClick={() => setStockInItem(null)} className="text-white/80 hover:text-white transition-colors">
+                          <X size={24} />
+                        </button>
+                      </div>
+                      
+                      <div className="p-8 space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Date</label>
+                            <input 
+                              type="date" 
+                              value={stockInItem.formData.date}
+                              onChange={(e) => {
+                                const date = new Date(e.target.value);
+                                setStockInItem({
+                                  ...stockInItem,
+                                  formData: {
+                                    ...stockInItem.formData,
+                                    date: e.target.value,
+                                    month: date.toLocaleString('default', { month: 'long' })
+                                  }
+                                });
+                              }}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Month</label>
+                            <input 
+                              type="text" 
+                              value={stockInItem.formData.month}
+                              readOnly
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Company (CAPS)</label>
+                            <input 
+                              type="text" 
+                              placeholder="SREEPATHI"
+                              value={stockInItem.formData.company}
+                              onChange={(e) => setStockInItem({
+                                ...stockInItem,
+                                formData: { ...stockInItem.formData, company: e.target.value.toUpperCase() }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Quantity (In)</label>
+                            <input 
+                              type="number" 
+                              value={stockInItem.formData.quantity}
+                              onChange={(e) => setStockInItem({
+                                ...stockInItem,
+                                formData: { ...stockInItem.formData, quantity: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Invoice No</label>
+                            <input 
+                              type="text" 
+                              value={stockInItem.formData.invoiceNo}
+                              onChange={(e) => setStockInItem({
+                                ...stockInItem,
+                                formData: { ...stockInItem.formData, invoiceNo: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-semibold text-slate-600">Storage Location (CAPS)</label>
+                            <input 
+                              type="text" 
+                              value={stockInItem.formData.storageLocation}
+                              onChange={(e) => setStockInItem({
+                                ...stockInItem,
+                                formData: { ...stockInItem.formData, storageLocation: e.target.value.toUpperCase() }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-600">Remarks</label>
+                          <textarea 
+                            rows={3}
+                            value={stockInItem.formData.remarks}
+                            onChange={(e) => setStockInItem({
+                              ...stockInItem,
+                              formData: { ...stockInItem.formData, remarks: e.target.value }
+                            })}
+                            className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-slate-100">
+                          <button 
+                            onClick={() => setStockInItem(null)}
+                            className="px-8 py-3 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleConfirmStockIn}
+                            className="flex items-center gap-2 bg-[#22c55e] text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                          >
+                            <Save size={18} />
+                            Confirm
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Stock Out Modal */}
+              <AnimatePresence>
+                {stockOutItem && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden"
+                    >
+                      <div className="px-8 py-5 bg-[#dc2626] flex items-center justify-between">
+                        <h3 className="text-xl font-bold text-white tracking-tight">
+                          STOCK OUT - {stockOutItem.item.size} ({stockOutItem.item.gsm})
+                        </h3>
+                        <button onClick={() => setStockOutItem(null)} className="text-white/80 hover:text-white transition-colors">
+                          <X size={24} />
+                        </button>
+                      </div>
+                      
+                      <div className="p-8 space-y-5">
+                        <div className="grid grid-cols-2 gap-5">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Date</label>
+                            <div className="relative">
+                              <input 
+                                type="date" 
+                                value={stockOutItem.formData.date}
+                                onChange={(e) => {
+                                  const date = new Date(e.target.value);
+                                  setStockOutItem({
+                                    ...stockOutItem,
+                                    formData: {
+                                      ...stockOutItem.formData,
+                                      date: e.target.value,
+                                      month: date.toLocaleString('default', { month: 'long' })
+                                    }
+                                  });
+                                }}
+                                className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all pr-12"
+                              />
+                              <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Month</label>
+                            <input 
+                              type="text" 
+                              value={stockOutItem.formData.month}
+                              readOnly
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Company (CAPS)</label>
+                            <input 
+                              type="text" 
+                              placeholder="SREEPATHI"
+                              value={stockOutItem.formData.company}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, company: e.target.value.toUpperCase() }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Quantity (Out)</label>
+                            <input 
+                              type="number" 
+                              value={stockOutItem.formData.quantity}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, quantity: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Item Code (CAPS)</label>
+                            <input 
+                              type="text" 
+                              placeholder="ENTER CODE TO AUTO-FILL"
+                              value={stockOutItem.formData.itemCode}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, itemCode: e.target.value.toUpperCase() }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Work Name</label>
+                            <input 
+                              type="text" 
+                              value={stockOutItem.formData.workName}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, workName: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-5">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Unit</label>
+                            <select 
+                              value={stockOutItem.formData.unit}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, unit: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            >
+                              <option value="GROSS">GROSS</option>
+                              <option value="NET">NET</option>
+                              <option value="Cutting">Cutting</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Cutting Size</label>
+                            <input 
+                              type="text" 
+                              value={stockOutItem.formData.cuttingSize}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, cuttingSize: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+                              <FileSpreadsheet size={14} className="text-blue-500" /> Sheets (Manual)
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="Enter sheets..."
+                              value={stockOutItem.formData.sheets}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, sheets: e.target.value }
+                              })}
+                              className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Status</label>
+                            <select 
+                              value={stockOutItem.formData.status}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, status: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            >
+                              <option value="Cutting">Cutting</option>
+                              <option value="Printing">Printing</option>
+                              <option value="Packing">Packing</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-600">Priority</label>
+                            <select 
+                              value={stockOutItem.formData.priority}
+                              onChange={(e) => setStockOutItem({
+                                ...stockOutItem,
+                                formData: { ...stockOutItem.formData, priority: e.target.value }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                            >
+                              <option value="Low">Low</option>
+                              <option value="Medium">Medium</option>
+                              <option value="High">High</option>
+                              <option value="Urgent">Urgent</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-slate-600">Remarks</label>
+                          <textarea 
+                            rows={2}
+                            value={stockOutItem.formData.remarks}
+                            onChange={(e) => setStockOutItem({
+                              ...stockOutItem,
+                              formData: { ...stockOutItem.formData, remarks: e.target.value }
+                            })}
+                            className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-slate-100">
+                          <button 
+                            onClick={() => setStockOutItem(null)}
+                            className="px-8 py-3 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleConfirmStockOut}
+                            className="flex items-center gap-2 bg-[#dc2626] text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                          >
+                            <Save size={18} />
+                            Confirm
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Delete Confirmation Modal */}
+              <AnimatePresence>
+                {deletingItem && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+                    >
+                      <div className="p-8 text-center space-y-6">
+                        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto">
+                          <Trash2 size={40} className="text-rose-500" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold text-slate-900">Delete SKU?</h3>
+                          <p className="text-slate-500 text-sm leading-relaxed">
+                            Are you sure you want to delete SKU <span className="font-bold text-slate-900">{deletingItem.size}</span>? This action cannot be undone.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2">
+                          <button 
+                            onClick={handleConfirmDelete}
+                            className="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/20"
+                          >
+                            Yes, Delete SKU
+                          </button>
+                          <button 
+                            onClick={() => setDeletingItem(null)}
+                            className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                          >
+                            No, Keep it
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {activeTab === 'Quick Tracker' && (
+            <motion.div
+              key="quick-tracker"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="h-full flex flex-col"
+            >
+              {/* Header */}
+              <div className="bg-[#0f2a43] -m-8 mb-8 p-4 flex items-center gap-4 shadow-lg">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
+                >
+                  <ChevronRight className="rotate-180" size={24} />
+                </button>
+                <div className="flex items-center gap-3">
+                  <Box className="text-blue-400" size={24} />
+                  <h2 className="text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-8 flex-1 min-h-0">
+                {/* Left Column: Search & Selection */}
+                <div className="col-span-4 flex flex-col gap-6 min-h-0">
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-0">
+                    <div className="relative mb-6">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Search Size or GSM..."
+                        value={quickTrackerSearch}
+                        onChange={(e) => setQuickTrackerSearch(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                      {inventory.flatMap(section => 
+                        section.subSections.flatMap(sub => 
+                          sub.items.map(item => ({ sectionTitle: section.title, subTitle: sub.title, item }))
+                        )
+                      ).filter(entry => 
+                        entry.item.size.toLowerCase().includes(quickTrackerSearch.toLowerCase()) ||
+                        entry.item.gsm.toLowerCase().includes(quickTrackerSearch.toLowerCase())
+                      ).map((entry, idx) => (
+                        <button
+                          key={`${entry.item.size}-${entry.item.gsm}-${idx}`}
+                          onClick={() => setSelectedQuickTrackerItem(entry)}
+                          className={cn(
+                            "w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
+                            selectedQuickTrackerItem?.item.size === entry.item.size && selectedQuickTrackerItem?.item.gsm === entry.item.gsm
+                              ? "bg-blue-50 border-blue-500 shadow-sm"
+                              : "bg-white border-slate-100 hover:border-slate-300"
+                          )}
+                        >
+                          <div>
+                            <p className="font-bold text-slate-900">{entry.item.size}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.item.gsm} GSM</p>
+                          </div>
+                          <ChevronRight size={16} className={selectedQuickTrackerItem?.item.size === entry.item.size ? "text-blue-500" : "text-slate-300"} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Stock Available Card */}
+                  {currentSelectedEntry && (
+                    <div className="bg-[#0f2a43] p-8 rounded-3xl shadow-xl relative overflow-hidden">
+                      <div className="relative z-10">
+                        <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest mb-2">STOCK AVAILABLE</p>
+                        <div className="flex items-baseline gap-2">
+                          <h3 className="text-5xl font-bold text-white">{currentSelectedEntry.item.stock}</h3>
+                          <span className="text-xs font-bold text-blue-300 uppercase">UNITS</span>
+                        </div>
+                        
+                        <div className="mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 w-32">
+                          <p className="text-[8px] font-bold text-blue-300 uppercase tracking-widest mb-1">STATUS</p>
+                          <p className={cn(
+                            "text-xs font-bold uppercase",
+                            currentSelectedEntry.item.isLow ? "text-rose-400" : "text-emerald-400"
+                          )}>
+                            {currentSelectedEntry.item.isLow ? "LOW STOCK" : "OK"}
+                          </p>
+                        </div>
+                      </div>
+                      <Activity className="absolute right-8 top-8 text-white/5" size={80} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Actions & History */}
+                <div className="col-span-8 flex flex-col gap-6 overflow-hidden">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Action Card */}
+                    <div className="md:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                      <div className="flex p-1 bg-slate-100 rounded-2xl">
+                        <button 
+                          onClick={() => setQuickTrackerMode('OUT')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all",
+                            quickTrackerMode === 'OUT' ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20" : "text-slate-400 hover:text-slate-600"
+                          )}
+                        >
+                          <Minus size={14} /> OUT
+                        </button>
+                        <button 
+                          onClick={() => setQuickTrackerMode('IN')}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all",
+                            quickTrackerMode === 'IN' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "text-slate-400 hover:text-slate-600"
+                          )}
+                        >
+                          <Plus size={14} /> IN
+                        </button>
+                      </div>
+
+                      <div className="relative">
+                        <input 
+                          type="number" 
+                          placeholder="Qty..."
+                          value={quickTrackerQty}
+                          onChange={(e) => setQuickTrackerQty(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-3xl px-8 py-6 text-4xl font-bold text-center text-slate-800 placeholder:text-slate-200 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                        />
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          if (!currentSelectedEntry || !quickTrackerQty) return;
+                          const qty = parseInt(quickTrackerQty) || 0;
+                          const delta = quickTrackerMode === 'IN' ? qty : -qty;
+                          updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
+                          
+                          const newEntry = {
+                            id: Date.now(),
+                            size: currentSelectedEntry.item.size,
+                            gsm: currentSelectedEntry.item.gsm,
+                            type: quickTrackerMode,
+                            qty: qty,
+                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          };
+                          setQuickTrackerHistory([newEntry, ...quickTrackerHistory]);
+                          setQuickTrackerQty('');
+                        }}
+                        disabled={!currentSelectedEntry || !quickTrackerQty}
+                        className={cn(
+                          "w-full py-5 rounded-3xl font-bold text-sm uppercase tracking-widest transition-all shadow-lg",
+                          !currentSelectedEntry || !quickTrackerQty
+                            ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                            : quickTrackerMode === 'OUT' 
+                              ? "bg-rose-100 text-rose-500 hover:bg-rose-200 shadow-rose-500/10" 
+                              : "bg-emerald-100 text-emerald-500 hover:bg-emerald-200 shadow-emerald-500/10"
+                        )}
+                      >
+                        CONFIRM
+                      </button>
+                    </div>
+
+                    {/* Stats Card */}
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center space-y-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ENDS IN</p>
+                      <h4 className="text-3xl font-bold text-slate-800">N/A Days</h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2 border-t border-slate-100 w-full">RATE: /D</p>
+                    </div>
+                  </div>
+
+                  {/* History Card */}
+                  <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+                      <Clock className="text-slate-400" size={18} />
+                      <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">HISTORY</h3>
+                    </div>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                      {quickTrackerHistory.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-slate-300 font-bold text-xs uppercase tracking-widest">
+                          NO RECORDS
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {quickTrackerHistory.map(entry => (
+                            <div key={entry.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                              <div className="flex items-center gap-4">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-xl flex items-center justify-center",
+                                  entry.type === 'IN' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                                )}>
+                                  {entry.type === 'IN' ? <Plus size={18} /> : <Minus size={18} />}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-slate-900">{entry.size} <span className="text-slate-400 text-xs">({entry.gsm} GSM)</span></p>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.time}</p>
+                                </div>
+                              </div>
+                              <div className={cn(
+                                "text-lg font-bold",
+                                entry.type === 'IN' ? "text-emerald-500" : "text-rose-500"
+                              )}>
+                                {entry.type === 'IN' ? '+' : '-'}{entry.qty}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Stock In Logs' && (
+            <motion.div
+              key="stock-in"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              {/* Stock In Header */}
+              <div className="flex items-center gap-6 mb-8">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                >
+                  <ChevronRight className="rotate-180" size={16} />
+                  BACK
+                </button>
+                <div className="h-8 w-px bg-emerald-500"></div>
+                <h2 className="text-xl font-bold text-emerald-700 tracking-tight uppercase">STOCK IN LOGS</h2>
+                
+                <div className="ml-auto flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Search logs..."
+                      value={searchLogQuery}
+                      onChange={(e) => setSearchLogQuery(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    />
+                  </div>
+                  <button className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">
+                    <FileText size={16} /> PDF
+                  </button>
+                  <button className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                    <FileSpreadsheet size={16} /> EXCEL
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="bg-[#1e40af] text-white">
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DATE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">MONTH</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">IN</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">COMPANY</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">INVOICE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STORAGE LOC</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">REMARKS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</td>
+                        </tr>
+                      ) : (
+                        filteredLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '18mm' }}>
+                            <td className="px-4 py-4 text-xs font-bold text-slate-500 border-r border-slate-100">{log.date}</td>
+                            <td className="px-4 py-4 text-xs font-bold text-slate-900 border-r border-slate-100">{log.month}</td>
+                            <td className="px-4 py-4 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
+                            <td className="px-4 py-4 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
+                            <td className="px-4 py-4 text-sm font-black text-emerald-600 border-r border-slate-100">{log.quantity}</td>
+                            <td className="px-4 py-4 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{log.company}</td>
+                            <td className="px-4 py-4 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{log.invoice}</td>
+                            <td className="px-4 py-4 text-xs text-slate-500 border-r border-slate-100">{log.storageLoc}</td>
+                            <td className="px-4 py-4 text-xs text-slate-500 border-r border-slate-100">{log.remarks}</td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => setEditingLog(log)}
+                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    if (window.confirm('Delete this log?')) {
+                                      setStockInLogs(prev => prev.filter(l => l.id !== log.id));
+                                    }
+                                  }}
+                                  className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Edit Log Modal */}
+              <AnimatePresence>
+                {editingLog && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden"
+                    >
+                      <div className="p-8 space-y-8">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                              <Edit2 size={20} />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Edit Stock In Log</h3>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modify existing entry details</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setEditingLog(null)}
+                            className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
+                            <input 
+                              type="date" 
+                              value={editingLog.date}
+                              onChange={(e) => setEditingLog({ ...editingLog, date: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</label>
+                            <input 
+                              type="number" 
+                              value={editingLog.quantity}
+                              onChange={(e) => setEditingLog({ ...editingLog, quantity: parseInt(e.target.value) || 0 })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Company</label>
+                            <input 
+                              type="text" 
+                              value={editingLog.company}
+                              onChange={(e) => setEditingLog({ ...editingLog, company: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Invoice</label>
+                            <input 
+                              type="text" 
+                              value={editingLog.invoice}
+                              onChange={(e) => setEditingLog({ ...editingLog, invoice: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Storage Location</label>
+                            <input 
+                              type="text" 
+                              value={editingLog.storageLoc}
+                              onChange={(e) => setEditingLog({ ...editingLog, storageLoc: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Remarks</label>
+                            <input 
+                              type="text" 
+                              value={editingLog.remarks}
+                              onChange={(e) => setEditingLog({ ...editingLog, remarks: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-4 pt-6 border-t border-slate-100">
+                          <button 
+                            onClick={() => setEditingLog(null)}
+                            className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setStockInLogs(prev => prev.map(l => l.id === editingLog.id ? editingLog : l));
+                              setEditingLog(null);
+                            }}
+                            className="flex items-center gap-2 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                          >
+                            <Save size={18} />
+                            Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {activeTab === 'Stock Out Logs' && (
+            <motion.div
+              key="stock-out-logs"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-6 mb-8">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                >
+                  <ChevronRight className="rotate-180" size={16} />
+                  BACK
+                </button>
+                <div className="h-8 w-px bg-slate-200"></div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-rose-800 tracking-tight uppercase">STOCK OUT LOGS (DELIVERED)</h2>
+                </div>
+                
+                <div className="ml-auto flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Search logs..."
+                      value={searchStockOutLogQuery}
+                      onChange={(e) => setSearchStockOutLogQuery(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                    />
+                  </div>
+                  <button className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">
+                    <FileText size={16} /> PDF
+                  </button>
+                  <button className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                    <Download size={16} /> EXCEL
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="bg-[#8b1a1a] text-white">
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 first:rounded-tl-[40px]">DATE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">OUT</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">UNIT</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">ITEM CODE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10" style={{ width: '50mm', minWidth: '50mm' }}>WORK NAME</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">CUT SIZE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SHEETS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STATUS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DELIVERY DATE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">VEHICLE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">LOCATION</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest last:rounded-tr-[40px]">REMARKS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stockOutLogs.filter(log => 
+                        log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                        log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                        log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
+                      ).length === 0 ? (
+                        <tr>
+                          <td colSpan={14} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</td>
+                        </tr>
+                      ) : (
+                        stockOutLogs.filter(log => 
+                          log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                          log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                          log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
+                        ).map((log) => (
+                          <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '18mm' }}>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{log.date}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-rose-600 border-r border-slate-100">{log.out}</td>
+                            <td className="px-4 py-6 text-[10px] font-bold text-slate-500 border-r border-slate-100">{log.unit}</td>
+                            <td className="px-4 py-6 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100">{log.itemCode}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100 text-left" style={{ width: '50mm', minWidth: '50mm' }}>{log.workName}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-blue-600 border-r border-slate-100">{log.cutSize}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-blue-600 border-r border-slate-100">{log.sheets}</td>
+                            <td className="px-4 py-6 border-r border-slate-100">
+                              <span className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-600">
+                                {log.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-6 text-xs font-bold text-emerald-600 border-r border-slate-100">{log.deliveryDate || log.date}</td>
+                            <td className="px-4 py-6 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.vehicle}</td>
+                            <td className="px-4 py-6 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.location}</td>
+                            <td className="px-4 py-6 text-xs text-slate-500">{log.remarks}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Pending Works' && (
+            <motion.div
+              key="pending-works"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-6 mb-8">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                >
+                  <ChevronRight className="rotate-180" size={16} />
+                  BACK
+                </button>
+                <div className="h-8 w-px bg-slate-200"></div>
+                <div className="flex items-center gap-3">
+                  <Clock className="text-orange-500" size={24} />
+                  <h2 className="text-xl font-bold text-[#0f2a43] tracking-tight uppercase">PENDING WORKS</h2>
+                </div>
+                
+                <div className="ml-auto flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Search operational queue..."
+                      value={searchPendingQuery}
+                      onChange={(e) => setSearchPendingQuery(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    />
+                  </div>
+                  <button className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                    <Download size={16} /> EXPORT
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="bg-[#f26522] text-white">
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DATE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">QTY</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">COMPANY</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">ITEM CODE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10" style={{ width: '50mm', minWidth: '50mm' }}>WORK NAME</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">CUT SIZE</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SHEETS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">PRIORITY</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STATUS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">REMARKS</th>
+                        <th className="px-4 py-5 text-[11px] font-bold uppercase tracking-widest">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredPendingWorks.length === 0 ? (
+                        <tr>
+                          <td colSpan={13} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No pending works found</td>
+                        </tr>
+                      ) : (
+                        filteredPendingWorks.map((work) => (
+                          <tr key={work.id} className="hover:bg-slate-50 transition-colors" style={{ height: '18mm' }}>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{work.date}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{work.size}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100">{work.gsm}</td>
+                            <td className="px-4 py-6 text-xs font-bold border-r border-slate-100">
+                              <span className="text-rose-500">{work.qty}</span>
+                              <span className="text-[8px] text-slate-400 ml-1 uppercase">{work.unit}</span>
+                            </td>
+                            <td className="px-4 py-6 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{work.company}</td>
+                            <td className="px-4 py-6 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100">{work.itemCode}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-slate-900 border-r border-slate-100 text-left" style={{ width: '50mm', minWidth: '50mm' }}>{work.workName}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-blue-600 border-r border-slate-100">{work.cutSize}</td>
+                            <td className="px-4 py-6 text-xs font-bold text-blue-600 border-r border-slate-100">{work.sheets}</td>
+                            <td className="px-4 py-6 border-r border-slate-100">
+                              <select 
+                                value={work.priority}
+                                onChange={(e) => {
+                                  setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
+                                }}
+                                className={cn(
+                                  "text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg focus:outline-none border-none cursor-pointer",
+                                  work.priority === 'HIGH' ? "bg-rose-100 text-rose-600" : 
+                                  work.priority === 'MEDIUM' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-600"
+                                )}
+                              >
+                                <option value="LOW">Low</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HIGH">High</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-6 border-r border-slate-100">
+                              <select 
+                                value={work.status}
+                                onChange={(e) => {
+                                  const newStatus = e.target.value;
+                                  if (newStatus === 'DELIVERED') {
+                                    setDeliveringWork(work);
+                                  } else {
+                                    setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
+                                  }
+                                }}
+                                className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none cursor-pointer"
+                              >
+                                <option value="CUTTING">Cutting</option>
+                                <option value="CUTTING FINISHED">Cutting Finished</option>
+                                <option value="OUT OF STOCK">Out of Stock</option>
+                                <option value="ORDER PLACED">Order Placed</option>
+                                <option value="WAITING FOR REEL">Waiting for Reel</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="DELIVERED">Delivered</option>
+                                <option value="CANCELLED">Cancelled</option>
+                                <option value="OTHER">Other</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-6 text-xs text-slate-500 border-r border-slate-100">{work.remarks}</td>
+                            <td className="px-4 py-6">
+                              <button 
+                                onClick={() => setEditingPendingWork({ ...work })}
+                                className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mark Delivered Modal */}
+              <AnimatePresence>
+                {deliveringWork && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-[40px] shadow-2xl w-full max-w-sm overflow-hidden"
+                    >
+                      <div className="bg-emerald-600 p-6 flex items-center gap-3 text-white">
+                        <Truck size={24} />
+                        <h3 className="text-lg font-bold uppercase tracking-widest">MARK DELIVERED</h3>
+                      </div>
+                      <div className="p-8 space-y-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Delivery Date</label>
+                          <div className="relative">
+                            <input 
+                              type="date" 
+                              value={deliveryFormData.deliveryDate}
+                              onChange={(e) => setDeliveryFormData({ ...deliveryFormData, deliveryDate: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all pr-14"
+                            />
+                            <Calendar className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={20} />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vehicle Number</label>
+                          <input 
+                            type="text" 
+                            value={deliveryFormData.vehicleNumber}
+                            onChange={(e) => setDeliveryFormData({ ...deliveryFormData, vehicleNumber: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Delivery Location</label>
+                          <input 
+                            type="text" 
+                            placeholder="E.G. AKP"
+                            value={deliveryFormData.deliveryLocation}
+                            onChange={(e) => setDeliveryFormData({ ...deliveryFormData, deliveryLocation: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+
+                        <div className="space-y-4 pt-4">
+                          <button 
+                            onClick={() => {
+                              const newLog = {
+                                id: Date.now(),
+                                date: deliveringWork.date, // Keep original stock out date
+                                deliveryDate: deliveryFormData.deliveryDate, // Add specific delivery date
+                                size: deliveringWork.size,
+                                gsm: deliveringWork.gsm,
+                                out: deliveringWork.qty,
+                                unit: deliveringWork.unit,
+                                itemCode: deliveringWork.itemCode,
+                                workName: deliveringWork.workName,
+                                cutSize: deliveringWork.cutSize,
+                                sheets: deliveringWork.sheets,
+                                status: 'DELIVERED',
+                                vehicle: deliveryFormData.vehicleNumber,
+                                location: deliveryFormData.deliveryLocation,
+                                remarks: deliveringWork.remarks
+                              };
+                              setStockOutLogs(prev => [newLog, ...prev]);
+                              setPendingWorks(prev => prev.filter(w => w.id !== deliveringWork.id));
+                              setDeliveringWork(null);
+                              setDeliveryFormData({ 
+                                vehicleNumber: 'KL65S7466', 
+                                deliveryLocation: '',
+                                deliveryDate: new Date().toISOString().split('T')[0]
+                              });
+                            }}
+                            className="w-full bg-emerald-600 text-white py-5 rounded-3xl font-bold text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                          >
+                            CONFIRM RELEASE
+                          </button>
+                          <button 
+                            onClick={() => setDeliveringWork(null)}
+                            className="w-full text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Edit Pending Work Modal */}
+              <AnimatePresence>
+                {editingPendingWork && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-[40px] shadow-2xl w-full max-w-3xl overflow-hidden"
+                    >
+                      <div className="bg-[#0f2a43] p-6 flex items-center justify-between text-white">
+                        <div className="flex items-center gap-3">
+                          <Edit2 size={20} />
+                          <h3 className="text-lg font-bold uppercase tracking-widest">EDIT PENDING WORK</h3>
+                        </div>
+                        <button 
+                          onClick={() => setEditingPendingWork(null)}
+                          className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="p-8 space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.date}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, date: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Company</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.company}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, company: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Size</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.size}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, size: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">GSM</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.gsm}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, gsm: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Code</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.itemCode}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, itemCode: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</label>
+                            <input 
+                              type="number" 
+                              value={editingPendingWork.qty}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, qty: parseInt(e.target.value) || 0 })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit</label>
+                            <select 
+                              value={editingPendingWork.unit}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, unit: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
+                              <option value="CUTTING">Cutting</option>
+                              <option value="PRINTING">Printing</option>
+                              <option value="PACKING">Packing</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sheets (Override)</label>
+                            <input 
+                              type="number" 
+                              value={editingPendingWork.sheets}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, sheets: parseInt(e.target.value) || 0 })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Name</label>
+                          <input 
+                            type="text" 
+                            value={editingPendingWork.workName}
+                            onChange={(e) => setEditingPendingWork({ ...editingPendingWork, workName: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cut Size</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.cutSize}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, cutSize: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Remarks</label>
+                            <input 
+                              type="text" 
+                              value={editingPendingWork.remarks}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, remarks: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+                          <button 
+                            onClick={() => {
+                              setPendingWorks(prev => prev.map(w => w.id === editingPendingWork.id ? editingPendingWork : w));
+                              setEditingPendingWork(null);
+                            }}
+                            className="bg-[#0f2a43] text-white px-12 py-4 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-blue-900/20"
+                          >
+                            Update Record
+                          </button>
+                          <button 
+                            onClick={() => setEditingPendingWork(null)}
+                            className="text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {activeTab === 'Reorder Alerts' && (
+            <motion.div
+              key="alerts"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {/* Alerts Header */}
+              <div className="flex items-center gap-4 mb-2">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="flex items-center gap-1 text-slate-600 hover:text-slate-900 transition-colors font-bold text-sm"
+                >
+                  <ChevronRight className="rotate-180" size={20} />
+                  Back
+                </button>
+                <div className="flex items-center gap-2 ml-4">
+                  <AlertTriangle className="text-[#d32f2f]" size={24} />
+                  <h2 className="text-xl font-black text-[#d32f2f] tracking-tight uppercase">REORDER ALERTS</h2>
+                </div>
+                
+                <div className="ml-auto flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search alerts..."
+                      value={searchAlertsQuery}
+                      onChange={(e) => setSearchAlertsQuery(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-full pl-10 pr-4 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+                    />
+                  </div>
+                  <button className="flex items-center gap-2 bg-[#2e7d32] text-white px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1b5e20] transition-all shadow-md">
+                    <Download size={16} /> Export
+                  </button>
+                  <div className="bg-[#fff5f5] text-[#d32f2f] px-4 py-2 rounded-lg text-xs font-bold border border-red-100 shadow-sm">
+                    Items: {inventory.flatMap(s => s.subSections.flatMap(ss => ss.items.filter(i => i.isLow))).length}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-center border-collapse">
+                    <thead>
+                      <tr className="bg-[#d32f2f] text-white">
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">SIZE</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">GSM</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">MIN</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">CURR</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">SHORT</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '180px' }}>COMPANY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '100px' }}>ORD QTY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '150px' }}>ORD DATE</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '150px' }}>EXP DELIVERY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '130px' }}>STATUS</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '180px' }}>REMARKS</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider">LOG</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {inventory.flatMap(section => 
+                        section.subSections.flatMap(sub => 
+                          sub.items.filter(item => 
+                            item.isLow && (
+                              item.size.toLowerCase().includes(searchAlertsQuery.toLowerCase()) ||
+                              item.gsm.toLowerCase().includes(searchAlertsQuery.toLowerCase())
+                            )
+                          ).map(item => ({
+                            sectionTitle: section.title,
+                            subTitle: sub.title,
+                            item,
+                            key: `${item.size}-${item.gsm}`
+                          }))
+                        )
+                      ).length === 0 ? (
+                        <tr>
+                          <td colSpan={12} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No reorder alerts found</td>
+                        </tr>
+                      ) : (
+                        inventory.flatMap(section => 
+                          section.subSections.flatMap(sub => 
+                            sub.items.filter(item => 
+                              item.isLow && (
+                                item.size.toLowerCase().includes(searchAlertsQuery.toLowerCase()) ||
+                                item.gsm.toLowerCase().includes(searchAlertsQuery.toLowerCase())
+                              )
+                            ).map(item => ({
+                              sectionTitle: section.title,
+                              subTitle: sub.title,
+                              item,
+                              key: `${item.size}-${item.gsm}`
+                            }))
+                          )
+                        ).map((entry, idx) => {
+                          const tracking = reorderTracking[entry.key] || {
+                            company: '',
+                            ordQty: '0',
+                            ordDate: '',
+                            expDelivery: '',
+                            status: 'Pending',
+                            remarks: ''
+                          };
+                          
+                          const updateField = (field: string, value: any) => {
+                            setReorderTracking(prev => ({
+                              ...prev,
+                              [entry.key]: {
+                                ...tracking,
+                                [field]: value
+                              }
+                            }));
+                          };
+
+                          return (
+                            <tr key={entry.key} className={cn("transition-colors", idx % 2 === 1 ? "bg-[#fffde7]" : "bg-white")}>
+                              <td className="px-2 py-2 text-xs font-black text-slate-900 border-r border-slate-200">{entry.item.size}</td>
+                              <td className="px-2 py-2 text-xs font-bold text-slate-800 border-r border-slate-200">{entry.item.gsm}</td>
+                              <td className="px-2 py-2 text-xs font-bold text-slate-500 border-r border-slate-200">{entry.item.minQuantity || 500}</td>
+                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200">{entry.item.stock}</td>
+                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200">{(entry.item.minQuantity || 500) - entry.item.stock}</td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <input 
+                                  type="text"
+                                  value={tracking.company}
+                                  onChange={(e) => updateField('company', e.target.value)}
+                                  placeholder="Supplier..."
+                                  className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500"
+                                />
+                              </td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <input 
+                                  type="text"
+                                  value={tracking.ordQty}
+                                  onChange={(e) => updateField('ordQty', e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] text-center focus:outline-none focus:border-red-500"
+                                />
+                              </td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <div className="relative">
+                                  <input 
+                                    type="date"
+                                    value={tracking.ordDate}
+                                    onChange={(e) => updateField('ordDate', e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500 appearance-none"
+                                  />
+                                  <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <div className="relative">
+                                  <input 
+                                    type="date"
+                                    value={tracking.expDelivery}
+                                    onChange={(e) => updateField('expDelivery', e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500 appearance-none"
+                                  />
+                                  <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <select 
+                                  value={tracking.status}
+                                  onChange={(e) => updateField('status', e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] font-bold focus:outline-none focus:border-red-500"
+                                >
+                                  <option>Pending</option>
+                                  <option>Ordered</option>
+                                  <option>Shipped</option>
+                                  <option>Delivered</option>
+                                </select>
+                              </td>
+                              <td className="px-2 py-2 border-r border-slate-200">
+                                <input 
+                                  type="text"
+                                  value={tracking.remarks}
+                                  onChange={(e) => updateField('remarks', e.target.value)}
+                                  placeholder="Notes..."
+                                  className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500"
+                                />
+                              </td>
+                              <td className="px-2 py-2">
+                                <button 
+                                  onClick={() => handleSaveReorder(entry.key, entry.item)}
+                                  className="p-1.5 bg-[#7b1fa2] text-white rounded hover:bg-[#6a1b9a] transition-colors shadow-sm"
+                                >
+                                  <Save size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Calculator' && (
+            <motion.div
+              key="calculator"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-6xl mx-auto"
+            >
+              {/* Calculator Header */}
+              <div className="flex items-center justify-between mb-8 bg-[#0a3d62] p-4 rounded-xl text-white shadow-lg">
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="rotate-180" size={24} />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <Calculator size={20} />
+                    <h2 className="text-lg font-black tracking-tight uppercase">CALCULATOR</h2>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setCalcInputs({ gsm: '0', width: '0', length: '0', quantity: '0' })}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold uppercase transition-all"
+                >
+                  <RotateCcw size={14} /> RESET
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                {/* Inputs Card */}
+                <div className="bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden">
+                  <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                        <Maximize2 size={20} />
+                      </div>
+                      <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">INPUTS</h3>
+                    </div>
+                    <Info size={16} className="text-slate-300" />
+                  </div>
+                  
+                  <div className="p-8 space-y-8">
+                    {/* GSM Input */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GSM</label>
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                          <Layers size={20} />
+                        </div>
+                        <input 
+                          type="number"
+                          value={calcInputs.gsm}
+                          onChange={(e) => setCalcInputs(prev => ({ ...prev, gsm: e.target.value }))}
+                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-16 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase">GSM</span>
+                      </div>
+                    </div>
+
+                    {/* Width & Length Grid */}
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WIDTH</label>
+                        <div className="relative group">
+                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                            <Maximize size={20} />
+                          </div>
+                          <input 
+                            type="number"
+                            value={calcInputs.width}
+                            onChange={(e) => setCalcInputs(prev => ({ ...prev, width: e.target.value }))}
+                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-12 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-black uppercase">CM</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LENGTH</label>
+                        <div className="relative group">
+                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                            <Maximize size={20} className="rotate-90" />
+                          </div>
+                          <input 
+                            type="number"
+                            value={calcInputs.length}
+                            onChange={(e) => setCalcInputs(prev => ({ ...prev, length: e.target.value }))}
+                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-12 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-black uppercase">CM</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quantity Input */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">QUANTITY</label>
+                      <div className="relative group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                          <Hash size={20} />
+                        </div>
+                        <input 
+                          type="number"
+                          value={calcInputs.quantity}
+                          onChange={(e) => setCalcInputs(prev => ({ ...prev, quantity: e.target.value }))}
+                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-16 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase">PCS</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Output Card */}
+                <div className="bg-[#0a3d62] rounded-[32px] shadow-2xl overflow-hidden flex flex-col h-full">
+                  <div className="p-12 flex-1 flex flex-col items-center justify-center text-center space-y-12">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em]">FINAL WEIGHT</p>
+                      <div className="flex items-baseline justify-center gap-2">
+                        <h1 className="text-8xl font-black text-white tracking-tighter">
+                          {Math.round((parseFloat(calcInputs.gsm) * (parseFloat(calcInputs.width)/100) * (parseFloat(calcInputs.length)/100) * parseFloat(calcInputs.quantity)) / 1000)}
+                        </h1>
+                        <span className="text-4xl font-black text-blue-400 uppercase">KG</span>
+                      </div>
+                    </div>
+
+                    <div className="w-full max-w-md space-y-6">
+                      <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: '75%' }}
+                          className="h-full bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-left">
+                          <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest mb-1">SHEETS</p>
+                          <p className="text-xl font-black text-white">{calcInputs.quantity}</p>
+                        </div>
+                        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-left">
+                          <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest mb-1">AREA</p>
+                          <p className="text-xl font-black text-white">
+                            {((parseFloat(calcInputs.width)/100) * (parseFloat(calcInputs.length)/100)).toFixed(2)} m²
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-600 p-6 flex justify-between items-center px-12">
+                    <p className="text-[10px] font-black text-white uppercase tracking-widest">VERIFIED OPERATIONS</p>
+                    <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">V1.24.0</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Job Card Generator' && (
+            <motion.div
+              key="job-card-generator"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-[calc(100vh-120px)] flex gap-6"
+            >
+              {/* Left Panel: Creator */}
+              <div className="w-80 flex flex-col gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col gap-6 h-full">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setActiveTab('Dashboard')}
+                        className="p-1 hover:bg-slate-100 rounded transition-colors"
+                      >
+                        <ChevronRight className="rotate-180" size={16} />
+                      </button>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">CREATOR</h3>
+                    </div>
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button 
+                        onClick={() => setCardPrefix('EP')}
+                        className={cn(
+                          "px-3 py-1 text-[10px] font-black rounded-md transition-all",
+                          cardPrefix === 'EP' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        EP
+                      </button>
+                      <button 
+                        onClick={() => setCardPrefix('FP')}
+                        className={cn(
+                          "px-3 py-1 text-[10px] font-black rounded-md transition-all",
+                          cardPrefix === 'FP' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        FP
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ORDER DETAILS</label>
+                    <textarea 
+                      placeholder="Paste WhatsApp order..."
+                      value={whatsappOrder}
+                      onChange={(e) => setWhatsappOrder(e.target.value)}
+                      className="flex-1 w-full bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <button 
+                      onClick={handleAiGenerate}
+                      disabled={isGenerating}
+                      className="w-full flex items-center justify-center gap-2 bg-[#b0bec5] text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#90a4ae] transition-all shadow-md disabled:opacity-50"
+                    >
+                      {isGenerating ? <Activity className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                      AI GENERATE
+                    </button>
+                    
+                    <div className="relative flex items-center justify-center py-2">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+                      <span className="relative px-2 bg-white text-[8px] font-black text-slate-300 uppercase">OR</span>
+                    </div>
+
+                    <button 
+                      onClick={handleManualBlankCard}
+                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-100 text-slate-800 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all"
+                    >
+                      <FilePlus size={16} className="text-emerald-500" />
+                      MANUAL BLANK CARD
+                    </button>
+                  </div>
+
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3">
+                    <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-[9px] font-bold text-blue-700 leading-relaxed">
+                      Blank cards automatically use sequential serial numbers based on current Financial Year.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel: Preview */}
+              <div className="flex-1 flex flex-col gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                        <FileText size={20} />
+                      </div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">PREVIEW</h3>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setJobCards([])}
+                        className="flex items-center gap-2 bg-rose-50 text-rose-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all"
+                      >
+                        <Trash size={14} /> CLEAR ALL
+                      </button>
+                      <button className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+                        <Eye size={14} /> PREVIEW
+                      </button>
+                      <button 
+                        onClick={() => window.print()}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md"
+                      >
+                        <Save size={14} /> SAVE
+                      </button>
+                    </div>
+                  </div>
+
+                  <div 
+                    id="job-cards-print-area"
+                    className="flex-1 bg-slate-50 rounded-2xl border border-slate-100 overflow-y-auto p-8 flex flex-wrap gap-8 justify-center print:bg-white print:p-0 print:overflow-visible print:grid print:grid-cols-2 print:gap-4 print:w-full"
+                  >
+                    {jobCards.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-4">
+                        <FileText size={64} strokeWidth={1} />
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em]">NO CARDS GENERATED</p>
+                      </div>
+                    ) : (
+                      jobCards.map((card, idx) => (
+                        <div key={card.id} className="relative group print:break-inside-avoid">
+                          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 print:hidden">
+                            <button 
+                              onClick={() => setJobCards(prev => prev.filter(c => c.id !== card.id))}
+                              className="p-1.5 bg-rose-500 text-white rounded-full shadow-lg hover:bg-rose-600 transition-colors"
+                            >
+                              <Trash size={12} />
+                            </button>
+                          </div>
+                          <div 
+                            className="w-[380px] bg-white border-2 border-black p-0 flex flex-col gap-0 shadow-xl print:shadow-none print:m-0 print:border-2"
+                            style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12pt', lineHeight: '1.2' }}
+                          >
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">JOB CARD NO:</div>
+                              <div className="p-1 font-black">{card.jobCardNo}</div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-0 font-black uppercase border-r-2 border-black flex items-center pl-1">DATE:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="date" 
+                                  value={card.date} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].date = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">ITEM CODE:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.itemCode} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].itemCode = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">WORK NAME:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.workName} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].workName = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent font-black h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">SIZE:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.size} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].size = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">GSM:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.gsm} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].gsm = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">TOTAL GROSS:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.totalGross} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].totalGross = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">DELIVERY LOC:</div>
+                              <div className="p-0">
+                                <select 
+                                  value={card.deliveryLoc} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].deliveryLoc = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full appearance-none"
+                                  style={{ fontSize: '12pt' }}
+                                >
+                                  <option value="">Select Location</option>
+                                  <option value="AKP">AKP</option>
+                                  <option value="KKP">KKP</option>
+                                  <option value="FP">FP</option>
+                                  <option value="EP">EP</option>
+                                  <option value="OTHER">OTHER</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">LOADING DATE:</div>
+                              <div className="p-0">
+                                <input 
+                                  type="text" 
+                                  value={card.loadingDate} 
+                                  onChange={(e) => {
+                                    const newCards = [...jobCards];
+                                    newCards[idx].loadingDate = e.target.value;
+                                    setJobCards(newCards);
+                                  }}
+                                  className="w-full border-none focus:ring-0 p-1 bg-transparent h-full"
+                                  style={{ fontSize: '12pt' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 border-b-2 border-black">
+                              <div className="p-1 font-black uppercase border-r-2 border-black">SUPERVISOR</div>
+                              <div className="p-1 font-black uppercase">ACCOUNTANT</div>
+                            </div>
+                            <div className="grid grid-cols-2 h-20">
+                              <div className="border-r-2 border-black"></div>
+                              <div></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #job-cards-print-area, #job-cards-print-area * {
+            visibility: visible;
+          }
+          #job-cards-print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10mm !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            background: white !important;
+          }
+          .print-break-inside-avoid {
+            break-inside: avoid;
+          }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #1e293b;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #334155;
+        }
+      `}} />
+    </div>
+  );
+}
