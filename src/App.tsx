@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { LoginPage } from './components/LoginPage';
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
   LayoutDashboard, 
@@ -22,8 +23,6 @@ import {
   ChevronRight,
   Box,
   Layers,
-  Activity,
-  AlertCircle,
   Plus,
   Minus,
   Edit2,
@@ -31,6 +30,7 @@ import {
   FileSpreadsheet,
   Download,
   X,
+  Menu,
   Save,
   Truck,
   Calendar,
@@ -45,7 +45,19 @@ import {
   Eye,
   Printer,
   Trash,
-  FileUp
+  FileUp,
+  ArrowUp,
+  ArrowDown,
+  BarChart2,
+  Shield,
+  Users,
+  AlertCircle,
+  Database,
+  Activity,
+  RefreshCw,
+  ArrowLeft,
+  Move,
+  Check
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -65,6 +77,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -324,7 +337,8 @@ const InventoryRow = ({
   onIncrement, 
   onDecrement, 
   onEdit, 
-  onDelete 
+  onDelete,
+  isAdmin
 }: { 
   item: any, 
   sectionTitle: string, 
@@ -332,7 +346,8 @@ const InventoryRow = ({
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string) => void
+  onDelete: (st: string, sbt: string, sz: string) => void,
+  isAdmin: boolean
 }) => (
   <>
     <td className={cn(
@@ -355,32 +370,38 @@ const InventoryRow = ({
       "px-4 py-2 border-r border-slate-400 w-28",
       item.isLow && "bg-rose-50/50"
     )}>
-      <div className="flex items-center justify-center gap-1">
-        <button 
-          onClick={() => onIncrement(sectionTitle, subTitle, item.size)}
-          className="p-1 border border-emerald-200 text-emerald-600 rounded hover:bg-emerald-50"
-        >
-          <Plus size={10} />
-        </button>
-        <button 
-          onClick={() => onDecrement(sectionTitle, subTitle, item.size)}
-          className="p-1 border border-rose-200 text-rose-600 rounded hover:bg-rose-50"
-        >
-          <Minus size={10} />
-        </button>
-        <button 
-          onClick={() => onEdit(sectionTitle, subTitle, item)}
-          className="p-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
-        >
-          <Edit2 size={10} />
-        </button>
-        <button 
-          onClick={() => onDelete(sectionTitle, subTitle, item.size)}
-          className="p-1 border border-slate-400 text-slate-400 rounded hover:bg-slate-50"
-        >
-          <Trash2 size={10} />
-        </button>
-      </div>
+      {isAdmin ? (
+        <div className="flex items-center justify-center gap-1">
+          <button 
+            onClick={() => onIncrement(sectionTitle, subTitle, item.size)}
+            className="p-1 border border-emerald-200 text-emerald-600 rounded hover:bg-emerald-50"
+          >
+            <Plus size={10} />
+          </button>
+          <button 
+            onClick={() => onDecrement(sectionTitle, subTitle, item.size)}
+            className="p-1 border border-rose-200 text-rose-600 rounded hover:bg-rose-50"
+          >
+            <Minus size={10} />
+          </button>
+          <button 
+            onClick={() => onEdit(sectionTitle, subTitle, item)}
+            className="p-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50"
+          >
+            <Edit2 size={10} />
+          </button>
+          <button 
+            onClick={() => onDelete(sectionTitle, subTitle, item.size)}
+            className="p-1 border border-slate-400 text-slate-400 rounded hover:bg-slate-50"
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center">
+          <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+        </div>
+      )}
     </td>
   </>
 );
@@ -390,13 +411,15 @@ const InventoryTableSection = ({
   onIncrement,
   onDecrement,
   onEdit,
-  onDelete
+  onDelete,
+  isAdmin
 }: { 
   section: any,
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string) => void
+  onDelete: (st: string, sbt: string, sz: string) => void,
+  isAdmin: boolean
 }) => {
   const allItems: any[] = [];
   if (section.subSections) {
@@ -416,22 +439,23 @@ const InventoryTableSection = ({
 
   return (
     <div className="mb-8 bg-white rounded-3xl shadow-sm border border-slate-400 overflow-hidden">
-      <div className="px-6 py-3 bg-[#0f2a43] flex items-center justify-center border-b border-white/10">
-        <h3 className="text-sm font-bold text-white uppercase tracking-widest">{section.title}</h3>
+      <div className="px-4 py-3 bg-[#0f2a43] flex items-center justify-center border-b border-white/10">
+        <h3 className="text-xs md:text-sm font-bold text-white uppercase tracking-widest">{section.title}</h3>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm font-bold uppercase tracking-wider table-fixed">
+      <div className="overflow-x-auto custom-scrollbar">
+        {/* Desktop View: Two Columns */}
+        <table className="hidden lg:table w-full border-collapse text-sm font-bold uppercase tracking-wider table-fixed">
           <thead>
             <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-400">
-              <th className="px-4 py-3 border-l border-r border-slate-400 text-center w-20 text-xs tracking-widest">SIZE</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-xs tracking-widest">GSM</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">STOCK</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-xs tracking-widest">ACTION</th>
+              <th className="px-4 py-3 border-l border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-[10px] tracking-widest">ACTION</th>
               
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">SIZE</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-xs tracking-widest">GSM</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-xs tracking-widest">STOCK</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-xs tracking-widest">ACTION</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-[10px] tracking-widest">ACTION</th>
             </tr>
           </thead>
           <tbody>
@@ -452,6 +476,7 @@ const InventoryTableSection = ({
                       onDecrement={onDecrement}
                       onEdit={onEdit}
                       onDelete={onDelete}
+                      isAdmin={isAdmin}
                     />
                   )
                 ) : (
@@ -473,10 +498,45 @@ const InventoryTableSection = ({
                       onDecrement={onDecrement}
                       onEdit={onEdit}
                       onDelete={onDelete}
+                      isAdmin={isAdmin}
                     />
                   )
                 ) : (
                   <td colSpan={4} className="border-r border-slate-400 px-4 py-2"></td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Mobile View: Single Column */}
+        <table className="lg:hidden w-full border-collapse text-[10px] font-bold uppercase tracking-wider min-w-[300px]">
+          <thead>
+            <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-400">
+              <th className="px-2 py-3 border-l border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">SIZE</th>
+              <th className="px-2 py-3 border-r border-slate-400 text-center w-12 text-[10px] tracking-widest">GSM</th>
+              <th className="px-2 py-3 border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">STOCK</th>
+              <th className="px-2 py-3 border-r border-slate-400 text-center w-24 text-[10px] tracking-widest">ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allItems.map((item, idx) => (
+              <tr key={idx} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
+                {item.isHeader ? (
+                  <td colSpan={4} className="bg-[#0f2a43] py-1.5 px-4 text-center text-[10px] font-bold text-white uppercase tracking-widest border-l border-r border-slate-400">
+                    {item.title}
+                  </td>
+                ) : (
+                  <InventoryRow 
+                    item={item} 
+                    sectionTitle={section.title} 
+                    subTitle={item.subTitle}
+                    onIncrement={onIncrement}
+                    onDecrement={onDecrement}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    isAdmin={isAdmin}
+                  />
                 )}
               </tr>
             ))}
@@ -536,26 +596,48 @@ const StatCard = ({
   status?: string,
   iconBg: string
 }) => (
-  <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 flex items-center justify-between">
-    <div>
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <h3 className="text-3xl font-bold text-slate-800">{value}</h3>
+  <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-400 flex items-center justify-between">
+    <div className="min-w-0">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
+      <h3 className="text-2xl md:text-3xl font-bold text-slate-800 truncate">{value}</h3>
       {trend && <p className="text-xs font-medium text-emerald-500 mt-1 flex items-center gap-1">
         <TrendingUp size={12} /> {trend}
       </p>}
-      {status && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-wider">
+      {status && <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-wider truncate">
         ⚠ {status}
       </p>}
     </div>
-    <div className={cn("p-4 rounded-2xl", iconBg)}>
-      <Icon className="text-slate-600" size={24} />
+    <div className={cn("p-2.5 md:p-4 rounded-2xl shrink-0 ml-4", iconBg)}>
+      <Icon className="text-slate-600 w-4 h-4 md:w-5 md:h-5" />
     </div>
   </div>
 );
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState('System User');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [roles, setRoles] = useState([
+    { id: 'admin', name: 'Administrator', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools', 'admin'] },
+    { id: 'editor', name: 'Editor', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools'] },
+    { id: 'viewer', name: 'Viewer', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools'] }
+  ]);
+
+  const hasPermission = (permission: string) => {
+    if (!userRole) return false;
+    // Grant all users access to most pages in read mode
+    const pagePermissions = ['dashboard', 'inventory', 'movement', 'planning', 'tools'];
+    if (pagePermissions.includes(permission)) return true;
+    
+    const role = roles.find(r => r.id.toLowerCase() === userRole.toLowerCase());
+    return role?.permissions.includes(permission) || false;
+  };
+
+  const isAdmin = userRole?.toLowerCase() === 'admin';
   const [showNewSkuForm, setShowNewSkuForm] = useState(false);
   const [newSkuSize, setNewSkuSize] = useState('');
   const [newSkuGsm, setNewSkuGsm] = useState('280');
@@ -649,6 +731,17 @@ export default function App() {
     deliveryDate: new Date().toISOString().split('T')[0]
   });
 
+  // Admin Panel State
+  const [staffs, setStaffs] = useState([
+    { id: 1, name: 'John Doe', username: 'admin', password: 'Enerpack2022', role: 'Admin', status: 'Active' }
+  ]);
+  const [approvals, setApprovals] = useState<any[]>([
+    { id: 1, type: 'Inventory Adjustment', details: 'Added 100 units to 56x280', status: 'Pending', pageAccess: 'All' }
+  ]);
+  const [auditLogs, setAuditLogs] = useState([
+    { id: 1, action: 'User logged in', user: 'John Doe', timestamp: '2026-03-13 09:00:00' }
+  ]);
+
   const handleSaveReorder = (key: string, item: any) => {
     const tracking = reorderTracking[key];
     if (!tracking || !tracking.company || tracking.ordQty === '0') {
@@ -674,6 +767,21 @@ export default function App() {
 
     setReorderHistory(prev => [newHistoryEntry, ...prev]);
     alert('Reorder log saved successfully!');
+  };
+
+  const handleSaveToPdf = async () => {
+    const input = document.getElementById('job-cards-print-area');
+    if (!input) return;
+
+    const canvas = await html2canvas(input, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save('job-cards.pdf');
   };
 
   const getFinancialYear = () => {
@@ -751,7 +859,7 @@ export default function App() {
     const newCard = {
       id: Date.now(),
       jobCardNo: generateJobCardNo(cardPrefix, jobCards.length),
-      date: new Date().toISOString().split('T')[0],
+      date: '',
       itemCode: '',
       workName: '',
       size: '',
@@ -1183,14 +1291,53 @@ export default function App() {
   })() : null;
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
+    !isAuthenticated ? (
+      <LoginPage
+        onLogin={(role: string, name: string = 'System User') => { setIsAuthenticated(true); setUserRole(role); setUserName(name); }}
+        onRegister={(username, password) => setApprovals(prev => [...prev, { 
+          id: Date.now(), 
+          type: 'User Registration', 
+          details: `New user registration: ${username}`, 
+          username,
+          password,
+          status: 'Pending', 
+          pageAccess: roles[0]?.name || 'All' 
+        }])}
+        staffs={staffs}
+      />
+    ) : (
+      <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-900 overflow-hidden relative">
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <aside className="w-64 bg-[#0f2a43] flex flex-col shrink-0">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#0f2a43] font-bold">
-            EP
+      <aside className={cn(
+        "fixed inset-y-0 left-0 w-64 bg-[#0f2a43] flex flex-col shrink-0 z-50 transition-transform duration-300 lg:relative lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#0f2a43] font-bold">
+              EP
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">ENERPACK</h1>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">ENERPACK</h1>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-white"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <div className="px-4 py-4 flex items-center gap-3 border-b border-slate-700/50 mb-4">
@@ -1198,102 +1345,165 @@ export default function App() {
             <User size={20} />
           </div>
           <div>
-            <p className="text-sm font-bold text-white">Master Administrator</p>
-            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Admin</p>
+            <p className="text-sm font-bold text-white">{userName}</p>
+            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+              {roles.find(r => r.id.toLowerCase() === userRole?.toLowerCase())?.name || userRole}
+            </p>
           </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto custom-scrollbar">
-          <SectionHeader label="General" />
-          <SidebarItem 
-            icon={LayoutDashboard} 
-            label="Dashboard" 
-            active={activeTab === 'Dashboard'} 
-            onClick={() => setActiveTab('Dashboard')} 
-          />
+          {hasPermission('dashboard') && (
+            <>
+              <SectionHeader label="General" />
+              <SidebarItem 
+                icon={LayoutDashboard} 
+                label="Dashboard" 
+                active={activeTab === 'Dashboard'} 
+                onClick={() => { setActiveTab('Dashboard'); setIsSidebarOpen(false); }} 
+              />
+            </>
+          )}
 
-          <SectionHeader label="Inventory" />
-          <SidebarItem 
-            icon={Package} 
-            label="Full Inventory" 
-            active={activeTab === 'Full Inventory'} 
-            onClick={() => setActiveTab('Full Inventory')} 
-          />
-          <SidebarItem 
-            icon={Search} 
-            label="Quick Tracker" 
-            active={activeTab === 'Quick Tracker'} 
-            onClick={() => setActiveTab('Quick Tracker')} 
-          />
+          {hasPermission('inventory') && (
+            <>
+              <SectionHeader label="Inventory" />
+              <SidebarItem 
+                icon={Package} 
+                label="Full Inventory" 
+                active={activeTab === 'Full Inventory'} 
+                onClick={() => { setActiveTab('Full Inventory'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={Search} 
+                label="Quick Tracker" 
+                active={activeTab === 'Quick Tracker'} 
+                onClick={() => { setActiveTab('Quick Tracker'); setIsSidebarOpen(false); }} 
+              />
+            </>
+          )}
 
-          <SectionHeader label="Movement" />
-          <SidebarItem 
-            icon={LogIn} 
-            label="Stock In Logs" 
-            active={activeTab === 'Stock In Logs'} 
-            onClick={() => setActiveTab('Stock In Logs')} 
-          />
-          <SidebarItem 
-            icon={LogOutIcon} 
-            label="Stock Out Logs" 
-            active={activeTab === 'Stock Out Logs'}
-            onClick={() => setActiveTab('Stock Out Logs')}
-          />
-          <SidebarItem 
-            icon={Clock} 
-            label="Pending Works" 
-            active={activeTab === 'Pending Works'} 
-            onClick={() => setActiveTab('Pending Works')} 
-          />
+          {hasPermission('movement') && (
+            <>
+              <SectionHeader label="Movement" />
+              <SidebarItem 
+                icon={LogIn} 
+                label="Stock In Logs" 
+                active={activeTab === 'Stock In Logs'} 
+                onClick={() => { setActiveTab('Stock In Logs'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={LogOutIcon} 
+                label="Stock Out Logs" 
+                active={activeTab === 'Stock Out Logs'}
+                onClick={() => { setActiveTab('Stock Out Logs'); setIsSidebarOpen(false); }}
+              />
+              <SidebarItem 
+                icon={Clock} 
+                label="Pending Works" 
+                active={activeTab === 'Pending Works'} 
+                onClick={() => { setActiveTab('Pending Works'); setIsSidebarOpen(false); }} 
+              />
+            </>
+          )}
 
-          <SectionHeader label="Planning" />
-          <SidebarItem 
-            icon={Bell} 
-            label="Reorder Alerts" 
-            active={activeTab === 'Reorder Alerts'} 
-            onClick={() => setActiveTab('Reorder Alerts')} 
-          />
-          <SidebarItem 
-            icon={History} 
-            label="Reorder History" 
-            active={activeTab === 'Reorder History'}
-            onClick={() => setActiveTab('Reorder History')}
-          />
-          <SidebarItem 
-            icon={TrendingUp} 
-            label="Demand Forecast" 
-            active={activeTab === 'Demand Forecast'}
-            onClick={() => setActiveTab('Demand Forecast')}
-          />
+          {hasPermission('planning') && (
+            <>
+              <SectionHeader label="Planning" />
+              <SidebarItem 
+                icon={Bell} 
+                label="Reorder Alerts" 
+                active={activeTab === 'Reorder Alerts'} 
+                onClick={() => { setActiveTab('Reorder Alerts'); setIsSidebarOpen(false); }} 
+              />
+              <SidebarItem 
+                icon={History} 
+                label="Reorder History" 
+                active={activeTab === 'Reorder History'}
+                onClick={() => { setActiveTab('Reorder History'); setIsSidebarOpen(false); }}
+              />
+              <SidebarItem 
+                icon={TrendingUp} 
+                label="Demand Forecast" 
+                active={activeTab === 'Demand Forecast'}
+                onClick={() => { setActiveTab('Demand Forecast'); setIsSidebarOpen(false); }}
+              />
+            </>
+          )}
 
-          <SectionHeader label="Tools" />
-          <SidebarItem 
-            icon={Calculator} 
-            label="Calculator" 
-            active={activeTab === 'Calculator'}
-            onClick={() => setActiveTab('Calculator')}
-          />
-          <SidebarItem 
-            icon={FileText} 
-            label="Job Card Generator" 
-            active={activeTab === 'Job Card Generator'}
-            onClick={() => setActiveTab('Job Card Generator')}
-          />
+          {hasPermission('tools') && (
+            <>
+              <SectionHeader label="Tools" />
+              <SidebarItem 
+                icon={Calculator} 
+                label="Calculator" 
+                active={activeTab === 'Calculator'}
+                onClick={() => { setActiveTab('Calculator'); setIsSidebarOpen(false); }}
+              />
+              <SidebarItem 
+                icon={FileText} 
+                label="Job Card Generator" 
+                active={activeTab === 'Job Card Generator'}
+                onClick={() => { setActiveTab('Job Card Generator'); setIsSidebarOpen(false); }}
+              />
+            </>
+          )}
 
-          <SectionHeader label="System" />
-          <SidebarItem icon={Settings} label="Admin Control" />
+          {hasPermission('admin') && (
+            <>
+              <SectionHeader label="System" />
+              <SidebarItem 
+                icon={Settings} 
+                label="Admin Control" 
+                active={activeTab === 'Admin Panel'}
+                onClick={() => { setActiveTab('Admin Panel'); setIsSidebarOpen(false); }}
+              />
+            </>
+          )}
         </nav>
 
         <div className="p-4 mt-auto border-t border-slate-700/50">
-          <button className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest">
+          <button 
+            onClick={() => {
+              setIsAuthenticated(false);
+              setActiveTab('Dashboard');
+              setIsSidebarOpen(false);
+            }} 
+            className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest"
+          >
             <LogOutIcon size={18} />
             LOG OUT
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-8">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile Header */}
+        <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+            >
+              <Menu size={24} />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-[#0f2a43] rounded flex items-center justify-center text-white font-bold text-xs">
+                EP
+              </div>
+              <span className="font-bold text-slate-800 tracking-tight">ENERPACK</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+              <User size={16} />
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <AnimatePresence mode="wait">
           {activeTab === 'Dashboard' && (
             <motion.div
@@ -1304,15 +1514,14 @@ export default function App() {
               className="space-y-8"
             >
               {/* Dashboard Header */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex items-center justify-between gap-4">
+              <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-slate-800 font-bold text-lg tracking-tight uppercase">WELCOME MASTER ADMINISTRATOR</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verified Ops Terminal — <span className="text-emerald-500">Online</span></p>
+                  <h2 className="text-slate-800 font-bold text-base md:text-lg tracking-tight uppercase">WELCOME {userName}</h2>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-400 flex items-center gap-2">
+                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  <div className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-50 rounded-xl border border-slate-400 flex items-center gap-2">
                     <Clock size={14} className="text-slate-400" />
-                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    <span className="text-[9px] md:text-[10px] font-bold text-slate-600 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   </div>
                 </div>
               </div>
@@ -1456,6 +1665,109 @@ export default function App() {
             </motion.div>
           )}
 
+          {activeTab === 'Calculator' && (
+            <motion.div
+              key="calculator"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="max-w-5xl mx-auto mt-12"
+            >
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <button onClick={() => setActiveTab('Dashboard')} className="p-2 bg-white rounded-xl border border-slate-200">
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="text-xl font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <Calculator size={20} /> CALCULATOR
+                  </h2>
+                </div>
+                <button onClick={() => setCalcInputs({ gsm: '280', width: '60', length: '100', quantity: '1000' })} className="w-full sm:w-auto px-6 py-2 bg-slate-800 text-white rounded-xl font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                  <RotateCcw size={16} /> RESET
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Inputs Panel */}
+                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-lg font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                      <Move size={20} className="text-blue-500" /> INPUTS
+                    </h3>
+                    <Info size={18} className="text-slate-400" />
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {/* GSM */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">GSM</label>
+                      <div className="relative">
+                        <input type="number" value={calcInputs.gsm} onChange={(e) => setCalcInputs({...calcInputs, gsm: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 font-bold text-lg" />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200">GSM</span>
+                      </div>
+                    </div>
+                    
+                    {/* Width & Length */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">WIDTH</label>
+                        <div className="relative">
+                          <input type="number" value={calcInputs.width} onChange={(e) => setCalcInputs({...calcInputs, width: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 font-bold text-lg" />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200">CM</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">LENGTH</label>
+                        <div className="relative">
+                          <input type="number" value={calcInputs.length} onChange={(e) => setCalcInputs({...calcInputs, length: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 font-bold text-lg" />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200">CM</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quantity */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">QUANTITY</label>
+                      <div className="relative">
+                        <input type="number" value={calcInputs.quantity} onChange={(e) => setCalcInputs({...calcInputs, quantity: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-200 font-bold text-lg" />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-lg border border-slate-200">PCS</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Final Weight Panel */}
+                <div className="bg-[#0f4c75] p-8 rounded-3xl shadow-sm text-white flex flex-col">
+                  <div className="text-center mb-8">
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-2">FINAL WEIGHT</p>
+                    <h1 className="text-7xl font-black">{((parseFloat(calcInputs.gsm) * parseFloat(calcInputs.width) * parseFloat(calcInputs.length) * parseFloat(calcInputs.quantity)) / 10000000).toLocaleString()} <span className="text-4xl text-blue-300">KG</span></h1>
+                  </div>
+                  
+                  <div className="h-2 bg-blue-900 rounded-full mb-8 overflow-hidden">
+                    <div className="h-full bg-blue-400 w-full"></div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-auto">
+                    <div className="bg-[#1b6ca8] p-4 rounded-2xl">
+                      <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">SHEETS</p>
+                      <p className="text-2xl font-bold">{calcInputs.quantity}</p>
+                    </div>
+                    <div className="bg-[#1b6ca8] p-4 rounded-2xl">
+                      <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">AREA</p>
+                      <p className="text-2xl font-bold">{((parseFloat(calcInputs.width) * parseFloat(calcInputs.length)) / 10000).toFixed(2)} m²</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-8 pt-6 border-t border-blue-900 flex justify-between items-center text-[10px] font-bold text-blue-300 uppercase tracking-widest">
+                    <span>VERIFIED OPERATIONS</span>
+                    <span>V1.24.0</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'Full Inventory' && (
             <motion.div
               key="inventory"
@@ -1465,14 +1777,15 @@ export default function App() {
               className="flex flex-col h-full"
             >
               {/* Inventory Header */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex items-center justify-between gap-4">
+              <div className="hidden lg:flex bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-slate-800 font-bold text-lg tracking-tight uppercase">ENER PACK INVENTORY</h2>
+                  <h2 className="text-slate-800 font-bold text-base md:text-lg tracking-tight uppercase">ENER PACK INVENTORY</h2>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Central Warehouse Terminal</p>
                 </div>
-                <div className="flex items-center gap-3 flex-1 max-w-2xl">
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 w-full lg:max-w-2xl">
                   <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="text" 
                       placeholder="Search SKU..." 
@@ -1481,27 +1794,33 @@ export default function App() {
                       className="w-full bg-slate-50 border border-slate-400 rounded-xl py-2.5 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
-                  <button 
-                    onClick={handleExportXLSX}
-                    className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                  >
-                    <FileSpreadsheet size={14} /> XLSX
-                  </button>
-                  <button 
-                    onClick={handleExportPDF}
-                    className="flex items-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                  >
-                    <FileText size={14} /> PDF
-                  </button>
-                  <button 
-                    onClick={() => setShowNewSkuForm(!showNewSkuForm)}
-                    className={cn(
-                      "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors whitespace-nowrap",
-                      showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                    )}
-                  >
-                    {showNewSkuForm ? <Minus size={14} /> : <Plus size={14} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
-                  </button>
+                  
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleExportXLSX}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                    >
+                      <FileSpreadsheet size={14} /> XLSX
+                    </button>
+                    <button 
+                      onClick={handleExportPDF}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                    >
+                      <FileText size={14} /> PDF
+                    </button>
+                  </div>
+
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setShowNewSkuForm(!showNewSkuForm)}
+                      className={cn(
+                        "flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors whitespace-nowrap",
+                        showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                      )}
+                    >
+                      {showNewSkuForm ? <Minus size={14} /> : <Plus size={14} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1590,6 +1909,7 @@ export default function App() {
                         onDecrement={handleDecrement}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
+                        isAdmin={isAdmin}
                       />
                     </React.Fragment>
                   );
@@ -2095,7 +2415,7 @@ export default function App() {
               className="h-full flex flex-col"
             >
               {/* Header */}
-              <div className="bg-[#0f2a43] -m-8 mb-8 p-4 flex items-center gap-4 shadow-lg">
+              <div className="bg-[#0f2a43] -m-4 md:-m-8 mb-8 p-4 flex items-center gap-4 shadow-lg">
                 <button 
                   onClick={() => setActiveTab('Dashboard')}
                   className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
@@ -2104,13 +2424,13 @@ export default function App() {
                 </button>
                 <div className="flex items-center gap-3">
                   <Box className="text-blue-400" size={24} />
-                  <h2 className="text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
+                  <h2 className="text-sm md:text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
                 </div>
               </div>
 
-              <div className="grid grid-cols-12 gap-8 flex-1 min-h-0">
+              <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 {/* Left Column: Search & Selection */}
-                <div className="col-span-4 flex flex-col gap-6 min-h-0">
+                <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-0">
                     <div className="relative mb-6">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -2178,7 +2498,7 @@ export default function App() {
                 </div>
 
                 {/* Right Column: Actions & History */}
-                <div className="col-span-8 flex flex-col gap-6 overflow-hidden">
+                <div className="lg:col-span-8 flex flex-col gap-6 overflow-hidden">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Action Card */}
                     <div className="md:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
@@ -2213,36 +2533,42 @@ export default function App() {
                         />
                       </div>
 
-                      <button 
-                        onClick={() => {
-                          if (!currentSelectedEntry || !quickTrackerQty) return;
-                          const qty = parseInt(quickTrackerQty) || 0;
-                          const delta = quickTrackerMode === 'IN' ? qty : -qty;
-                          updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
-                          
-                          const newEntry = {
-                            id: Date.now(),
-                            size: currentSelectedEntry.item.size,
-                            gsm: currentSelectedEntry.item.gsm,
-                            type: quickTrackerMode,
-                            qty: qty,
-                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                          };
-                          setQuickTrackerHistory([newEntry, ...quickTrackerHistory]);
-                          setQuickTrackerQty('');
-                        }}
-                        disabled={!currentSelectedEntry || !quickTrackerQty}
-                        className={cn(
-                          "w-full py-5 rounded-3xl font-bold text-sm uppercase tracking-widest transition-all shadow-lg",
-                          !currentSelectedEntry || !quickTrackerQty
-                            ? "bg-slate-100 text-slate-300 cursor-not-allowed"
-                            : quickTrackerMode === 'OUT' 
-                              ? "bg-rose-100 text-rose-500 hover:bg-rose-200 shadow-rose-500/10" 
-                              : "bg-emerald-100 text-emerald-500 hover:bg-emerald-200 shadow-emerald-500/10"
-                        )}
-                      >
-                        CONFIRM
-                      </button>
+                      {isAdmin ? (
+                        <button 
+                          onClick={() => {
+                            if (!currentSelectedEntry || !quickTrackerQty) return;
+                            const qty = parseInt(quickTrackerQty) || 0;
+                            const delta = quickTrackerMode === 'IN' ? qty : -qty;
+                            updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
+                            
+                            const newEntry = {
+                              id: Date.now(),
+                              size: currentSelectedEntry.item.size,
+                              gsm: currentSelectedEntry.item.gsm,
+                              type: quickTrackerMode,
+                              qty: qty,
+                              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            };
+                            setQuickTrackerHistory([newEntry, ...quickTrackerHistory]);
+                            setQuickTrackerQty('');
+                          }}
+                          disabled={!currentSelectedEntry || !quickTrackerQty}
+                          className={cn(
+                            "w-full py-5 rounded-3xl font-bold text-sm uppercase tracking-widest transition-all shadow-lg",
+                            !currentSelectedEntry || !quickTrackerQty
+                              ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                              : quickTrackerMode === 'OUT' 
+                                ? "bg-rose-100 text-rose-500 hover:bg-rose-200 shadow-rose-500/10" 
+                                : "bg-emerald-100 text-emerald-500 hover:bg-emerald-200 shadow-emerald-500/10"
+                          )}
+                        >
+                          CONFIRM
+                        </button>
+                      ) : (
+                        <div className="w-full py-5 bg-slate-50 rounded-3xl flex items-center justify-center border border-slate-100">
+                          <span className="text-xs font-black text-slate-300 uppercase tracking-widest">READ ONLY MODE</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Stats Card */}
@@ -2306,26 +2632,28 @@ export default function App() {
               className="space-y-8"
             >
               {/* Stock In Header */}
-              <div className="flex items-center gap-6 mb-8">
-                <button 
-                  onClick={() => setActiveTab('Dashboard')}
-                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
-                >
-                  <ChevronRight className="rotate-180" size={16} />
-                  BACK
-                </button>
-                <div className="h-8 w-px bg-emerald-500"></div>
-                <h2 className="text-xl font-bold text-emerald-700 tracking-tight uppercase">STOCK IN LOGS</h2>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 mb-8">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                  >
+                    <ChevronRight className="rotate-180" size={16} />
+                    BACK
+                  </button>
+                  <div className="h-8 w-px bg-emerald-500 hidden md:block"></div>
+                  <h2 className="text-lg md:text-xl font-bold text-emerald-700 tracking-tight uppercase">STOCK IN LOGS</h2>
+                </div>
                 
-                <div className="ml-auto flex items-center gap-4">
-                  <div className="relative">
+                <div className="w-full md:ml-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                  <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="text" 
                       placeholder="Search logs..."
                       value={searchLogQuery}
                       onChange={(e) => setSearchLogQuery(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     />
                   </div>
                   <button className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">
@@ -2338,7 +2666,8 @@ export default function App() {
               </div>
 
               <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#1e40af] text-white">
@@ -2372,10 +2701,69 @@ export default function App() {
                             <td className="px-4 py-4 text-xs text-slate-500 border-r border-slate-100">{log.storageLoc}</td>
                             <td className="px-4 py-4 text-xs text-slate-500 border-r border-slate-100">{log.remarks}</td>
                             <td className="px-4 py-4">
-                              <div className="flex items-center justify-center gap-2">
+                              {isAdmin ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button 
+                                    onClick={() => setEditingLog(log)}
+                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      if (window.confirm('Delete this log?')) {
+                                        setStockInLogs(prev => prev.filter(l => l.id !== log.id));
+                                      }
+                                    }}
+                                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-100">
+                  {filteredLogs.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</div>
+                  ) : (
+                    filteredLogs.map((log) => (
+                      <div key={log.id} className="p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-bold text-slate-500">{log.date}</div>
+                          <div className="text-sm font-black text-emerald-600">+{log.quantity}</div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-bold text-slate-900">{log.size}</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.gsm} GSM</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] font-black text-slate-900 uppercase">{log.company}</div>
+                            <div className="text-[10px] font-medium text-slate-500 uppercase">INV: {log.invoice}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="text-[10px] font-medium text-slate-500">LOC: {log.storageLoc}</div>
+                          <div className="flex items-center gap-2">
+                            {isAdmin ? (
+                              <>
                                 <button 
                                   onClick={() => setEditingLog(log)}
-                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100"
                                 >
                                   <Edit2 size={14} />
                                 </button>
@@ -2385,17 +2773,25 @@ export default function App() {
                                       setStockInLogs(prev => prev.filter(l => l.id !== log.id));
                                     }
                                   }}
-                                  className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                  className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
                                 >
                                   <Trash2 size={14} />
                                 </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                              </>
+                            ) : (
+                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {log.remarks && (
+                          <div className="p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500 italic">
+                            {log.remarks}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -2520,41 +2916,44 @@ export default function App() {
               className="space-y-8"
             >
               {/* Header */}
-              <div className="flex items-center gap-6 mb-8">
-                <button 
-                  onClick={() => setActiveTab('Dashboard')}
-                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
-                >
-                  <ChevronRight className="rotate-180" size={16} />
-                  BACK
-                </button>
-                <div className="h-8 w-px bg-slate-200"></div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold text-rose-800 tracking-tight uppercase">STOCK OUT LOGS (DELIVERED)</h2>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 mb-8">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                  >
+                    <ChevronRight className="rotate-180" size={16} />
+                    BACK
+                  </button>
+                  <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+                  <h2 className="text-lg md:text-xl font-bold text-rose-800 tracking-tight uppercase">STOCK OUT LOGS (DELIVERED)</h2>
                 </div>
                 
-                <div className="ml-auto flex items-center gap-4">
-                  <div className="relative">
+                <div className="w-full md:ml-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="text" 
                       placeholder="Search logs..."
                       value={searchStockOutLogQuery}
                       onChange={(e) => setSearchStockOutLogQuery(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
                     />
                   </div>
-                  <button className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">
-                    <FileText size={16} /> PDF
-                  </button>
-                  <button className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
-                    <Download size={16} /> EXCEL
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20">
+                      <FileText size={16} /> PDF
+                    </button>
+                    <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                      <Download size={16} /> EXCEL
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#8b1a1a] text-white">
@@ -2614,6 +3013,69 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-100">
+                  {stockOutLogs.filter(log => 
+                    log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                    log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                    log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
+                  ).length === 0 ? (
+                    <div className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</div>
+                  ) : (
+                    stockOutLogs.filter(log => 
+                      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                      log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+                      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
+                    ).map((log) => (
+                      <div key={log.id} className="p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-bold text-slate-500">{log.date}</div>
+                          <div className="text-sm font-black text-rose-600">-{log.out} <span className="text-[8px] uppercase">{log.unit}</span></div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-bold text-slate-900">{log.workName}</div>
+                          <div className="text-[10px] font-black text-blue-600 uppercase">{log.itemCode}</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Size / GSM</div>
+                            <div className="text-xs font-bold text-slate-800">{log.size} / {log.gsm}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Delivery Date</div>
+                            <div className="text-xs font-bold text-emerald-600">{log.deliveryDate || log.date}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Vehicle</div>
+                            <div className="text-xs font-bold text-slate-800 uppercase">{log.vehicle}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Location</div>
+                            <div className="text-xs font-bold text-slate-800 uppercase">{log.location}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2">
+                          <span className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+                            {log.status}
+                          </span>
+                          <div className="text-[10px] font-medium text-slate-500">
+                            CS: {log.cutSize} | SH: {log.sheets}
+                          </div>
+                        </div>
+
+                        {log.remarks && (
+                          <div className="p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500 italic">
+                            {log.remarks}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -2627,39 +3089,42 @@ export default function App() {
               className="space-y-8"
             >
               {/* Header */}
-              <div className="flex items-center gap-6 mb-8">
-                <button 
-                  onClick={() => setActiveTab('Dashboard')}
-                  className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
-                >
-                  <ChevronRight className="rotate-180" size={16} />
-                  BACK
-                </button>
-                <div className="h-8 w-px bg-slate-200"></div>
-                <div className="flex items-center gap-3">
-                  <Clock className="text-orange-500" size={24} />
-                  <h2 className="text-xl font-bold text-[#0f2a43] tracking-tight uppercase">PENDING WORKS</h2>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 mb-8">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-bold uppercase tracking-widest text-xs"
+                  >
+                    <ChevronRight className="rotate-180" size={16} />
+                    BACK
+                  </button>
+                  <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
+                  <div className="flex items-center gap-3">
+                    <Clock className="text-orange-500" size={24} />
+                    <h2 className="text-lg md:text-xl font-bold text-[#0f2a43] tracking-tight uppercase">PENDING WORKS</h2>
+                  </div>
                 </div>
                 
-                <div className="ml-auto flex items-center gap-4">
-                  <div className="relative">
+                <div className="w-full md:ml-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                  <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                     <input 
                       type="text" 
                       placeholder="Search operational queue..."
                       value={searchPendingQuery}
                       onChange={(e) => setSearchPendingQuery(e.target.value)}
-                      className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                     />
                   </div>
-                  <button className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
+                  <button className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">
                     <Download size={16} /> EXPORT
                   </button>
                 </div>
               </div>
 
               <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#f26522] text-white">
@@ -2701,11 +3166,15 @@ export default function App() {
                             <td className="px-4 py-6 border-r border-slate-100">
                               <select 
                                 value={work.priority}
+                                disabled={!isAdmin}
                                 onChange={(e) => {
-                                  setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
+                                  if (isAdmin) {
+                                    setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
+                                  }
                                 }}
                                 className={cn(
-                                  "text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg focus:outline-none border-none cursor-pointer",
+                                  "text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg focus:outline-none border-none",
+                                  !isAdmin ? "cursor-not-allowed opacity-80" : "cursor-pointer",
                                   work.priority === 'HIGH' ? "bg-rose-100 text-rose-600" : 
                                   work.priority === 'MEDIUM' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-600"
                                 )}
@@ -2718,15 +3187,21 @@ export default function App() {
                             <td className="px-4 py-6 border-r border-slate-100">
                               <select 
                                 value={work.status}
+                                disabled={!isAdmin}
                                 onChange={(e) => {
-                                  const newStatus = e.target.value;
-                                  if (newStatus === 'DELIVERED') {
-                                    setDeliveringWork(work);
-                                  } else {
-                                    setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
+                                  if (isAdmin) {
+                                    const newStatus = e.target.value;
+                                    if (newStatus === 'DELIVERED') {
+                                      setDeliveringWork(work);
+                                    } else {
+                                      setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
+                                    }
                                   }
                                 }}
-                                className="text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none cursor-pointer"
+                                className={cn(
+                                  "text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none",
+                                  !isAdmin ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                                )}
                               >
                                 <option value="CUTTING">Cutting</option>
                                 <option value="CUTTING FINISHED">Cutting Finished</option>
@@ -2741,18 +3216,121 @@ export default function App() {
                             </td>
                             <td className="px-4 py-6 text-xs text-slate-500 border-r border-slate-100">{work.remarks}</td>
                             <td className="px-4 py-6">
-                              <button 
-                                onClick={() => setEditingPendingWork({ ...work })}
-                                className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
-                              >
-                                <Edit2 size={14} />
-                              </button>
+                              {isAdmin ? (
+                                <button 
+                                  onClick={() => setEditingPendingWork({ ...work })}
+                                  className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              ) : (
+                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                              )}
                             </td>
                           </tr>
                         ))
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden divide-y divide-slate-100">
+                  {filteredPendingWorks.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No pending works found</div>
+                  ) : (
+                    filteredPendingWorks.map((work) => (
+                      <div key={work.id} className="p-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] font-black text-blue-600 uppercase">{work.itemCode}</div>
+                          <div className="text-xs font-bold text-slate-400">{work.date}</div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-bold text-slate-900">{work.workName}</div>
+                          <div className="text-[10px] font-black text-slate-500 uppercase">{work.company}</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Size / GSM</div>
+                            <div className="text-xs font-bold text-slate-800">{work.size} / {work.gsm}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Qty</div>
+                            <div className="text-xs font-bold text-rose-500">{work.qty} <span className="text-[8px] text-slate-400 uppercase">{work.unit}</span></div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Cut Size</div>
+                            <div className="text-xs font-bold text-blue-600">{work.cutSize}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Sheets</div>
+                            <div className="text-xs font-bold text-blue-600">{work.sheets}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <div className="flex-1">
+                            <select 
+                              value={work.priority}
+                              onChange={(e) => {
+                                setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
+                              }}
+                              className={cn(
+                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl focus:outline-none border border-slate-100 cursor-pointer",
+                                work.priority === 'HIGH' ? "bg-rose-50 text-rose-600" : 
+                                work.priority === 'MEDIUM' ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-600"
+                              )}
+                            >
+                              <option value="LOW">Low Priority</option>
+                              <option value="MEDIUM">Medium Priority</option>
+                              <option value="HIGH">High Priority</option>
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <select 
+                              value={work.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value;
+                                if (newStatus === 'DELIVERED') {
+                                  setDeliveringWork(work);
+                                } else {
+                                  setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
+                                }
+                              }}
+                              className="w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl bg-slate-50 text-slate-600 focus:outline-none border border-slate-100 cursor-pointer"
+                            >
+                              <option value="CUTTING">Cutting</option>
+                              <option value="CUTTING FINISHED">Cutting Finished</option>
+                              <option value="OUT OF STOCK">Out of Stock</option>
+                              <option value="ORDER PLACED">Order Placed</option>
+                              <option value="WAITING FOR REEL">Waiting for Reel</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="DELIVERED">Delivered</option>
+                              <option value="CANCELLED">Cancelled</option>
+                              <option value="OTHER">Other</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {work.remarks && (
+                          <div className="p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500 italic">
+                            {work.remarks}
+                          </div>
+                        )}
+
+                        <div className="flex justify-end pt-2">
+                          <button 
+                            onClick={() => setEditingPendingWork({ ...work })}
+                            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 text-[10px] font-bold uppercase tracking-widest"
+                          >
+                            <Edit2 size={14} /> EDIT WORK
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -3205,163 +3783,401 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'Calculator' && (
+          {activeTab === 'Reorder History' && (
             <motion.div
-              key="calculator"
+              key="reorder-history"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="max-w-6xl mx-auto"
+              className="space-y-6"
             >
-              {/* Calculator Header */}
-              <div className="flex items-center justify-between mb-8 bg-[#0a3d62] p-4 rounded-xl text-white shadow-lg">
+              <div className="flex items-center gap-4 mb-2">
+                <button 
+                  onClick={() => setActiveTab('Dashboard')}
+                  className="flex items-center gap-1 text-slate-600 hover:text-slate-900 transition-colors font-bold text-sm"
+                >
+                  <ChevronRight className="rotate-180" size={20} />
+                  Back
+                </button>
+                <div className="flex items-center gap-2 ml-4">
+                  <History className="text-[#7b1fa2]" size={24} />
+                  <h2 className="text-xl font-black text-[#7b1fa2] tracking-tight uppercase">REORDER HISTORY</h2>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-center border-collapse">
+                  <thead>
+                    <tr className="bg-[#7b1fa2] text-white">
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">DATE</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">SIZE</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">GSM</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">COMPANY</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">ORD QTY</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {reorderHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No reorder history found</td>
+                      </tr>
+                    ) : (
+                      reorderHistory.map((entry, idx) => (
+                        <tr key={entry.id} className={idx % 2 === 1 ? "bg-slate-50" : "bg-white"}>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.date}</td>
+                          <td className="px-4 py-3 text-xs font-black text-slate-900">{entry.size}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.gsm}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.company}</td>
+                          <td className="px-4 py-3 text-xs font-black text-slate-900">{entry.ordQty}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${entry.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {entry.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Demand Forecast' && (
+            <motion.div
+              key="demand-forecast"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <ChevronRight className="rotate-180" size={24} />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">FORECAST ENGINE</h1>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ANALYTICS & REQUIREMENTS</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex bg-slate-100 rounded-full p-1">
+                    <button className="px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-white shadow-sm text-indigo-900">Historical</button>
+                    <button className="px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">Predictive</button>
+                  </div>
+                  <div className="flex bg-slate-100 rounded-full p-1">
+                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">30 Days</button>
+                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-white shadow-sm text-indigo-900">90 Days</button>
+                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">All</button>
+                  </div>
+                  <button className="flex items-center gap-2 bg-[#0ea5e9] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#0284c7] transition-all shadow-md">
+                    <Download size={16} /> Export
+                  </button>
+                </div>
+              </div>
+
+              {/* Top Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-[#fff5f5] p-8 rounded-3xl border border-rose-100 shadow-sm flex items-center gap-6">
+                  <div className="w-16 h-16 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-200">
+                    <ArrowUp size={32} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Outbound Flow</p>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Consumption</h2>
+                  </div>
+                </div>
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
+                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400">
+                    <ArrowDown size={32} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inbound Flow</p>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Restock</h2>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <BarChart2 className="text-slate-400" size={24} />
+                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Top Distribution</h3>
+                    </div>
+                    <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Volume Base</span>
+                  </div>
+                  <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 gap-4">
+                    <RotateCcw size={48} className="opacity-20" />
+                    <p className="text-sm font-bold uppercase tracking-widest">No movement recorded</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Ranking Table</h3>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total: 0 Units</span>
+                  </div>
+                  <table className="w-full mt-8">
+                    <thead>
+                      <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                        <th className="pb-4 text-left">Rank</th>
+                        <th className="pb-4 text-left">Item</th>
+                        <th className="pb-4 text-left">Volume</th>
+                        <th className="pb-4 text-left">Share</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-sm">No records found</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'Admin Panel' && (
+            <motion.div
+              key="admin-panel"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="bg-[#0a3d62] text-white p-6 rounded-2xl flex items-center justify-between shadow-lg">
+                <div className="flex items-center gap-6">
                   <button 
                     onClick={() => setActiveTab('Dashboard')}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                   >
                     <ChevronRight className="rotate-180" size={24} />
                   </button>
-                  <div className="flex items-center gap-2">
-                    <Calculator size={20} />
-                    <h2 className="text-lg font-black tracking-tight uppercase">CALCULATOR</h2>
+                  <div className="flex items-center gap-3">
+                    <Shield size={28} />
+                    <h1 className="text-2xl font-black tracking-tight uppercase">ADMIN PANEL</h1>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setCalcInputs({ gsm: '0', width: '0', length: '0', quantity: '0' })}
-                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold uppercase transition-all"
-                >
-                  <RotateCcw size={14} /> RESET
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                {/* Inputs Card */}
-                <div className="bg-white rounded-[32px] shadow-2xl border border-slate-100 overflow-hidden">
-                  <div className="p-8 border-b border-slate-50 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                        <Maximize2 size={20} />
-                      </div>
-                      <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">INPUTS</h3>
-                    </div>
-                    <Info size={16} className="text-slate-300" />
-                  </div>
-                  
-                  <div className="p-8 space-y-8">
-                    {/* GSM Input */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GSM</label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                          <Layers size={20} />
-                        </div>
-                        <input 
-                          type="number"
-                          value={calcInputs.gsm}
-                          onChange={(e) => setCalcInputs(prev => ({ ...prev, gsm: e.target.value }))}
-                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-16 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase">GSM</span>
-                      </div>
-                    </div>
-
-                    {/* Width & Length Grid */}
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WIDTH</label>
-                        <div className="relative group">
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                            <Maximize size={20} />
-                          </div>
-                          <input 
-                            type="number"
-                            value={calcInputs.width}
-                            onChange={(e) => setCalcInputs(prev => ({ ...prev, width: e.target.value }))}
-                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-12 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                          />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-black uppercase">CM</span>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LENGTH</label>
-                        <div className="relative group">
-                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                            <Maximize size={20} className="rotate-90" />
-                          </div>
-                          <input 
-                            type="number"
-                            value={calcInputs.length}
-                            onChange={(e) => setCalcInputs(prev => ({ ...prev, length: e.target.value }))}
-                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-12 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                          />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-black uppercase">CM</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quantity Input */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">QUANTITY</label>
-                      <div className="relative group">
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
-                          <Hash size={20} />
-                        </div>
-                        <input 
-                          type="number"
-                          value={calcInputs.quantity}
-                          onChange={(e) => setCalcInputs(prev => ({ ...prev, quantity: e.target.value }))}
-                          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-12 pr-16 text-xl font-black text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                        />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-1 rounded uppercase">PCS</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Output Card */}
-                <div className="bg-[#0a3d62] rounded-[32px] shadow-2xl overflow-hidden flex flex-col h-full">
-                  <div className="p-12 flex-1 flex flex-col items-center justify-center text-center space-y-12">
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em]">FINAL WEIGHT</p>
-                      <div className="flex items-baseline justify-center gap-2">
-                        <h1 className="text-8xl font-black text-white tracking-tighter">
-                          {Math.round((parseFloat(calcInputs.gsm) * (parseFloat(calcInputs.width)/100) * (parseFloat(calcInputs.length)/100) * parseFloat(calcInputs.quantity)) / 1000)}
-                        </h1>
-                        <span className="text-4xl font-black text-blue-400 uppercase">KG</span>
-                      </div>
-                    </div>
-
-                    <div className="w-full max-w-md space-y-6">
-                      <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: '75%' }}
-                          className="h-full bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-left">
-                          <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest mb-1">SHEETS</p>
-                          <p className="text-xl font-black text-white">{calcInputs.quantity}</p>
-                        </div>
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-left">
-                          <p className="text-[8px] font-black text-blue-300 uppercase tracking-widest mb-1">AREA</p>
-                          <p className="text-xl font-black text-white">
-                            {((parseFloat(calcInputs.width)/100) * (parseFloat(calcInputs.length)/100)).toFixed(2)} m²
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-600 p-6 flex justify-between items-center px-12">
-                    <p className="text-[10px] font-black text-white uppercase tracking-widest">VERIFIED OPERATIONS</p>
-                    <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">V1.24.0</p>
-                  </div>
+                <div className="flex bg-[#072a44] rounded-full p-1">
+                  {[
+                    { name: 'Overview', icon: LayoutDashboard },
+                    { name: 'Staffs', icon: Users },
+                    { name: 'Approval', icon: AlertCircle },
+                    { name: 'Audit Log', icon: History },
+                    { name: 'Sync', icon: RefreshCw },
+                  ].map((tab) => (
+                    <button 
+                      key={tab.name}
+                      onClick={() => setAdminTab(tab.name)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                        adminTab === tab.name 
+                          ? 'bg-white text-[#0a3d62] shadow-sm' 
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <tab.icon size={16} /> {tab.name}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              {/* Content Area */}
+              {adminTab === 'Overview' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[
+                    { icon: Users, title: 'SYSTEM STAFF', value: staffs.length.toString(), sub: 'AUTHENTICATED', color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { icon: AlertCircle, title: 'PENDING IDENTITY', value: approvals.filter(a => a.status === 'Pending').length.toString(), sub: 'AWAITING VERIFICATION', color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { icon: Database, title: 'ASSET SKUS', value: '145', sub: 'LIVE RECORDS', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { icon: Activity, title: 'OPERATIONS', value: auditLogs.length.toString(), sub: 'TOTAL LOGS', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  ].map((stat, idx) => (
+                    <div key={idx} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-6">
+                      <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center`}>
+                        <stat.icon size={32} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.title}</p>
+                        <h2 className="text-4xl font-black text-slate-900 tracking-tight">{stat.value}</h2>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{stat.sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {adminTab === 'Staffs' && (
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Staff Management</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 uppercase tracking-widest">
+                        <th className="pb-4">Name</th>
+                        <th className="pb-4">Role</th>
+                        <th className="pb-4">Status</th>
+                        <th className="pb-4">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {staffs.map(staff => (
+                        <tr key={staff.id} className="border-t border-slate-100">
+                          <td className="py-4 font-bold">{staff.name}</td>
+                          <td className="py-4">
+                            <select 
+                              value={staff.role}
+                              disabled={!isAdmin}
+                              onChange={(e) => {
+                                if (isAdmin) {
+                                  setStaffs(staffs.map(s => s.id === staff.id ? { ...s, role: e.target.value } : s));
+                                }
+                              }}
+                              className={cn(
+                                "bg-transparent font-bold text-slate-800 outline-none transition-colors",
+                                isAdmin ? "cursor-pointer hover:text-blue-600" : "cursor-not-allowed opacity-80"
+                              )}
+                            >
+                              {roles.map(role => (
+                                <option key={role.id} value={role.name}>{role.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-4">{staff.status}</td>
+                          <td className="py-4">
+                            {isAdmin ? (
+                              <button onClick={() => setStaffs(staffs.filter(s => s.id !== staff.id))} className="text-rose-500 hover:text-rose-700">
+                                <Trash2 size={16} />
+                              </button>
+                            ) : (
+                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {adminTab === 'Approval' && (
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Pending Approvals</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 uppercase tracking-widest">
+                        <th className="pb-4">Type</th>
+                        <th className="pb-4">Details</th>
+                        <th className="pb-4">Status</th>
+                        <th className="pb-4">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {approvals.map(approval => (
+                        <tr key={approval.id} className="border-t border-slate-100">
+                          <td className="py-4 font-bold">{approval.type}</td>
+                          <td className="py-4">{approval.details}</td>
+                          <td className="py-4">
+                            {approval.type === 'User Registration' && approval.status === 'Pending' ? (
+                              <select 
+                                value={approval.pageAccess || roles[0]?.name || 'All'} 
+                                onChange={(e) => setApprovals(approvals.map(a => a.id === approval.id ? {...a, pageAccess: e.target.value} : a))}
+                                className="p-2 rounded-lg border border-slate-200"
+                              >
+                                {roles.map(role => (
+                                  <option key={role.id} value={role.name}>{role.name}</option>
+                                ))}
+                              </select>
+                            ) : approval.status}
+                          </td>
+                          <td className="py-4 flex gap-2">
+                            {isAdmin && approval.status === 'Pending' && (
+                              <>
+                                <button 
+                                  onClick={() => {
+                                    if (approval.type === 'Inventory Adjustment') {
+                                      setAuditLogs([...auditLogs, { id: Date.now(), action: 'Inventory Adjustment Approved', user: 'Admin', timestamp: new Date().toISOString() }]);
+                                    } else if (approval.type === 'User Registration') {
+                                      setStaffs([...staffs, { 
+                                        id: Date.now(), 
+                                        name: approval.username, 
+                                        username: approval.username,
+                                        password: approval.password,
+                                        role: approval.pageAccess || 'All', 
+                                        status: 'Active' 
+                                      }]);
+                                    }
+                                    setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Approved'} : a));
+                                  }} 
+                                  className="text-emerald-500 hover:text-emerald-700"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                                <button onClick={() => setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Rejected'} : a))} className="text-rose-500 hover:text-rose-700">
+                                  <Trash2 size={16} />
+                                </button>
+                              </>
+                            )}
+                            {!isAdmin && approval.status === 'Pending' && (
+                              <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {adminTab === 'Audit Log' && (
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Audit Logs</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 uppercase tracking-widest">
+                        <th className="pb-4">Timestamp</th>
+                        <th className="pb-4">User</th>
+                        <th className="pb-4">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.map(log => (
+                        <tr key={log.id} className="border-t border-slate-100">
+                          <td className="py-4 text-slate-500">{log.timestamp}</td>
+                          <td className="py-4 font-bold">{log.user}</td>
+                          <td className="py-4">{log.action}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {adminTab === 'Sync' && (
+                <div className="bg-white p-12 rounded-3xl border border-slate-100 shadow-sm text-center">
+                  <h3 className="text-lg font-black text-slate-800 uppercase mb-4">Data Synchronization</h3>
+                  <p className="text-slate-500 mb-6">Click the button below to sync local data with the server.</p>
+                  <button 
+                    onClick={() => {
+                      if (isAdmin) {
+                        alert('Sync initiated!');
+                      }
+                    }}
+                    disabled={!isAdmin}
+                    className={cn(
+                      "px-8 py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center gap-2 mx-auto",
+                      isAdmin ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                    )}
+                  >
+                    <RefreshCw size={20} /> {isAdmin ? "SYNC NOW" : "READ ONLY"}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -3472,7 +4288,7 @@ export default function App() {
                         <Eye size={14} /> PREVIEW
                       </button>
                       <button 
-                        onClick={() => window.print()}
+                        onClick={handleSaveToPdf}
                         className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md"
                       >
                         <Save size={14} /> SAVE
@@ -3501,15 +4317,15 @@ export default function App() {
                             </button>
                           </div>
                           <div 
-                            className="w-[380px] bg-white border-2 border-black p-0 flex flex-col gap-0 shadow-xl print:shadow-none print:m-0 print:border-2"
+                            className="w-[385px] bg-white border-2 border-black p-0 flex flex-col gap-0 shadow-xl print:shadow-none print:m-0 print:border-2"
                             style={{ fontFamily: 'Calibri, sans-serif', fontSize: '12pt', lineHeight: '1.2' }}
                           >
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">JOB CARD NO:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center">JOB CARD NO:</div>
                               <div className="p-1 font-black">{card.jobCardNo}</div>
                             </div>
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-0 font-black uppercase border-r-2 border-black flex items-center pl-1">DATE:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center pl-1">DATE:</div>
                               <div className="p-0">
                                 <input 
                                   type="date" 
@@ -3525,7 +4341,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">ITEM CODE:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center">ITEM CODE:</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -3541,7 +4357,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">WORK NAME:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center">WORK NAME:</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -3557,7 +4373,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">SIZE:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center">SIZE:</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -3573,7 +4389,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="grid grid-cols-[140px_1fr] border-b-2 border-black">
-                              <div className="p-1 font-black uppercase border-r-2 border-black flex items-center">GSM:</div>
+                              <div className="p-2 font-black uppercase border-r-2 border-black flex items-center">GSM:</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -3681,7 +4497,7 @@ export default function App() {
             width: 100%;
             display: grid !important;
             grid-template-columns: 1fr 1fr !important;
-            gap: 10mm !important;
+            gap: 5mm !important;
             padding: 0 !important;
             margin: 0 !important;
             border: none !important;
@@ -3705,6 +4521,8 @@ export default function App() {
           background: #334155;
         }
       `}} />
-    </div>
+      </div>
+      </div>
+    )
   );
 }
