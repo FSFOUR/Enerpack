@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LogIn } from 'lucide-react';
 
 interface LoginPageProps {
-  onLogin: (role: string, name: string) => void;
+  onLogin: (role: string, name: string, pages: string[]) => void;
   onRegister: (username: string, password: string) => void;
   staffs: any[];
 }
@@ -19,11 +19,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
       const approvedUser = staffs.find(s => s.username === username && s.password === password && s.status === 'Active');
       
       if (username === 'admin' && password === 'Enerpack2022') {
-        onLogin('Admin', 'Master Administrator');
+        onLogin('Admin', 'Master Administrator', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
       } else if (username === 'editor' && password === 'editor') {
-        onLogin('Editor', 'System Editor');
+        onLogin('Editor', 'System Editor', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
       } else if (approvedUser) {
-        onLogin(approvedUser.role, approvedUser.name);
+        onLogin(approvedUser.role, approvedUser.name, approvedUser.pages || []);
       } else if (username === 'pending' && password === 'pending') {
         setShowApprovalMessage(true);
       } else {
