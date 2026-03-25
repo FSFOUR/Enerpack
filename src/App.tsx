@@ -80,10 +80,87 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy, 
+  Timestamp,
+  setDoc,
+  getDocs,
+  where
+} from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType } from './firebase';
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorInfo: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorInfo: error.message };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let displayMessage = "Something went wrong.";
+      try {
+        const parsed = JSON.parse(this.state.errorInfo || "");
+        if (parsed.error && parsed.error.includes("insufficient permissions")) {
+          displayMessage = "You do not have permission to perform this action. Please contact your administrator.";
+        }
+      } catch (e) {
+        // Not a JSON error
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-rose-100">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tight">System Error</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed">{displayMessage}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full p-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+            >
+              Reload Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+const sortSizes = (a: string, b: string) => {
+  const parseSize = (s: string) => {
+    if (s.includes('*')) {
+      return s.split('*').map(v => parseFloat(v) || 0);
+    }
+    return [parseFloat(s) || 0, 0];
+  };
+  const [a1, a2] = parseSize(a);
+  const [b1, b2] = parseSize(b);
+  if (a1 !== b1) return a1 - b1;
+  return a2 - b2;
+};
 
 // --- Mock Data ---
 const movementData = [
@@ -143,6 +220,15 @@ const inventoryData = [
       {
         title: "DOUBLE SIZE",
         items: [
+          { size: "47*64", gsm: "280", stock: 59, isLow: true },
+          { size: "54*73.5", gsm: "280", stock: 55, isLow: true },
+          { size: "54*86", gsm: "280", stock: 157, isLow: true },
+          { size: "55*80", gsm: "280", stock: 0, isLow: true },
+          { size: "55*82", gsm: "280", stock: 0, isLow: true },
+          { size: "56*68.5", gsm: "280", stock: 33, isLow: true },
+          { size: "56*75", gsm: "280", stock: 39, isLow: true },
+          { size: "56*86", gsm: "280", stock: 323, isLow: true },
+          { size: "57*68.5", gsm: "280", stock: 125, isLow: true },
           { size: "57.5*76", gsm: "280", stock: 71, isLow: true },
           { size: "58*78", gsm: "280", stock: 346, isLow: true },
           { size: "59*78", gsm: "280", stock: 71, isLow: true },
@@ -163,8 +249,8 @@ const inventoryData = [
           { size: "72*91.5", gsm: "280", stock: 65, isLow: true },
           { size: "73*81", gsm: "280", stock: 144, isLow: true },
           { size: "75*108.5", gsm: "280", stock: 16, isLow: true },
-          { size: "76*111", gsm: "280", stock: 123, isLow: true },
           { size: "76*72", gsm: "280", stock: 240, isLow: true },
+          { size: "76*111", gsm: "280", stock: 123, isLow: true },
           { size: "78*70.5", gsm: "280", stock: 94, isLow: true },
           { size: "78*107", gsm: "280", stock: 19, isLow: true },
           { size: "82*111", gsm: "280", stock: 40, isLow: true },
@@ -173,13 +259,6 @@ const inventoryData = [
           { size: "94.5*80.3", gsm: "280", stock: 32, isLow: true },
           { size: "100*74", gsm: "280", stock: 20, isLow: true },
           { size: "108*76", gsm: "280", stock: 103, isLow: true },
-          { size: "47*64", gsm: "280", stock: 59, isLow: true },
-          { size: "54*73.5", gsm: "280", stock: 55, isLow: true },
-          { size: "54*86", gsm: "280", stock: 157, isLow: true },
-          { size: "56*68.5", gsm: "280", stock: 33, isLow: true },
-          { size: "56*75", gsm: "280", stock: 39, isLow: true },
-          { size: "56*86", gsm: "280", stock: 323, isLow: true },
-          { size: "57*68.5", gsm: "280", stock: 125, isLow: true },
         ]
       }
     ]
@@ -197,6 +276,8 @@ const inventoryData = [
         title: "230 DOUBLE",
         items: [
           { size: "54*78", gsm: "230", stock: 55, isLow: true },
+          { size: "55*80", gsm: "230", stock: 0, isLow: true },
+          { size: "55*82", gsm: "230", stock: 0, isLow: true },
           { size: "59*91", gsm: "230", stock: 42, isLow: true },
           { size: "82*98", gsm: "230", stock: 42, isLow: true },
           { size: "86*110", gsm: "230", stock: 56, isLow: true },
@@ -223,12 +304,25 @@ const inventoryData = [
       {
         title: "DOUBLE SIZE",
         items: [
+          { size: "41*83", gsm: "200", stock: 0, isLow: true },
+          { size: "42.5*57.5", gsm: "200", stock: 215, isLow: true },
+          { size: "43*73", gsm: "200", stock: 283, isLow: true },
+          { size: "44.5*64", gsm: "200", stock: 114, isLow: true },
+          { size: "45*76.5", gsm: "200", stock: 62, isLow: true },
+          { size: "46.5*90", gsm: "200", stock: 54, isLow: true },
+          { size: "47*70.5", gsm: "200", stock: 0, isLow: true },
+          { size: "50*72", gsm: "200", stock: 0, isLow: true },
+          { size: "50*79", gsm: "200", stock: 976, isLow: false },
+          { size: "50*81", gsm: "200", stock: 337, isLow: true },
+          { size: "50*83", gsm: "200", stock: 48, isLow: true },
           { size: "50*89", gsm: "200", stock: 239, isLow: true },
           { size: "51*80", gsm: "200", stock: 174, isLow: true },
           { size: "52*68.5", gsm: "200", stock: 75, isLow: true },
           { size: "52*76.5", gsm: "200", stock: 145, isLow: true },
           { size: "53*83", gsm: "200", stock: 601, isLow: false },
           { size: "54*86", gsm: "200", stock: 524, isLow: false },
+          { size: "55*80", gsm: "200", stock: 0, isLow: true },
+          { size: "55*82", gsm: "200", stock: 0, isLow: true },
           { size: "56*82", gsm: "200", stock: 377, isLow: true },
           { size: "56*86", gsm: "200", stock: 671, isLow: false },
           { size: "57*85.5", gsm: "200", stock: 52, isLow: true },
@@ -243,17 +337,6 @@ const inventoryData = [
           { size: "68*69", gsm: "200", stock: 133, isLow: true },
           { size: "72*48", gsm: "200", stock: 79, isLow: true },
           { size: "73*74", gsm: "200", stock: 50, isLow: true },
-          { size: "41*83", gsm: "200", stock: 0, isLow: true },
-          { size: "42.5*57.5", gsm: "200", stock: 215, isLow: true },
-          { size: "43*73", gsm: "200", stock: 283, isLow: true },
-          { size: "44.5*64", gsm: "200", stock: 114, isLow: true },
-          { size: "45*76.5", gsm: "200", stock: 62, isLow: true },
-          { size: "46.5*90", gsm: "200", stock: 54, isLow: true },
-          { size: "47*70.5", gsm: "200", stock: 0, isLow: true },
-          { size: "50*72", gsm: "200", stock: 0, isLow: true },
-          { size: "50*79", gsm: "200", stock: 976, isLow: false },
-          { size: "50*81", gsm: "200", stock: 337, isLow: true },
-          { size: "50*83", gsm: "200", stock: 48, isLow: true },
         ]
       }
     ]
@@ -626,10 +709,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>('viewer');
   const [userPages, setUserPages] = useState<string[]>([]);
-  const [userName, setUserName] = useState('System User');
+  const [userName, setUserName] = useState('Guest User');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [roles, setRoles] = useState([
     { id: 'admin', name: 'Administrator', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools', 'admin'] },
@@ -758,31 +841,137 @@ export default function App() {
   });
 
   // Admin Panel State
-  const [staffs, setStaffs] = useState([
-    { id: 1, name: 'John Doe', username: 'admin', password: 'Enerpack2022', role: 'Admin', status: 'Active', pages: ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin'] }
-  ]);
-  const [approvals, setApprovals] = useState<any[]>([
-    { id: 1, type: 'Inventory Adjustment', details: 'Added 100 units to 56x280', status: 'Pending', pageAccess: 'All' }
-  ]);
-  const [auditLogs, setAuditLogs] = useState([
-    { id: 1, action: 'User logged in', user: 'John Doe', timestamp: '2026-03-13 09:00:00' }
-  ]);
+  const [staffs, setStaffs] = useState<any[]>([]);
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const [openApprovalDropdownId, setOpenApprovalDropdownId] = useState<number | null>(null);
+  const [approvals, setApprovals] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
-  const notifyAdmin = (type: string, details: string) => {
-    if (!isAdmin) {
-      setApprovals(prev => [{
-        id: Date.now(),
-        type: 'Editor Update',
-        details: `${userName} (${userRole}): ${details}`,
-        timestamp: new Date().toISOString(),
-        status: 'Unread'
-      }, ...prev]);
-    }
+  // Firebase Real-time Listeners
+  const reconstructInventory = (flatList: any[]) => {
+    const sections: any[] = [];
+    flatList.forEach(item => {
+      let section = sections.find(s => s.title === item.sectionTitle);
+      if (!section) {
+        section = { title: item.sectionTitle, subSections: [] };
+        sections.push(section);
+      }
+      let subSection = section.subSections.find((ss: any) => ss.title === item.subSectionTitle);
+      if (!subSection) {
+        subSection = { title: item.subSectionTitle, items: [] };
+        section.subSections.push(subSection);
+      }
+      subSection.items.push(item);
+    });
+    
+    // Sort items within subsections
+    sections.forEach(s => {
+      s.subSections.forEach((ss: any) => {
+        ss.items.sort((a: any, b: any) => sortSizes(a.size, b.size));
+      });
+    });
+
+    return sections;
   };
 
-  const logAction = (action: string) => {
-    setAuditLogs(prev => [...prev, { id: Date.now(), action, user: userName, timestamp: new Date().toISOString() }]);
-    notifyAdmin('Action Logged', action);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkAndSeedInventory = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'inventory'));
+        if (snapshot.empty) {
+          console.log("Seeding inventory...");
+          for (const section of inventoryData) {
+            for (const subSection of section.subSections) {
+              for (const item of subSection.items) {
+                await addDoc(collection(db, 'inventory'), {
+                  ...item,
+                  sectionTitle: section.title,
+                  subSectionTitle: subSection.title,
+                  timestamp: Timestamp.now()
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'inventory');
+      }
+    };
+    checkAndSeedInventory();
+
+    const staffsQuery = query(collection(db, 'staffs'), orderBy('name'));
+    const unsubscribeStaffs = onSnapshot(staffsQuery, (snapshot) => {
+      const staffList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setStaffs(staffList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'staffs'));
+
+    const approvalsQuery = query(collection(db, 'registrations'), orderBy('timestamp', 'desc'));
+    const unsubscribeApprovals = onSnapshot(approvalsQuery, (snapshot) => {
+      const approvalList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setApprovals(approvalList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'registrations'));
+
+    const auditLogsQuery = query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'));
+    const unsubscribeAuditLogs = onSnapshot(auditLogsQuery, (snapshot) => {
+      const logsList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAuditLogs(logsList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'auditLogs'));
+
+    const inventoryQuery = query(collection(db, 'inventory'));
+    const unsubscribeInventory = onSnapshot(inventoryQuery, (snapshot) => {
+      const inventoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const structuredInventory = reconstructInventory(inventoryList);
+      if (structuredInventory.length > 0) {
+        setInventory(structuredInventory);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'inventory'));
+
+    const stockInQuery = query(collection(db, 'stockInLogs'), orderBy('timestamp', 'desc'));
+    const unsubscribeStockIn = onSnapshot(stockInQuery, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setStockInLogs(logs);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'stockInLogs'));
+
+    const stockOutQuery = query(collection(db, 'stockOutLogs'), orderBy('timestamp', 'desc'));
+    const unsubscribeStockOut = onSnapshot(stockOutQuery, (snapshot) => {
+      const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setStockOutLogs(logs);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'stockOutLogs'));
+
+    const pendingWorksQuery = query(collection(db, 'pendingWorks'), orderBy('timestamp', 'desc'));
+    const unsubscribePendingWorks = onSnapshot(pendingWorksQuery, (snapshot) => {
+      const works = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPendingWorks(works);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'pendingWorks'));
+
+    return () => {
+      unsubscribeStaffs();
+      unsubscribeApprovals();
+      unsubscribeAuditLogs();
+      unsubscribeInventory();
+      unsubscribeStockIn();
+      unsubscribeStockOut();
+      unsubscribePendingWorks();
+    };
+  }, [isAuthenticated]);
+
+  const notifyAdmin = async (type: string, details: string) => {
+    // In Firebase version, we can just log it or send a specific notification if needed
+    // For now, we'll rely on the audit logs and registration requests
+  };
+
+  const logAction = async (action: string) => {
+    try {
+      await addDoc(collection(db, 'auditLogs'), {
+        action,
+        user: userName,
+        timestamp: Timestamp.now()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'auditLogs');
+    }
   };
 
   const handleSaveReorder = (key: string, item: any) => {
@@ -813,11 +1002,47 @@ export default function App() {
     alert('Reorder log saved successfully!');
   };
 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportType, setExportType] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [exportSource, setExportSource] = useState<'inventory' | 'stockIn' | 'stockOut' | 'pendingWorks' | 'demandForecast' | 'reorderAlerts'>('inventory');
+  const [exportPeriod, setExportPeriod] = useState<'current' | 'period'>('current');
+  const [exportStartDate, setExportStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
     if (!year || !month || !day) return dateStr;
     return `${day}-${month}-${year}`;
+  };
+
+  const handleInitiateExport = (type: 'xlsx' | 'pdf', source: 'inventory' | 'stockIn' | 'stockOut' | 'pendingWorks' | 'demandForecast' | 'reorderAlerts' = 'inventory') => {
+    setExportType(type);
+    setExportSource(source);
+    setShowExportModal(true);
+  };
+
+  const handleFinalExport = () => {
+    if (exportSource === 'inventory') {
+      if (exportType === 'xlsx') handleExportXLSX();
+      else handleExportPDF();
+    } else if (exportSource === 'stockIn') {
+      if (exportType === 'xlsx') handleExportStockInXLSX();
+      else handleExportStockInPDF();
+    } else if (exportSource === 'stockOut') {
+      if (exportType === 'xlsx') handleExportStockOutXLSX();
+      else handleExportStockOutPDF();
+    } else if (exportSource === 'pendingWorks') {
+      if (exportType === 'xlsx') handleExportPendingWorksXLSX();
+      else handleExportPendingWorksPDF();
+    } else if (exportSource === 'demandForecast') {
+      if (exportType === 'xlsx') handleExportDemandForecastXLSX();
+      else handleExportDemandForecastPDF();
+    } else if (exportSource === 'reorderAlerts') {
+      if (exportType === 'xlsx') handleExportReorderAlertXLSX();
+      else handleExportReorderAlertPDF();
+    }
+    setShowExportModal(false);
   };
 
   const handleSaveToPdf = async () => {
@@ -1013,28 +1238,30 @@ export default function App() {
     }
   };
 
-  const handleConfirmStockIn = () => {
+  const handleConfirmStockIn = async () => {
     if (!stockInItem || !stockInItem.formData.quantity) return;
     
     const quantity = parseInt(stockInItem.formData.quantity) || 0;
-    updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity);
+    await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity);
     
-    const newLog = {
-      id: Date.now(),
-      date: stockInItem.formData.date,
-      month: stockInItem.formData.month,
-      size: stockInItem.item.size,
-      gsm: stockInItem.item.gsm,
-      quantity: quantity,
-      company: stockInItem.formData.company,
-      invoice: stockInItem.formData.invoiceNo,
-      storageLoc: stockInItem.formData.storageLocation,
-      remarks: stockInItem.formData.remarks
-    };
-    
-    setStockInLogs(prev => [newLog, ...prev]);
-    logAction(`Stock In: ${quantity} units of ${stockInItem.item.size}x${stockInItem.item.gsm} for ${stockInItem.formData.company}`);
-    setStockInItem(null);
+    try {
+      await addDoc(collection(db, 'stockInLogs'), {
+        date: stockInItem.formData.date,
+        month: stockInItem.formData.month,
+        size: stockInItem.item.size,
+        gsm: stockInItem.item.gsm,
+        quantity: quantity,
+        company: stockInItem.formData.company,
+        invoice: stockInItem.formData.invoiceNo,
+        storageLoc: stockInItem.formData.storageLocation,
+        remarks: stockInItem.formData.remarks,
+        timestamp: Timestamp.now()
+      });
+      logAction(`Stock In: ${quantity} units of ${stockInItem.item.size}x${stockInItem.item.gsm} for ${stockInItem.formData.company}`);
+      setStockInItem(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'stockInLogs');
+    }
   };
 
   const handleDecrement = (sectionTitle: string, subTitle: string, size: string) => {
@@ -1066,88 +1293,83 @@ export default function App() {
     }
   };
 
-  const handleConfirmStockOut = () => {
+  const handleConfirmStockOut = async () => {
     if (!stockOutItem || !stockOutItem.formData.quantity) return;
     
     const quantity = parseInt(stockOutItem.formData.quantity) || 0;
-    updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity);
+    await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity);
     
-    // Move to Pending Works
-    const newPendingWork = {
-      id: Date.now(),
-      date: stockOutItem.formData.date,
-      size: stockOutItem.item.size,
-      gsm: stockOutItem.item.gsm,
-      qty: quantity,
-      unit: stockOutItem.formData.unit,
-      company: stockOutItem.formData.company,
-      itemCode: stockOutItem.formData.itemCode,
-      workName: stockOutItem.formData.workName,
-      cutSize: stockOutItem.formData.cuttingSize,
-      sheets: parseInt(stockOutItem.formData.sheets) || 0,
-      priority: stockOutItem.formData.priority.toUpperCase(),
-      status: stockOutItem.formData.status.toUpperCase(),
-      remarks: stockOutItem.formData.remarks
-    };
-    
-    setPendingWorks(prev => [newPendingWork, ...prev]);
-    logAction(`Added new pending work: ${newPendingWork.workName}`);
-    setStockOutItem(null);
+    try {
+      await addDoc(collection(db, 'pendingWorks'), {
+        date: stockOutItem.formData.date,
+        size: stockOutItem.item.size,
+        gsm: stockOutItem.item.gsm,
+        qty: quantity,
+        unit: stockOutItem.formData.unit,
+        company: stockOutItem.formData.company,
+        itemCode: stockOutItem.formData.itemCode,
+        workName: stockOutItem.formData.workName,
+        cutSize: stockOutItem.formData.cuttingSize,
+        sheets: parseInt(stockOutItem.formData.sheets) || 0,
+        priority: stockOutItem.formData.priority.toUpperCase(),
+        status: stockOutItem.formData.status.toUpperCase(),
+        remarks: stockOutItem.formData.remarks,
+        timestamp: Timestamp.now()
+      });
+      logAction(`Added new pending work: ${stockOutItem.formData.workName}`);
+      setStockOutItem(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'pendingWorks');
+    }
   };
 
-  const updateStock = (sectionTitle: string, subTitle: string, size: string, delta: number) => {
-    setInventory(prev => prev.map(section => {
-      if (section.title === sectionTitle) {
-        return {
-          ...section,
-          subSections: section.subSections.map(sub => {
-            if (sub.title === subTitle) {
-              return {
-                ...sub,
-                items: sub.items.map(item => {
-                  if (item.size === size) {
-                    const newStock = Math.max(0, item.stock + delta);
-                    return { ...item, stock: newStock, isLow: newStock < (item.minQuantity || 100) };
-                  }
-                  return item;
-                })
-              };
-            }
-            return sub;
-          })
-        };
+  const updateStock = async (sectionTitle: string, subTitle: string, size: string, delta: number) => {
+    try {
+      const q = query(
+        collection(db, 'inventory'), 
+        where('sectionTitle', '==', sectionTitle),
+        where('subSectionTitle', '==', subTitle),
+        where('size', '==', size)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const docRef = snapshot.docs[0].ref;
+        const currentData = snapshot.docs[0].data();
+        const newStock = Math.max(0, (currentData.stock || 0) + delta);
+        await updateDoc(docRef, {
+          stock: newStock,
+          isLow: newStock < (currentData.minQuantity || 100)
+        });
       }
-      return section;
-    }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'inventory');
+    }
   };
 
   const handleDelete = (sectionTitle: string, subTitle: string, size: string) => {
     setDeletingItem({ sectionTitle, subTitle, size });
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingItem) return;
     const { sectionTitle, subTitle, size } = deletingItem;
     
-    setInventory(prev => prev.map(section => {
-      if (section.title === sectionTitle) {
-        return {
-          ...section,
-          subSections: section.subSections.map(sub => {
-            if (sub.title === subTitle) {
-              return {
-                ...sub,
-                items: sub.items.filter(item => item.size !== size)
-              };
-            }
-            return sub;
-          })
-        };
+    try {
+      const q = query(
+        collection(db, 'inventory'), 
+        where('sectionTitle', '==', sectionTitle),
+        where('subSectionTitle', '==', subTitle),
+        where('size', '==', size)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        await deleteDoc(snapshot.docs[0].ref);
+        logAction(`Deleted inventory item: ${size}`);
       }
-      return section;
-    }));
-    logAction(`Deleted inventory item: ${size}`);
-    setDeletingItem(null);
+      setDeletingItem(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'inventory');
+    }
   };
 
   const handleEdit = (sectionTitle: string, subTitle: string, item: any) => {
@@ -1162,37 +1384,32 @@ export default function App() {
     });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingItem) return;
     const { sectionTitle, subTitle, item } = editingItem;
     
-    setInventory(prev => prev.map(section => {
-      if (section.title === sectionTitle) {
-        return {
-          ...section,
-          subSections: section.subSections.map(sub => {
-            if (sub.title === subTitle) {
-              return {
-                ...sub,
-                items: sub.items.map(i => {
-                  if (i.size === editingItem.item.size || i.size === item.size) {
-                    return { ...item, isLow: item.stock < (item.minQuantity || 100) };
-                  }
-                  return i;
-                })
-              };
-            }
-            return sub;
-          })
-        };
+    try {
+      const q = query(
+        collection(db, 'inventory'), 
+        where('sectionTitle', '==', sectionTitle),
+        where('subSectionTitle', '==', subTitle),
+        where('size', '==', item.size)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        await updateDoc(snapshot.docs[0].ref, {
+          ...item,
+          isLow: item.stock < (item.minQuantity || 100)
+        });
+        logAction(`Updated inventory item: ${item.size}x${item.gsm}`);
       }
-      return section;
-    }));
-    logAction(`Updated inventory item: ${item.size}x${item.gsm}`);
-    setEditingItem(null);
+      setEditingItem(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'inventory');
+    }
   };
 
-  const handleAddSku = () => {
+  const handleAddSku = async () => {
     if (!newSkuSize) return;
     
     const newItem = {
@@ -1204,50 +1421,110 @@ export default function App() {
       remarks: ""
     };
 
-    const updatedInventory = inventory.map(section => {
-      if (section.title.includes(newSkuGsm)) {
-        return {
-          ...section,
-          subSections: section.subSections.map((sub, idx) => {
-            // Add to the first subsection of the matching GSM section
-            if (idx === 0) {
-              return {
-                ...sub,
-                items: [newItem, ...sub.items]
-              };
-            }
-            return sub;
-          })
-        };
-      }
-      return section;
-    });
+    let targetSection = "OTHER SECTION";
+    const section = inventoryData.find(s => s.title.includes(newSkuGsm));
+    if (section) {
+      targetSection = section.title;
+    }
 
-    setInventory(updatedInventory);
-    logAction(`Added new SKU: ${newSkuSize}x${newSkuGsm}`);
-    setShowNewSkuForm(false);
-    setNewSkuSize('');
-    setNewSkuStock('0');
+    let targetSubSection = "SINGLE SIZE";
+    if (newSkuSize.includes('*')) {
+      targetSubSection = "DOUBLE SIZE";
+    }
+
+    try {
+      await addDoc(collection(db, 'inventory'), {
+        ...newItem,
+        sectionTitle: targetSection,
+        subSectionTitle: targetSubSection,
+        timestamp: Timestamp.now()
+      });
+      logAction(`Added new SKU: ${newSkuSize}x${newSkuGsm}`);
+      setShowNewSkuForm(false);
+      setNewSkuSize('');
+      setNewSkuStock('0');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'inventory');
+    }
+  };
+
+  const getStockAtDate = (itemSize: string, itemGsm: string, targetDate: string) => {
+    // Find current stock
+    let currentStock = 0;
+    for (const section of inventory) {
+      for (const sub of section.subSections) {
+        for (const item of sub.items) {
+          if (item.size === itemSize && item.gsm === itemGsm) {
+            currentStock = item.stock;
+            break;
+          }
+        }
+      }
+    }
+
+    // Adjust for movements after targetDate (inclusive)
+    const afterIn = stockInLogs
+      .filter(log => log.size === itemSize && log.gsm === itemGsm && log.date >= targetDate)
+      .reduce((sum, log) => sum + (log.quantity || 0), 0);
+    
+    const afterOut = stockOutLogs
+      .filter(log => log.size === itemSize && log.gsm === itemGsm && log.date >= targetDate)
+      .reduce((sum, log) => sum + (log.out || 0), 0);
+
+    return currentStock - afterIn + afterOut;
   };
 
   const handleExportXLSX = () => {
-    const data = inventory.flatMap(section => 
-      section.subSections.flatMap(sub => 
-        sub.items.map(item => ({
-          'Section': section.title,
-          'Subsection': sub.title,
-          'Size': item.size,
-          'GSM': item.gsm,
-          'Stock': item.stock,
-          'Status': item.isLow ? 'Low Stock' : 'In Stock'
-        }))
-      )
-    );
+    let data = [];
+    if (exportPeriod === 'current') {
+      data = inventory.flatMap(section => 
+        section.subSections.flatMap(sub => 
+          sub.items.map(item => ({
+            'Section': section.title,
+            'Subsection': sub.title,
+            'Size': item.size,
+            'GSM': item.gsm,
+            'Stock': item.stock,
+            'Status': item.isLow ? 'Low Stock' : 'In Stock'
+          }))
+        )
+      );
+    } else {
+      // Period Export
+      data = inventory.flatMap(section => 
+        section.subSections.flatMap(sub => 
+          sub.items.map(item => {
+            const opening = getStockAtDate(item.size, item.gsm, exportStartDate);
+            const totalIn = stockInLogs
+              .filter(log => log.size === item.size && log.gsm === item.gsm && log.date >= exportStartDate && log.date <= exportEndDate)
+              .reduce((sum, log) => sum + (log.quantity || 0), 0);
+            const totalOut = stockOutLogs
+              .filter(log => log.size === item.size && log.gsm === item.gsm && log.date >= exportStartDate && log.date <= exportEndDate)
+              .reduce((sum, log) => sum + (log.out || 0), 0);
+            const closing = opening + totalIn - totalOut;
+
+            return {
+              'Section': section.title,
+              'Subsection': sub.title,
+              'Size': item.size,
+              'GSM': item.gsm,
+              'Opening Stock': opening,
+              'Total In': totalIn,
+              'Total Out': totalOut,
+              'Closing Stock': closing
+            };
+          })
+        )
+      );
+    }
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
+    const fileName = exportPeriod === 'current' 
+      ? "EnerPack_Inventory_Current.xlsx" 
+      : `EnerPack_Inventory_${exportStartDate}_to_${exportEndDate}.xlsx`;
     XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-    XLSX.writeFile(wb, "EnerPack_Inventory.xlsx");
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleExportPDF = () => {
@@ -1268,7 +1545,8 @@ export default function App() {
       doc.line(14, 25, pageWidth - 14, 25);
     };
 
-    const renderSection = (section: any, startY: number) => {
+    if (exportPeriod === 'current') {
+      const renderSection = (section: any, startY: number) => {
       const allItems: any[] = [];
       section.subSections.forEach((sub: any) => {
         const excludedTitles = ["SINGLE SIZE", "150", "100"];
@@ -1372,8 +1650,55 @@ export default function App() {
     otherSections.forEach((section, idx) => {
       currentY2 = renderSection(section, currentY2 + (idx === 0 ? 0 : 6));
     });
+    } else {
+      // Period Export PDF
+      renderHeader(`INVENTORY MOVEMENT REPORT (${formatDate(exportStartDate)} to ${formatDate(exportEndDate)})`);
+      let currentY = 35;
 
-    doc.save("EnerPack_Inventory_Report.pdf");
+      const data = inventory.flatMap(section => 
+        section.subSections.flatMap(sub => 
+          sub.items.map(item => {
+            const opening = getStockAtDate(item.size, item.gsm, exportStartDate);
+            const totalIn = stockInLogs
+              .filter(log => log.size === item.size && log.gsm === item.gsm && log.date >= exportStartDate && log.date <= exportEndDate)
+              .reduce((sum, log) => sum + (log.quantity || 0), 0);
+            const totalOut = stockOutLogs
+              .filter(log => log.size === item.size && log.gsm === item.gsm && log.date >= exportStartDate && log.date <= exportEndDate)
+              .reduce((sum, log) => sum + (log.out || 0), 0);
+            const closing = opening + totalIn - totalOut;
+
+            return [
+              item.size,
+              item.gsm,
+              opening.toString(),
+              totalIn.toString(),
+              totalOut.toString(),
+              closing.toString()
+            ];
+          })
+        )
+      );
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['SIZE', 'GSM', 'OPENING', 'TOTAL IN', 'TOTAL OUT', 'CLOSING']],
+        body: data,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [15, 42, 67], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: {
+          2: { halign: 'center', fontStyle: 'bold' },
+          3: { halign: 'center', textColor: [16, 185, 129] },
+          4: { halign: 'center', textColor: [239, 68, 68] },
+          5: { halign: 'center', fontStyle: 'bold' }
+        }
+      });
+    }
+
+    const fileName = exportPeriod === 'current' 
+      ? "EnerPack_Inventory_Current.pdf" 
+      : `EnerPack_Inventory_${exportStartDate}_to_${exportEndDate}.pdf`;
+    doc.save(fileName);
   };
 
   const totalSkus = inventory.reduce((acc, section) => 
@@ -1407,7 +1732,12 @@ export default function App() {
   );
 
   const handleExportStockInXLSX = () => {
-    const data = filteredLogs.map(log => ({
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? stockInLogs.filter(log => log.date === today)
+      : stockInLogs.filter(log => log.date >= exportStartDate && log.date <= exportEndDate);
+
+    const data = sourceData.map(log => ({
       'DATE': log.date,
       'MONTH': log.month,
       'SIZE': log.size,
@@ -1421,16 +1751,27 @@ export default function App() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
+    const fileName = exportPeriod === 'current' 
+      ? `Stock_In_Logs_${today}.xlsx` 
+      : `Stock_In_Logs_${exportStartDate}_to_${exportEndDate}.xlsx`;
     XLSX.utils.book_append_sheet(wb, ws, "Stock In Logs");
-    XLSX.writeFile(wb, "Stock_In_Logs.xlsx");
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleExportStockInPDF = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? stockInLogs.filter(log => log.date === today)
+      : stockInLogs.filter(log => log.date >= exportStartDate && log.date <= exportEndDate);
+
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(18);
-    doc.text("STOCK IN LOGS", 14, 15);
+    const title = exportPeriod === 'current' 
+      ? `STOCK IN LOGS (${formatDate(today)})` 
+      : `STOCK IN LOGS (${formatDate(exportStartDate)} to ${formatDate(exportEndDate)})`;
+    doc.text(title, 14, 15);
     
-    const tableData = filteredLogs.map(log => [
+    const tableData = sourceData.map(log => [
       log.date,
       log.month,
       log.size,
@@ -1451,15 +1792,19 @@ export default function App() {
       headStyles: { fillColor: [30, 64, 175] }
     });
 
-    doc.save("Stock_In_Logs.pdf");
+    const fileName = exportPeriod === 'current' 
+      ? `Stock_In_Logs_${today}.pdf` 
+      : `Stock_In_Logs_${exportStartDate}_to_${exportEndDate}.pdf`;
+    doc.save(fileName);
   };
 
   const handleExportStockOutXLSX = () => {
-    const data = stockOutLogs.filter(log => 
-      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-    ).map(log => ({
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? stockOutLogs.filter(log => log.date === today)
+      : stockOutLogs.filter(log => log.date >= exportStartDate && log.date <= exportEndDate);
+
+    const data = sourceData.map(log => ({
       'DATE': log.date,
       'SIZE': log.size,
       'GSM': log.gsm,
@@ -1478,20 +1823,27 @@ export default function App() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
+    const fileName = exportPeriod === 'current' 
+      ? `Stock_Out_Logs_${today}.xlsx` 
+      : `Stock_Out_Logs_${exportStartDate}_to_${exportEndDate}.xlsx`;
     XLSX.utils.book_append_sheet(wb, ws, "Stock Out Logs");
-    XLSX.writeFile(wb, "Stock_Out_Logs.xlsx");
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleExportStockOutPDF = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? stockOutLogs.filter(log => log.date === today)
+      : stockOutLogs.filter(log => log.date >= exportStartDate && log.date <= exportEndDate);
+
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(18);
-    doc.text("STOCK OUT LOGS (DELIVERED)", 14, 15);
+    const title = exportPeriod === 'current' 
+      ? `STOCK OUT LOGS (${formatDate(today)})` 
+      : `STOCK OUT LOGS (${formatDate(exportStartDate)} to ${formatDate(exportEndDate)})`;
+    doc.text(title, 14, 15);
     
-    const tableData = stockOutLogs.filter(log => 
-      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-    ).map(log => [
+    const tableData = sourceData.map(log => [
       log.date,
       log.size,
       log.gsm,
@@ -1517,11 +1869,19 @@ export default function App() {
       headStyles: { fillColor: [139, 26, 26] }
     });
 
-    doc.save("Stock_Out_Logs.pdf");
+    const fileName = exportPeriod === 'current' 
+      ? `Stock_Out_Logs_${today}.pdf` 
+      : `Stock_Out_Logs_${exportStartDate}_to_${exportEndDate}.pdf`;
+    doc.save(fileName);
   };
 
   const handleExportPendingWorksXLSX = () => {
-    const data = filteredPendingWorks.map(work => ({
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? pendingWorks.filter(work => work.date === today)
+      : pendingWorks.filter(work => work.date >= exportStartDate && work.date <= exportEndDate);
+
+    const data = sourceData.map(work => ({
       'DATE': work.date,
       'SIZE': work.size,
       'GSM': work.gsm,
@@ -1538,16 +1898,27 @@ export default function App() {
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
+    const fileName = exportPeriod === 'current' 
+      ? `Pending_Works_${today}.xlsx` 
+      : `Pending_Works_${exportStartDate}_to_${exportEndDate}.xlsx`;
     XLSX.utils.book_append_sheet(wb, ws, "Pending Works");
-    XLSX.writeFile(wb, "Pending_Works.xlsx");
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleExportPendingWorksPDF = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const sourceData = exportPeriod === 'current' 
+      ? pendingWorks.filter(work => work.date === today)
+      : pendingWorks.filter(work => work.date >= exportStartDate && work.date <= exportEndDate);
+
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(18);
-    doc.text("PENDING WORKS", 14, 15);
+    const title = exportPeriod === 'current' 
+      ? `PENDING WORKS (${formatDate(today)})` 
+      : `PENDING WORKS (${formatDate(exportStartDate)} to ${formatDate(exportEndDate)})`;
+    doc.text(title, 14, 15);
     
-    const tableData = filteredPendingWorks.map(work => [
+    const tableData = sourceData.map(work => [
       work.date,
       work.size,
       work.gsm,
@@ -1571,7 +1942,10 @@ export default function App() {
       headStyles: { fillColor: [242, 101, 34] }
     });
 
-    doc.save("Pending_Works.pdf");
+    const fileName = exportPeriod === 'current' 
+      ? `Pending_Works_${today}.pdf` 
+      : `Pending_Works_${exportStartDate}_to_${exportEndDate}.pdf`;
+    doc.save(fileName);
   };
 
   const handleExportReorderAlertXLSX = () => {
@@ -1746,7 +2120,8 @@ export default function App() {
   })() : null;
 
   return (
-    !isAuthenticated ? (
+    <ErrorBoundary>
+      {!isAuthenticated ? (
       <LoginPage
         onLogin={(role: string, name: string = 'System User', pages: string[] = []) => { 
           setIsAuthenticated(true); 
@@ -1754,17 +2129,20 @@ export default function App() {
           setUserName(name);
           setUserPages(pages);
         }}
-        onRegister={(username, password) => {
-          setApprovals(prev => [...prev, { 
-            id: Date.now(), 
-            type: 'User Registration', 
-            details: `New user registration: ${username}`, 
-            username,
-            password,
-            status: 'Pending', 
-            pageAccess: roles[0]?.name || 'All' 
-          }]);
-          logAction(`New user registration request: ${username}`);
+        onRegister={async (username, password) => {
+          try {
+            await addDoc(collection(db, 'registrations'), {
+              username,
+              password,
+              status: 'Pending',
+              details: `New user registration: ${username}`,
+              timestamp: Timestamp.now(),
+              pageAccess: roles[0]?.name || 'All'
+            });
+            logAction(`New user registration request: ${username}`);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, 'registrations');
+          }
         }}
         staffs={staffs}
       />
@@ -2278,13 +2656,13 @@ export default function App() {
                   
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleExportXLSX}
+                      onClick={() => handleInitiateExport('xlsx')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
                     >
                       <FileSpreadsheet size={14} /> XLSX
                     </button>
                     <button 
-                      onClick={handleExportPDF}
+                      onClick={() => handleInitiateExport('pdf')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
                     >
                       <FileText size={14} /> PDF
@@ -3138,13 +3516,13 @@ export default function App() {
                     />
                   </div>
                   <button 
-                    onClick={handleExportStockInPDF}
+                    onClick={() => handleInitiateExport('pdf', 'stockIn')}
                     className="flex items-center gap-2 bg-rose-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
                   >
                     <FileText size={16} /> PDF
                   </button>
                   <button 
-                    onClick={handleExportStockInXLSX}
+                    onClick={() => handleInitiateExport('xlsx', 'stockIn')}
                     className="flex items-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                   >
                     <FileSpreadsheet size={16} /> EXCEL
@@ -3178,7 +3556,7 @@ export default function App() {
                       ) : (
                         filteredLogs.map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-500 border-r border-slate-100">{log.date}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-500 border-r border-slate-100">{formatDate(log.date)}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.month}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
@@ -3197,9 +3575,14 @@ export default function App() {
                                     <Edit2 size={14} />
                                   </button>
                                   <button 
-                                    onClick={() => {
+                                    onClick={async () => {
                                       if (window.confirm('Delete this log?')) {
-                                        setStockInLogs(prev => prev.filter(l => l.id !== log.id));
+                                        try {
+                                          await deleteDoc(doc(db, 'stockInLogs', log.id));
+                                          logAction(`Deleted stock in log: ${log.size}x${log.gsm}`);
+                                        } catch (error) {
+                                          handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                        }
                                       }
                                     }}
                                     className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
@@ -3228,7 +3611,7 @@ export default function App() {
                     filteredLogs.map((log) => (
                       <div key={log.id} className="p-6 space-y-4">
                         <div className="flex items-center justify-between">
-                          <div className="text-xs font-bold text-slate-500">{log.date}</div>
+                          <div className="text-xs font-bold text-slate-500">{formatDate(log.date)}</div>
                           <div className="text-sm font-black text-emerald-600">+{log.quantity}</div>
                         </div>
                         
@@ -3255,9 +3638,13 @@ export default function App() {
                                   <Edit2 size={14} />
                                 </button>
                                 <button 
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (window.confirm('Delete this log?')) {
-                                      setStockInLogs(prev => prev.filter(l => l.id !== log.id));
+                                      try {
+                                        await deleteDoc(doc(db, 'stockInLogs', log.id));
+                                      } catch (error) {
+                                        handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                      }
                                     }
                                   }}
                                   className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
@@ -3376,9 +3763,14 @@ export default function App() {
                             Cancel
                           </button>
                           <button 
-                            onClick={() => {
-                              setStockInLogs(prev => prev.map(l => l.id === editingLog.id ? editingLog : l));
-                              setEditingLog(null);
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'stockInLogs', editingLog.id), editingLog);
+                                logAction(`Updated stock in log: ${editingLog.size}x${editingLog.gsm}`);
+                                setEditingLog(null);
+                              } catch (error) {
+                                handleFirestoreError(error, OperationType.UPDATE, `stockInLogs/${editingLog.id}`);
+                              }
                             }}
                             className="flex items-center gap-2 bg-emerald-600 text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                           >
@@ -3429,13 +3821,13 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleExportStockOutPDF}
+                      onClick={() => handleInitiateExport('pdf', 'stockOut')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
                     >
                       <FileText size={16} /> PDF
                     </button>
                     <button 
-                      onClick={handleExportStockOutXLSX}
+                      onClick={() => handleInitiateExport('xlsx', 'stockOut')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                     >
                       <FileSpreadsheet size={16} /> EXCEL
@@ -3482,7 +3874,7 @@ export default function App() {
                           log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
                         ).map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.date}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{formatDate(log.date)}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
                             <td className="px-4 py-1 text-xs font-bold text-rose-600 border-r border-slate-100">{log.out}</td>
@@ -3496,7 +3888,7 @@ export default function App() {
                                 {log.status}
                               </span>
                             </td>
-                            <td className="px-4 py-1 text-xs font-bold text-emerald-600 border-r border-slate-100">{log.deliveryDate || log.date}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-emerald-600 border-r border-slate-100">{formatDate(log.deliveryDate || log.date)}</td>
                             <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.vehicle}</td>
                             <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.location}</td>
                             <td className="px-4 py-1 text-xs text-slate-500">{log.remarks}</td>
@@ -3523,7 +3915,7 @@ export default function App() {
                     ).map((log) => (
                       <div key={log.id} className="p-6 space-y-4">
                         <div className="flex items-center justify-between">
-                          <div className="text-xs font-bold text-slate-500">{log.date}</div>
+                          <div className="text-xs font-bold text-slate-500">{formatDate(log.date)}</div>
                           <div className="text-sm font-black text-rose-600">-{log.out} <span className="text-[8px] uppercase">{log.unit}</span></div>
                         </div>
                         
@@ -3539,7 +3931,7 @@ export default function App() {
                           </div>
                           <div className="space-y-1">
                             <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Delivery Date</div>
-                            <div className="text-xs font-bold text-emerald-600">{log.deliveryDate || log.date}</div>
+                            <div className="text-xs font-bold text-emerald-600">{formatDate(log.deliveryDate || log.date)}</div>
                           </div>
                           <div className="space-y-1">
                             <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Vehicle</div>
@@ -3611,13 +4003,13 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleExportPendingWorksPDF}
+                      onClick={() => handleInitiateExport('pdf', 'pendingWorks')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
                     >
                       <FileText size={16} /> PDF
                     </button>
                     <button 
-                      onClick={handleExportPendingWorksXLSX}
+                      onClick={() => handleInitiateExport('xlsx', 'pendingWorks')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                     >
                       <FileSpreadsheet size={16} /> EXCEL
@@ -3655,7 +4047,7 @@ export default function App() {
                       ) : (
                         filteredPendingWorks.map((work) => (
                           <tr key={work.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{work.date}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{formatDate(work.date)}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{work.size}</td>
                             <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{work.gsm}</td>
                             <td className="px-4 py-1 text-xs font-bold border-r border-slate-100">
@@ -3671,10 +4063,14 @@ export default function App() {
                               <select 
                                 value={work.priority}
                                 disabled={!canEdit}
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   if (canEdit) {
-                                    setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
-                                    logAction(`Updated priority for work ${work.workName}`);
+                                    try {
+                                      await updateDoc(doc(db, 'pendingWorks', work.id), { priority: e.target.value });
+                                      logAction(`Updated priority for work ${work.workName}`);
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                    }
                                   }
                                 }}
                                 className={cn(
@@ -3693,14 +4089,18 @@ export default function App() {
                               <select 
                                 value={work.status}
                                 disabled={!canEdit}
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   if (canEdit) {
                                     const newStatus = e.target.value;
                                     if (newStatus === 'DELIVERED') {
                                       setDeliveringWork(work);
                                     } else {
-                                      setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
-                                      logAction(`Updated status for work ${work.workName} to ${newStatus}`);
+                                      try {
+                                        await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
+                                        logAction(`Updated status for work ${work.workName} to ${newStatus}`);
+                                      } catch (error) {
+                                        handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                      }
                                     }
                                   }
                                 }}
@@ -3749,7 +4149,7 @@ export default function App() {
                       <div key={work.id} className="p-6 space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] font-black text-blue-600 uppercase">{work.itemCode}</div>
-                          <div className="text-xs font-bold text-slate-400">{work.date}</div>
+                          <div className="text-xs font-bold text-slate-400">{formatDate(work.date)}</div>
                         </div>
                         
                         <div>
@@ -3780,8 +4180,12 @@ export default function App() {
                           <div className="flex-1">
                             <select 
                               value={work.priority}
-                              onChange={(e) => {
-                                setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, priority: e.target.value } : w));
+                              onChange={async (e) => {
+                                try {
+                                  await updateDoc(doc(db, 'pendingWorks', work.id), { priority: e.target.value });
+                                } catch (error) {
+                                  handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                }
                               }}
                               className={cn(
                                 "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl focus:outline-none border border-slate-100 cursor-pointer",
@@ -3797,12 +4201,16 @@ export default function App() {
                           <div className="flex-1">
                             <select 
                               value={work.status}
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const newStatus = e.target.value;
                                 if (newStatus === 'DELIVERED') {
                                   setDeliveringWork(work);
                                 } else {
-                                  setPendingWorks(prev => prev.map(w => w.id === work.id ? { ...w, status: newStatus } : w));
+                                  try {
+                                    await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                  }
                                 }
                               }}
                               className="w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl bg-slate-50 text-slate-600 focus:outline-none border border-slate-100 cursor-pointer"
@@ -3889,33 +4297,37 @@ export default function App() {
 
                         <div className="space-y-4 pt-4">
                           <button 
-                            onClick={() => {
-                              const newLog = {
-                                id: Date.now(),
-                                date: deliveringWork.date, // Keep original stock out date
-                                deliveryDate: deliveryFormData.deliveryDate, // Add specific delivery date
-                                size: deliveringWork.size,
-                                gsm: deliveringWork.gsm,
-                                out: deliveringWork.qty,
-                                unit: deliveringWork.unit,
-                                itemCode: deliveringWork.itemCode,
-                                workName: deliveringWork.workName,
-                                cutSize: deliveringWork.cutSize,
-                                sheets: deliveringWork.sheets,
-                                status: 'DELIVERED',
-                                vehicle: deliveryFormData.vehicleNumber,
-                                location: deliveryFormData.deliveryLocation,
-                                remarks: deliveringWork.remarks
-                              };
-                              setStockOutLogs(prev => [newLog, ...prev]);
-                              setPendingWorks(prev => prev.filter(w => w.id !== deliveringWork.id));
-                              logAction(`Delivered work: ${deliveringWork.workName}`);
-                              setDeliveringWork(null);
-                              setDeliveryFormData({ 
-                                vehicleNumber: 'KL65S7466', 
-                                deliveryLocation: '',
-                                deliveryDate: new Date().toISOString().split('T')[0]
-                              });
+                            onClick={async () => {
+                              try {
+                                const newLog = {
+                                  date: deliveringWork.date, // Keep original stock out date
+                                  deliveryDate: deliveryFormData.deliveryDate, // Add specific delivery date
+                                  size: deliveringWork.size,
+                                  gsm: deliveringWork.gsm,
+                                  out: deliveringWork.qty,
+                                  unit: deliveringWork.unit,
+                                  itemCode: deliveringWork.itemCode,
+                                  workName: deliveringWork.workName,
+                                  cutSize: deliveringWork.cutSize,
+                                  sheets: deliveringWork.sheets,
+                                  status: 'DELIVERED',
+                                  vehicle: deliveryFormData.vehicleNumber,
+                                  location: deliveryFormData.deliveryLocation,
+                                  remarks: deliveringWork.remarks,
+                                  timestamp: Timestamp.now()
+                                };
+                                await addDoc(collection(db, 'stockOutLogs'), newLog);
+                                await deleteDoc(doc(db, 'pendingWorks', deliveringWork.id));
+                                logAction(`Delivered work: ${deliveringWork.workName}`);
+                                setDeliveringWork(null);
+                                setDeliveryFormData({ 
+                                  vehicleNumber: 'KL65S7466', 
+                                  deliveryLocation: '',
+                                  deliveryDate: new Date().toISOString().split('T')[0]
+                                });
+                              } catch (error) {
+                                handleFirestoreError(error, OperationType.WRITE, 'pendingWorks/stockOutLogs');
+                              }
                             }}
                             className="w-full bg-emerald-600 text-white py-5 rounded-3xl font-bold text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
                           >
@@ -4066,10 +4478,14 @@ export default function App() {
 
                         <div className="flex items-center justify-between pt-6 border-t border-slate-100">
                           <button 
-                            onClick={() => {
-                              setPendingWorks(prev => prev.map(w => w.id === editingPendingWork.id ? editingPendingWork : w));
-                              logAction(`Updated pending work: ${editingPendingWork.workName}`);
-                              setEditingPendingWork(null);
+                            onClick={async () => {
+                              try {
+                                await updateDoc(doc(db, 'pendingWorks', editingPendingWork.id), editingPendingWork);
+                                logAction(`Updated pending work: ${editingPendingWork.workName}`);
+                                setEditingPendingWork(null);
+                              } catch (error) {
+                                handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${editingPendingWork.id}`);
+                              }
                             }}
                             className="bg-[#0f2a43] text-white px-12 py-4 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-blue-900/20"
                           >
@@ -4127,13 +4543,13 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleExportReorderAlertPDF}
+                      onClick={() => handleInitiateExport('pdf', 'reorderAlerts')}
                       className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md"
                     >
                       <FileText size={16} /> PDF
                     </button>
                     <button 
-                      onClick={handleExportReorderAlertXLSX}
+                      onClick={() => handleInitiateExport('xlsx', 'reorderAlerts')}
                       className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-[#2e7d32] text-white px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#1b5e20] transition-all shadow-md"
                     >
                       <FileSpreadsheet size={16} /> EXCEL
@@ -4514,7 +4930,7 @@ export default function App() {
                     ) : (
                       reorderHistory.map((entry, idx) => (
                         <tr key={entry.id} className={idx % 2 === 1 ? "bg-slate-50" : "bg-white"}>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.date}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatDate(entry.date)}</td>
                           <td className="px-4 py-3 text-xs font-black text-slate-900">{entry.size}</td>
                           <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.gsm}</td>
                           <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.company}</td>
@@ -4567,13 +4983,13 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleExportDemandForecastPDF}
+                      onClick={() => handleInitiateExport('pdf', 'demandForecast')}
                       className="flex items-center gap-2 bg-rose-600 text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md"
                     >
                       <FileText size={16} /> PDF
                     </button>
                     <button 
-                      onClick={handleExportDemandForecastXLSX}
+                      onClick={() => handleInitiateExport('xlsx', 'demandForecast')}
                       className="flex items-center gap-2 bg-[#0ea5e9] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#0284c7] transition-all shadow-md"
                     >
                       <FileSpreadsheet size={16} /> EXCEL
@@ -4773,7 +5189,7 @@ export default function App() {
                   <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Staff Management</h3>
                   
                   {/* Desktop Table */}
-                  <div className="hidden lg:block overflow-x-auto">
+                  <div className="hidden lg:block">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-slate-400 uppercase tracking-widest">
@@ -4792,10 +5208,14 @@ export default function App() {
                               <select 
                                 value={staff.role}
                                 disabled={!isAdmin}
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   if (isAdmin) {
-                                    setStaffs(staffs.map(s => s.id === staff.id ? { ...s, role: e.target.value } : s));
-                                    logAction(`Updated staff role for ${staff.name}`);
+                                    try {
+                                      await updateDoc(doc(db, 'staffs', staff.id), { role: e.target.value });
+                                      logAction(`Updated staff role for ${staff.name}`);
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `staffs/${staff.id}`);
+                                    }
                                   }
                                 }}
                                 className={cn(
@@ -4820,18 +5240,22 @@ export default function App() {
                                   {staff.pages?.length || 0} Pages <ChevronDown size={10} />
                                 </button>
                                 {isAdmin && (
-                                  <div className="absolute left-0 top-full mt-1 w-48 bg-white border border-slate-100 shadow-xl rounded-xl p-2 z-50 hidden group-hover:block">
+                                  <div className="absolute left-0 top-full mt-1 w-max bg-white border border-slate-100 shadow-xl rounded-xl p-2 z-50 hidden group-hover:block">
                                     {['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin'].map(page => (
                                       <label key={page} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer text-[10px] font-bold text-slate-600">
                                         <input 
                                           type="checkbox"
                                           checked={staff.pages?.includes(page)}
-                                          onChange={(e) => {
+                                          onChange={async (e) => {
                                             const newPages = e.target.checked 
                                               ? [...(staff.pages || []), page]
                                               : (staff.pages || []).filter(p => p !== page);
-                                            setStaffs(staffs.map(s => s.id === staff.id ? { ...s, pages: newPages } : s));
-                                            logAction(`Updated staff pages for ${staff.name}`);
+                                            try {
+                                              await updateDoc(doc(db, 'staffs', staff.id), { pages: newPages });
+                                              logAction(`Updated staff pages for ${staff.name}`);
+                                            } catch (error) {
+                                              handleFirestoreError(error, OperationType.UPDATE, `staffs/${staff.id}`);
+                                            }
                                           }}
                                           className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                         />
@@ -4845,9 +5269,13 @@ export default function App() {
                             <td className="py-4">{staff.status}</td>
                             <td className="py-4">
                               {isAdmin ? (
-                                <button onClick={() => {
-                                  setStaffs(staffs.filter(s => s.id !== staff.id));
-                                  logAction(`Removed staff member ${staff.name}`);
+                                <button onClick={async () => {
+                                  try {
+                                    await deleteDoc(doc(db, 'staffs', staff.id));
+                                    logAction(`Removed staff member ${staff.name}`);
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.DELETE, `staffs/${staff.id}`);
+                                  }
                                 }} className="text-rose-500 hover:text-rose-700">
                                   <Trash2 size={16} />
                                 </button>
@@ -4871,9 +5299,13 @@ export default function App() {
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{staff.status}</p>
                           </div>
                           {isAdmin && (
-                            <button onClick={() => {
-                              setStaffs(staffs.filter(s => s.id !== staff.id));
-                              logAction(`Removed staff member ${staff.name}`);
+                            <button onClick={async () => {
+                              try {
+                                await deleteDoc(doc(db, 'staffs', staff.id));
+                                logAction(`Removed staff member ${staff.name}`);
+                              } catch (error) {
+                                handleFirestoreError(error, OperationType.DELETE, `staffs/${staff.id}`);
+                              }
                             }} className="text-rose-500 p-2 hover:bg-rose-50 rounded-lg transition-colors">
                               <Trash2 size={16} />
                             </button>
@@ -4885,10 +5317,14 @@ export default function App() {
                             <select 
                               value={staff.role}
                               disabled={!isAdmin}
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 if (isAdmin) {
-                                  setStaffs(staffs.map(s => s.id === staff.id ? { ...s, role: e.target.value } : s));
-                                  logAction(`Updated staff role for ${staff.name}`);
+                                  try {
+                                    await updateDoc(doc(db, 'staffs', staff.id), { role: e.target.value });
+                                    logAction(`Updated staff role for ${staff.name}`);
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.UPDATE, `staffs/${staff.id}`);
+                                  }
                                 }
                               }}
                               className="w-full bg-slate-50 p-2 rounded-lg font-bold text-xs text-slate-800 outline-none"
@@ -4914,12 +5350,16 @@ export default function App() {
                                       <input 
                                         type="checkbox"
                                         checked={staff.pages?.includes(page)}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                           const newPages = e.target.checked 
                                             ? [...(staff.pages || []), page]
                                             : (staff.pages || []).filter(p => p !== page);
-                                          setStaffs(staffs.map(s => s.id === staff.id ? { ...s, pages: newPages } : s));
-                                          logAction(`Updated staff pages for ${staff.name}`);
+                                          try {
+                                            await updateDoc(doc(db, 'staffs', staff.id), { pages: newPages });
+                                            logAction(`Updated staff pages for ${staff.name}`);
+                                          } catch (error) {
+                                            handleFirestoreError(error, OperationType.UPDATE, `staffs/${staff.id}`);
+                                          }
                                         }}
                                         className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                       />
@@ -4943,7 +5383,7 @@ export default function App() {
                     <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Pending Registrations</h3>
                     
                     {/* Desktop Table */}
-                    <div className="hidden lg:block overflow-x-auto">
+                    <div className="hidden lg:block">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-left text-slate-400 uppercase tracking-widest">
@@ -4961,7 +5401,13 @@ export default function App() {
                               <td className="py-4">
                                 <select 
                                   value={approval.role || roles[0]?.name || 'User'} 
-                                  onChange={(e) => setApprovals(approvals.map(a => a.id === approval.id ? {...a, role: e.target.value} : a))}
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'registrations', approval.id), { role: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                    }
+                                  }}
                                   className="p-2 rounded-lg border border-slate-200"
                                 >
                                   {roles.map(role => (
@@ -4970,10 +5416,37 @@ export default function App() {
                                 </select>
                               </td>
                               <td className="py-4">
-                                <div className="relative group">
-                                  <button className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600">
-                                    {approval.pageAccess ? '1 Page' : '0 Pages'} <ChevronDown size={12} />
+                                <div className="relative">
+                                  <button 
+                                    onClick={() => setOpenApprovalDropdownId(openApprovalDropdownId === approval.id ? null : approval.id)}
+                                    className="text-[10px] font-bold text-slate-600 border border-slate-200 px-2 py-1 rounded-lg flex items-center gap-1 hover:border-blue-300 hover:text-blue-600"
+                                  >
+                                    {approval.pageAccess?.length || 0} Pages <ChevronDown size={10} />
                                   </button>
+                                  {openApprovalDropdownId === approval.id && (
+                                    <div className="absolute left-0 top-full mt-1 w-max bg-white border border-slate-100 shadow-xl rounded-xl p-2 z-50">
+                                      {['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin'].map(page => (
+                                        <label key={page} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer text-[10px] font-bold text-slate-600">
+                                          <input 
+                                            type="checkbox" 
+                                            checked={approval.pageAccess?.includes(page)}
+                                            onChange={async (e) => {
+                                              const newPages = e.target.checked 
+                                                ? [...(approval.pageAccess || []), page]
+                                                : (approval.pageAccess || []).filter((p: string) => p !== page);
+                                              try {
+                                                await updateDoc(doc(db, 'registrations', approval.id), { pageAccess: newPages });
+                                              } catch (error) {
+                                                handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                              }
+                                            }}
+                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                          />
+                                          {page}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-4">{approval.status}</td>
@@ -4981,26 +5454,35 @@ export default function App() {
                                 {approval.status === 'Pending' && (
                                   <>
                                     <button 
-                                      onClick={() => {
-                                        setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Approved'} : a));
-                                        setStaffs([...staffs, { 
-                                          id: Date.now(), 
-                                          name: approval.username, 
-                                          username: approval.username, 
-                                          password: approval.password, 
-                                          role: approval.role || roles[0]?.name || 'User', 
-                                          status: 'Active', 
-                                          pages: [approval.pageAccess || 'Dashboard'] 
-                                        }]);
-                                        logAction(`Approved registration for ${approval.username}`);
+                                      onClick={async () => {
+                                        try {
+                                          await updateDoc(doc(db, 'registrations', approval.id), { status: 'Approved' });
+                                          await addDoc(collection(db, 'staffs'), {
+                                            uid: approval.id, // Using registration ID as temporary UID
+                                            name: approval.username,
+                                            username: approval.username,
+                                            password: approval.password,
+                                            role: approval.role || roles[0]?.name || 'User',
+                                            status: 'Active',
+                                            pages: approval.pageAccess || ['Dashboard'],
+                                            createdAt: Timestamp.now()
+                                          });
+                                          logAction(`Approved registration for ${approval.username}`);
+                                        } catch (error) {
+                                          handleFirestoreError(error, OperationType.WRITE, 'registrations/staffs');
+                                        }
                                       }} 
                                       className="text-emerald-500 hover:text-emerald-700"
                                     >
                                       <CheckCircle size={16} />
                                     </button>
-                                    <button onClick={() => {
-                                      setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Rejected'} : a));
-                                      logAction(`Rejected registration for ${approval.username}`);
+                                    <button onClick={async () => {
+                                      try {
+                                        await updateDoc(doc(db, 'registrations', approval.id), { status: 'Rejected' });
+                                        logAction(`Rejected registration for ${approval.username}`);
+                                      } catch (error) {
+                                        handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                      }
                                     }} className="text-rose-500 hover:text-rose-700">
                                       <Trash2 size={16} />
                                     </button>
@@ -5026,7 +5508,13 @@ export default function App() {
                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">ROLE</p>
                               <select 
                                 value={approval.role || roles[0]?.name || 'User'} 
-                                onChange={(e) => setApprovals(approvals.map(a => a.id === approval.id ? {...a, role: e.target.value} : a))}
+                                onChange={async (e) => {
+                                  try {
+                                    await updateDoc(doc(db, 'registrations', approval.id), { role: e.target.value });
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                  }
+                                }}
                                 className="w-full bg-slate-50 p-2 rounded-lg font-bold text-xs text-slate-800 outline-none"
                               >
                                 {roles.map(role => (
@@ -5041,37 +5529,46 @@ export default function App() {
                               </button>
                             </div>
                           </div>
-                          {approval.status === 'Pending' && (
-                            <div className="flex gap-2 pt-2">
-                              <button 
-                                onClick={() => {
-                                  setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Approved'} : a));
-                                  setStaffs([...staffs, { 
-                                    id: Date.now(), 
-                                    name: approval.username, 
-                                    username: approval.username, 
-                                    password: approval.password, 
-                                    role: approval.role || roles[0]?.name || 'User', 
-                                    status: 'Active', 
-                                    pages: [approval.pageAccess || 'Dashboard'] 
-                                  }]);
-                                  logAction(`Approved registration for ${approval.username}`);
-                                }} 
-                                className="flex-1 bg-emerald-50 text-emerald-600 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2"
-                              >
-                                <CheckCircle size={14} /> APPROVE
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  setApprovals(approvals.map(a => a.id === approval.id ? {...a, status: 'Rejected'} : a));
-                                  logAction(`Rejected registration for ${approval.username}`);
-                                }} 
-                                className="flex-1 bg-rose-50 text-rose-600 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2"
-                              >
-                                <Trash2 size={14} /> REJECT
-                              </button>
-                            </div>
-                          )}
+                              {approval.status === 'Pending' && (
+                                <div className="flex gap-2 pt-2">
+                                  <button 
+                                    onClick={async () => {
+                                      try {
+                                        await updateDoc(doc(db, 'registrations', approval.id), { status: 'Approved' });
+                                        await addDoc(collection(db, 'staffs'), {
+                                          uid: approval.id,
+                                          name: approval.username,
+                                          username: approval.username,
+                                          password: approval.password,
+                                          role: approval.role || roles[0]?.name || 'User',
+                                          status: 'Active',
+                                          pages: approval.pageAccess || ['Dashboard'],
+                                          createdAt: Timestamp.now()
+                                        });
+                                        logAction(`Approved registration for ${approval.username}`);
+                                      } catch (error) {
+                                        handleFirestoreError(error, OperationType.WRITE, 'registrations/staffs');
+                                      }
+                                    }} 
+                                    className="flex-1 bg-emerald-50 text-emerald-600 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2"
+                                  >
+                                    <CheckCircle size={14} /> APPROVE
+                                  </button>
+                                  <button 
+                                    onClick={async () => {
+                                      try {
+                                        await updateDoc(doc(db, 'registrations', approval.id), { status: 'Rejected' });
+                                        logAction(`Rejected registration for ${approval.username}`);
+                                      } catch (error) {
+                                        handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                      }
+                                    }} 
+                                    className="flex-1 bg-rose-50 text-rose-600 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-2"
+                                  >
+                                    <Trash2 size={14} /> REJECT
+                                  </button>
+                                </div>
+                              )}
                         </div>
                       ))}
                     </div>
@@ -5474,6 +5971,125 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Export Modal */}
+        <AnimatePresence>
+          {showExportModal && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            >
+              <motion.div 
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              >
+                <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold">
+                      Export {
+                        exportSource === 'inventory' ? 'Inventory' : 
+                        exportSource === 'stockIn' ? 'Stock In Logs' : 
+                        exportSource === 'stockOut' ? 'Stock Out Logs' : 
+                        exportSource === 'pendingWorks' ? 'Pending Works' :
+                        exportSource === 'demandForecast' ? 'Demand Forecast' :
+                        'Reorder Alerts'
+                      }
+                    </h3>
+                    <p className="text-slate-400 text-sm mt-1">Select export parameters</p>
+                  </div>
+                  <div className="p-2 bg-white/10 rounded-lg">
+                    {exportType === 'xlsx' ? <FileSpreadsheet className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Export Period</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={() => setExportPeriod('current')}
+                        className={cn(
+                          "p-3 rounded-xl border-2 transition-all text-sm font-medium",
+                          exportPeriod === 'current' 
+                            ? "border-slate-900 bg-slate-900 text-white" 
+                            : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
+                        )}
+                      >
+                        {exportSource === 'inventory' ? 'Current Stock' : 
+                         exportSource === 'demandForecast' || exportSource === 'reorderAlerts' ? 'Current View' : 'Current Date'}
+                      </button>
+                      <button 
+                        onClick={() => setExportPeriod('period')}
+                        className={cn(
+                          "p-3 rounded-xl border-2 transition-all text-sm font-medium",
+                          exportPeriod === 'period' 
+                            ? "border-slate-900 bg-slate-900 text-white" 
+                            : "border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200"
+                        )}
+                      >
+                        Historical Report
+                      </button>
+                    </div>
+                  </div>
+
+                  {exportPeriod === 'period' && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      className="space-y-4 pt-2"
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase">Start Date</label>
+                          <input 
+                            type="date" 
+                            value={exportStartDate}
+                            onChange={(e) => setExportStartDate(e.target.value)}
+                            className="w-full p-3 rounded-xl border-2 border-slate-100 focus:border-slate-900 focus:ring-0 transition-all text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase">End Date</label>
+                          <input 
+                            type="date" 
+                            value={exportEndDate}
+                            onChange={(e) => setExportEndDate(e.target.value)}
+                            className="w-full p-3 rounded-xl border-2 border-slate-100 focus:border-slate-900 focus:ring-0 transition-all text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                          Historical reports calculate stock levels by processing all movements from the target period. Large date ranges may take a moment.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div className="flex gap-3 pt-4">
+                    <button 
+                      onClick={() => setShowExportModal(false)}
+                      className="flex-1 p-4 rounded-xl border-2 border-slate-100 text-slate-600 font-bold hover:bg-slate-50 transition-all"
+                    >
+                      CANCEL
+                    </button>
+                    <button 
+                      onClick={handleFinalExport}
+                      className="flex-1 p-4 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                    >
+                      GENERATE {exportType.toUpperCase()}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -5519,8 +6135,9 @@ export default function App() {
           background: #334155;
         }
       `}} />
+        </div>
       </div>
-      </div>
-    )
+    )}
+    </ErrorBoundary>
   );
 }

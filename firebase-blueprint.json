@@ -1,0 +1,152 @@
+{
+  "entities": {
+    "Staff": {
+      "title": "Staff",
+      "description": "A staff member of the organization.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full name" },
+        "username": { "type": "string", "description": "Username for login" },
+        "role": { "type": "string", "enum": ["Admin", "Editor", "Viewer"], "description": "User role" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"], "description": "Account status" },
+        "pages": { "type": "array", "items": { "type": "string" }, "description": "Pages the user can access" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "name", "username", "role", "status", "pages"]
+    },
+    "Registration": {
+      "title": "Registration",
+      "description": "A pending registration request.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Requested username" },
+        "password": { "type": "string", "description": "Requested password (hashed or plain for this simple app)" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Request status" },
+        "details": { "type": "string", "description": "Description of the request" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Request timestamp" },
+        "pageAccess": { "type": "string", "description": "Default page access" }
+      },
+      "required": ["username", "password", "status", "timestamp"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "A log of user actions.",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "description": "The action performed" },
+        "user": { "type": "string", "description": "The user who performed the action" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the action occurred" }
+      },
+      "required": ["action", "user", "timestamp"]
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "An item in the inventory.",
+      "type": "object",
+      "properties": {
+        "sectionTitle": { "type": "string", "description": "The main section title" },
+        "subSectionTitle": { "type": "string", "description": "The sub-section title" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "stock": { "type": "number", "description": "Current stock quantity" },
+        "minQuantity": { "type": "number", "description": "Minimum quantity for reorder alerts" },
+        "remarks": { "type": "string", "description": "Optional remarks" },
+        "isLow": { "type": "boolean", "description": "Whether the stock is low" }
+      },
+      "required": ["sectionTitle", "subSectionTitle", "size", "gsm", "stock"]
+    },
+    "StockInLog": {
+      "title": "StockInLog",
+      "description": "A log of stock incoming.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "Date of stock in" },
+        "month": { "type": "string", "description": "Month of stock in" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "quantity": { "type": "number", "description": "Quantity added" },
+        "company": { "type": "string", "description": "Supplying company" },
+        "invoice": { "type": "string", "description": "Invoice number" },
+        "storageLoc": { "type": "string", "description": "Storage location" },
+        "remarks": { "type": "string", "description": "Optional remarks" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["date", "size", "gsm", "quantity", "company", "invoice", "timestamp"]
+    },
+    "StockOutLog": {
+      "title": "StockOutLog",
+      "description": "A log of stock outgoing.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "Date of stock out" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "out": { "type": "number", "description": "Quantity removed" },
+        "unit": { "type": "string", "description": "Unit of measure" },
+        "itemCode": { "type": "string", "description": "Item code" },
+        "workName": { "type": "string", "description": "Work name" },
+        "cutSize": { "type": "string", "description": "Cut size" },
+        "sheets": { "type": "number", "description": "Number of sheets" },
+        "status": { "type": "string", "description": "Delivery status" },
+        "vehicle": { "type": "string", "description": "Vehicle number" },
+        "location": { "type": "string", "description": "Delivery location" },
+        "remarks": { "type": "string", "description": "Optional remarks" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["date", "size", "gsm", "out", "timestamp"]
+    },
+    "PendingWork": {
+      "title": "PendingWork",
+      "description": "A pending work order.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "Date of order" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "qty": { "type": "number", "description": "Quantity" },
+        "unit": { "type": "string", "description": "Unit of measure" },
+        "company": { "type": "string", "description": "Company name" },
+        "itemCode": { "type": "string", "description": "Item code" },
+        "workName": { "type": "string", "description": "Work name" },
+        "cutSize": { "type": "string", "description": "Cut size" },
+        "sheets": { "type": "number", "description": "Number of sheets" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "Priority level" },
+        "status": { "type": "string", "description": "Current status" },
+        "remarks": { "type": "string", "description": "Optional remarks" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["date", "size", "gsm", "qty", "status", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/staffs/{staffId}": {
+      "schema": "Staff",
+      "description": "Collection of staff members."
+    },
+    "/registrations/{registrationId}": {
+      "schema": "Registration",
+      "description": "Collection of pending registration requests."
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Collection of audit logs."
+    },
+    "/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Collection of inventory items."
+    },
+    "/stockInLogs/{logId}": {
+      "schema": "StockInLog",
+      "description": "Collection of stock in logs."
+    },
+    "/stockOutLogs/{logId}": {
+      "schema": "StockOutLog",
+      "description": "Collection of stock out logs."
+    },
+    "/pendingWorks/{workId}": {
+      "schema": "PendingWork",
+      "description": "Collection of pending work orders."
+    }
+  }
+}

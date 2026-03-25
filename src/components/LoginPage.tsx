@@ -10,28 +10,33 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staffs }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<'Login' | 'Register'>('Login');
   const [showApprovalMessage, setShowApprovalMessage] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeTab === 'Login') {
-      const approvedUser = staffs.find(s => s.username === username && s.password === password && s.status === 'Active');
-      
-      if (username === 'admin' && password === 'Enerpack2022') {
-        onLogin('Admin', 'Master Administrator', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-      } else if (username === 'editor' && password === 'editor') {
-        onLogin('Editor', 'System Editor', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
-      } else if (approvedUser) {
-        onLogin(approvedUser.role, approvedUser.name, approvedUser.pages || []);
-      } else if (username === 'pending' && password === 'pending') {
-        setShowApprovalMessage(true);
-      } else {
-        alert('Invalid credentials or account pending approval');
-      }
-    } else {
+    
+    if (isRegistering) {
       onRegister(username, password);
       setShowApprovalMessage(true);
+      setIsRegistering(false);
+      setUsername('');
+      setPassword('');
+      return;
+    }
+
+    const approvedUser = staffs.find(s => s.username === username && s.password === password && s.status === 'Active');
+    
+    if (username === 'admin' && password === 'Enerpack2022') {
+      onLogin('Admin', 'Master Administrator', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+    } else if (username === 'editor' && password === 'editor') {
+      onLogin('Editor', 'System Editor', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+    } else if (approvedUser) {
+      onLogin(approvedUser.role, approvedUser.name, approvedUser.pages || []);
+    } else if (username === 'pending' && password === 'pending') {
+      setShowApprovalMessage(true);
+    } else {
+      alert('Invalid credentials or account pending approval');
     }
   };
 
@@ -43,7 +48,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
             <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-[0.2em]">Awaiting Approval</h2>
             <p className="text-slate-500 mb-8 leading-relaxed">Your account is currently being reviewed by the administration. You will be notified once access is granted.</p>
             <button 
-              onClick={() => { setShowApprovalMessage(false); setActiveTab('Login'); }}
+              onClick={() => { setShowApprovalMessage(false); }}
               className="w-full p-5 bg-[#1e69ff] text-white rounded-2xl font-black uppercase tracking-[0.15em] hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98]"
             >
               UNDERSTOOD
@@ -59,27 +64,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
               EP
             </div>
             <h1 className="text-xl font-black text-[#0f2a43] tracking-tighter">ENERPACK</h1>
-          </div>
-
-          <div className="flex bg-slate-100 p-1 rounded-xl mb-4 sm:mb-6">
-            <button 
-              onClick={() => setActiveTab('Login')}
-              className={cn(
-                "flex-1 py-2 sm:py-2.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all",
-                activeTab === 'Login' ? "bg-white text-[#1e69ff] shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Login
-            </button>
-            <button 
-              onClick={() => setActiveTab('Register')}
-              className={cn(
-                "flex-1 py-2 sm:py-2.5 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all",
-                activeTab === 'Register' ? "bg-white text-[#1e69ff] shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Register
-            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,8 +95,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
                 type="submit"
                 className="w-full p-3.5 sm:p-4 bg-[#1e69ff] text-white rounded-xl font-black uppercase tracking-[0.15em] hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] mt-2 text-xs sm:text-sm"
               >
-              {activeTab === 'Login' ? 'ACCESS TERMINAL' : 'REQUEST ACCESS'}
+              {isRegistering ? 'REQUEST ACCESS' : 'ACCESS TERMINAL'}
             </button>
+            <button 
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="w-full p-3.5 sm:p-4 bg-slate-100 text-slate-600 rounded-xl font-black uppercase tracking-[0.15em] hover:bg-slate-200 transition-all active:scale-[0.98] mt-2 text-xs sm:text-sm"
+            >
+              {isRegistering ? 'BACK TO LOGIN' : 'REGISTER NEW ACCOUNT'}
+            </button>
+            {!isRegistering && (
+              <button 
+                type="button"
+                onClick={() => onLogin('Viewer', 'Guest User', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools'])}
+                className="w-full p-3.5 sm:p-4 bg-slate-800 text-white rounded-xl font-black uppercase tracking-[0.15em] hover:bg-slate-700 transition-all active:scale-[0.98] mt-2 text-xs sm:text-sm"
+              >
+                GUEST ACCESS (READ-ONLY)
+              </button>
+            )}
           </form>
         </div>
       </div>

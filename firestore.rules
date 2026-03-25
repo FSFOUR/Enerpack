@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: staffs
+    // Document ID: staffId
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - Full name
+    //   - username: string (required) - Username for login
+    //   - role: string (required, enum: ["Admin", "Editor", "Viewer"]) - User role
+    //   - status: string (required, enum: ["Active", "Inactive"]) - Account status
+    //   - pages: list (required) - Pages the user can access
+    //   - createdAt: timestamp (optional) - Creation timestamp
+    //
+    // Collection: registrations
+    // Document ID: registrationId
+    // Fields:
+    //   - username: string (required) - Requested username
+    //   - password: string (required) - Requested password
+    //   - status: string (required, enum: ["Pending", "Approved", "Rejected"]) - Request status
+    //   - details: string (optional) - Description of the request
+    //   - timestamp: timestamp (required) - Request timestamp
+    //   - pageAccess: string (optional) - Default page access
+    //
+    // Collection: auditLogs
+    // Document ID: logId
+    // Fields:
+    //   - action: string (required) - The action performed
+    //   - user: string (required) - The user who performed the action
+    //   - timestamp: timestamp (required) - When the action occurred
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Admin' ||
+          (request.auth.token.email == "shafi3396@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidStaff(data) {
+      return hasRequiredFields(['uid', 'name', 'username', 'role', 'status', 'pages']) &&
+             hasOnlyAllowedFields(['uid', 'name', 'username', 'role', 'status', 'pages', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.role in ['Admin', 'Editor', 'Viewer'] &&
+             data.status in ['Active', 'Inactive'] &&
+             data.pages is list && data.pages.size() <= 10;
+    }
+
+    function isValidRegistration(data) {
+      return hasRequiredFields(['username', 'password', 'status', 'timestamp']) &&
+             hasOnlyAllowedFields(['username', 'password', 'status', 'details', 'timestamp', 'pageAccess']) &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.password is string && data.password.size() > 0 && data.password.size() < 100 &&
+             data.status in ['Pending', 'Approved', 'Rejected'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return hasRequiredFields(['action', 'user', 'timestamp']) &&
+             hasOnlyAllowedFields(['action', 'user', 'timestamp']) &&
+             data.action is string && data.action.size() > 0 && data.action.size() < 500 &&
+             data.user is string && data.user.size() > 0 && data.user.size() < 100 &&
+             data.timestamp is timestamp;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /staffs/{staffId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidStaff(request.resource.data) && (isOwner(staffId) || isAdmin());
+      allow update: if isAuthenticated() && isValidStaff(request.resource.data) && (isOwner(staffId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /registrations/{registrationId} {
+      allow read: if isAdmin();
+      allow create: if isValidRegistration(request.resource.data); // Anyone can register
+      allow update: if isAdmin() && isValidRegistration(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidAuditLog(request.resource.data);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
