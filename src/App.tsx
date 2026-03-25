@@ -845,6 +845,27 @@ export default function App() {
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const [openApprovalDropdownId, setOpenApprovalDropdownId] = useState<number | null>(null);
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<{ id: number, message: string, type: 'info' | 'success' | 'warning' }[]>([]);
+
+  const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  useEffect(() => {
+    if (hasPermission('admin')) {
+      const pendingCount = approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length;
+      const prevPendingCount = localStorage.getItem('prevPendingCount');
+      
+      if (prevPendingCount !== null && pendingCount > parseInt(prevPendingCount)) {
+        addNotification(`New registration request pending approval!`, 'info');
+      }
+      localStorage.setItem('prevPendingCount', pendingCount.toString());
+    }
+  }, [approvals]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Firebase Real-time Listeners
@@ -2121,6 +2142,40 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* Notifications Toast */}
+      <div className="fixed bottom-6 right-6 z-[100] space-y-3 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map((notification) => (
+            <motion.div
+              key={notification.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={cn(
+                "pointer-events-auto px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[300px] border backdrop-blur-md",
+                notification.type === 'info' ? "bg-blue-600/90 text-white border-blue-400" :
+                notification.type === 'success' ? "bg-emerald-600/90 text-white border-emerald-400" :
+                "bg-amber-600/90 text-white border-amber-400"
+              )}
+            >
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Bell size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold tracking-tight">{notification.message}</p>
+                <p className="text-[10px] opacity-70 font-bold uppercase tracking-widest">System Alert</p>
+              </div>
+              <button 
+                onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {!isAuthenticated ? (
       <LoginPage
         onLogin={(role: string, name: string = 'System User', pages: string[] = []) => { 
@@ -2135,6 +2190,7 @@ export default function App() {
               username,
               password,
               status: 'Pending',
+              type: 'User Registration',
               details: `New user registration: ${username}`,
               timestamp: Timestamp.now(),
               pageAccess: roles[0]?.name || 'All'
@@ -2384,6 +2440,34 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Pending Approvals Alert */}
+              {hasPermission('admin') && approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-blue-50 border border-blue-200 p-6 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+                      <User size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-blue-900 tracking-tight uppercase">New Registration Requests</h3>
+                      <p className="text-sm text-blue-700 font-medium">There are {approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length} new user registration requests waiting for your approval.</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setActiveTab('Admin Panel');
+                      setAdminTab('Approval');
+                    }}
+                    className="w-full md:w-auto bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
+                  >
+                    Review Now
+                  </button>
+                </motion.div>
+              )}
 
               {/* Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -4180,15 +4264,19 @@ export default function App() {
                           <div className="flex-1">
                             <select 
                               value={work.priority}
+                              disabled={!canEdit}
                               onChange={async (e) => {
-                                try {
-                                  await updateDoc(doc(db, 'pendingWorks', work.id), { priority: e.target.value });
-                                } catch (error) {
-                                  handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                if (canEdit) {
+                                  try {
+                                    await updateDoc(doc(db, 'pendingWorks', work.id), { priority: e.target.value });
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                  }
                                 }
                               }}
                               className={cn(
-                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl focus:outline-none border border-slate-100 cursor-pointer",
+                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl focus:outline-none border border-slate-100",
+                                !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer",
                                 work.priority === 'HIGH' ? "bg-rose-50 text-rose-600" : 
                                 work.priority === 'MEDIUM' ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-600"
                               )}
@@ -4201,19 +4289,25 @@ export default function App() {
                           <div className="flex-1">
                             <select 
                               value={work.status}
+                              disabled={!canEdit}
                               onChange={async (e) => {
-                                const newStatus = e.target.value;
-                                if (newStatus === 'DELIVERED') {
-                                  setDeliveringWork(work);
-                                } else {
-                                  try {
-                                    await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
-                                  } catch (error) {
-                                    handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                if (canEdit) {
+                                  const newStatus = e.target.value;
+                                  if (newStatus === 'DELIVERED') {
+                                    setDeliveringWork(work);
+                                  } else {
+                                    try {
+                                      await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                    }
                                   }
                                 }
                               }}
-                              className="w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl bg-slate-50 text-slate-600 focus:outline-none border border-slate-100 cursor-pointer"
+                              className={cn(
+                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl bg-slate-50 text-slate-600 focus:outline-none border border-slate-100",
+                                !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                              )}
                             >
                               <option value="CUTTING">Cutting</option>
                               <option value="CUTTING FINISHED">Cutting Finished</option>
@@ -4235,12 +4329,16 @@ export default function App() {
                         )}
 
                         <div className="flex justify-end pt-2">
-                          <button 
-                            onClick={() => setEditingPendingWork({ ...work })}
-                            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 text-[10px] font-bold uppercase tracking-widest"
-                          >
-                            <Edit2 size={14} /> EDIT WORK
-                          </button>
+                          {canEdit ? (
+                            <button 
+                              onClick={() => setEditingPendingWork({ ...work })}
+                              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 text-[10px] font-bold uppercase tracking-widest"
+                            >
+                              <Edit2 size={14} /> EDIT WORK
+                            </button>
+                          ) : (
+                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                          )}
                         </div>
                       </div>
                     ))
