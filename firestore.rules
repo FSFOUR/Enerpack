@@ -55,14 +55,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Admin' ||
-          (request.auth.token.email == "shafi3396@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/staffs/$(request.auth.uid)) && get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Admin' ||
+         (request.auth.token.email == "shafi3396@gmail.com" && request.auth.token.email_verified == true));
     }
 
     function isEditor() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Editor' || isAdmin());
+      return isAuthenticated() && 
+        (exists(/databases/$(database)/documents/staffs/$(request.auth.uid)) && get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role in ['Admin', 'Editor'] ||
+         (request.auth.token.email == "shafi3396@gmail.com" && request.auth.token.email_verified == true));
     }
 
     function hasRequiredFields(fields) {
@@ -123,7 +124,7 @@ service cloud.firestore {
     }
 
     match /registrations/{registrationId} {
-      allow read: if isAdmin();
+      allow read: if isAuthenticated(); // Allow authenticated users to read for demo
       allow create: if isValidRegistration(request.resource.data); // Anyone can register
       allow update: if isAdmin() && isValidRegistration(request.resource.data);
       allow delete: if isAdmin();
@@ -158,7 +159,7 @@ service cloud.firestore {
     }
 
     match /auditLogs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAuthenticated(); // Allow authenticated users to read for demo
       allow create: if isAuthenticated() && isValidAuditLog(request.resource.data);
       allow update: if false;
       allow delete: if isAdmin();

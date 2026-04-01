@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, ShieldCheck } from 'lucide-react';
-import { auth } from '../firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { LogIn } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (role: string, name: string, pages: string[]) => void;
@@ -15,26 +13,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
   const [showApprovalMessage, setShowApprovalMessage] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleGoogleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      // Check if this is the master admin email
-      if (user.email === 'shafi3396@gmail.com') {
-        onLogin('Admin', user.displayName || 'Master Admin', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-      } else {
-        // Check if they are in the staffs list by email (if we had emails there)
-        // For now, only allow the master admin via Google
-        setError('Unauthorized admin access. Please use standard login for staff.');
-        await auth.signOut();
-      }
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +76,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Username</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">USERNAME</label>
               <input 
                 type="text" 
                 value={username}
@@ -110,45 +88,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
             </div>
             
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password</label>
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">PASSWORD</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-3.5 sm:p-4 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 font-bold text-xs sm:text-sm"
-                placeholder="••••••••"
+                placeholder="........"
                 required
               />
             </div>
 
-              <button 
-                type="submit"
+            <button 
+              type="submit"
                 className="w-full p-3.5 sm:p-4 bg-[#1e69ff] text-white rounded-xl font-black uppercase tracking-[0.15em] hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] mt-2 text-xs sm:text-sm"
               >
-              {isRegistering ? 'REQUEST ACCESS' : 'ACCESS TERMINAL'}
+              {isRegistering ? 'REQUEST ACCESS' : 'LOG IN'}
             </button>
-
-            {!isRegistering && (
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-100"></div>
-                </div>
-                <div className="relative flex justify-center text-[8px] font-black uppercase tracking-widest">
-                  <span className="bg-white px-2 text-slate-400">Admin Access</span>
-                </div>
-              </div>
-            )}
-
-            {!isRegistering && (
-              <button 
-                type="button"
-                onClick={handleGoogleLogin}
-                className="w-full p-3.5 sm:p-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-black uppercase tracking-[0.15em] hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xs sm:text-sm"
-              >
-                <ShieldCheck size={16} className="text-blue-600" />
-                ADMIN GOOGLE LOGIN
-              </button>
-            )}
 
             <button 
               type="button"

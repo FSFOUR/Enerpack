@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { GoogleGenAI, Type } from "@google/genai";
+import { Toaster, toast } from 'sonner';
 import { 
   LayoutDashboard, 
   Package, 
@@ -94,6 +95,13 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  onAuthStateChanged,
+  signOut
+} from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorInfo: string | null }> {
@@ -342,32 +350,6 @@ const inventoryData = [
     ]
   },
   {
-    title: "150, 100 GSM SECTION",
-    subSections: [
-      {
-        title: "150",
-        items: [
-          { size: "68", gsm: "150", stock: 387, isLow: true },
-          { size: "84", gsm: "150", stock: 0, isLow: true },
-          { size: "92", gsm: "150", stock: 140, isLow: true },
-          { size: "104", gsm: "150", stock: 67, isLow: true },
-          { size: "108", gsm: "150", stock: 85, isLow: true },
-        ]
-      },
-      {
-        title: "100",
-        items: [
-          { size: "60", gsm: "100", stock: 150, isLow: true },
-          { size: "66", gsm: "100", stock: 116, isLow: true },
-          { size: "92", gsm: "100", stock: 396, isLow: true },
-          { size: "100", gsm: "100", stock: 416, isLow: true },
-          { size: "106", gsm: "100", stock: 227, isLow: true },
-          { size: "108", gsm: "100", stock: 167, isLow: true },
-        ]
-      }
-    ]
-  },
-  {
     title: "140 GYT, 130 GSM SECTION",
     subSections: [
       {
@@ -411,6 +393,32 @@ const inventoryData = [
       }
     ]
   },
+  {
+    title: "150, 100 GSM SECTION",
+    subSections: [
+      {
+        title: "150",
+        items: [
+          { size: "68", gsm: "150", stock: 387, isLow: true },
+          { size: "84", gsm: "150", stock: 0, isLow: true },
+          { size: "92", gsm: "150", stock: 140, isLow: true },
+          { size: "104", gsm: "150", stock: 67, isLow: true },
+          { size: "108", gsm: "150", stock: 85, isLow: true },
+        ]
+      },
+      {
+        title: "100",
+        items: [
+          { size: "60", gsm: "100", stock: 150, isLow: true },
+          { size: "66", gsm: "100", stock: 116, isLow: true },
+          { size: "92", gsm: "100", stock: 396, isLow: true },
+          { size: "100", gsm: "100", stock: 416, isLow: true },
+          { size: "106", gsm: "100", stock: 227, isLow: true },
+          { size: "108", gsm: "100", stock: 167, isLow: true },
+        ]
+      }
+    ]
+  }
 ];
 
 // --- Components ---
@@ -436,15 +444,15 @@ const InventoryRow = ({
 }) => (
   <>
     <td className={cn(
-      "px-2 lg:px-4 py-2 border-l border-r border-slate-400 text-center font-black text-[10px] lg:text-sm w-16 lg:w-20",
+      "px-4 py-2 border-l border-r border-slate-400 text-center font-black text-[10px] lg:text-sm w-16 lg:w-20",
       item.isLow && "bg-rose-50/50"
     )}>{item.size}</td>
     <td className={cn(
-      "px-2 lg:px-4 py-2 border-r border-slate-400 text-center text-slate-400 text-[10px] lg:text-sm w-12 lg:w-16",
+      "px-4 py-2 border-r border-slate-400 text-center text-slate-400 text-[10px] lg:text-sm w-12 lg:w-16",
       item.isLow && "bg-rose-50/50"
     )}>{item.gsm}</td>
     <td className={cn(
-      "px-2 lg:px-4 py-2 border-r border-slate-400 text-center text-[10px] lg:text-sm font-bold w-16 lg:w-20",
+      "px-4 py-2 border-r border-slate-400 text-center text-[10px] lg:text-sm font-bold w-16 lg:w-20",
       item.isLow ? "text-rose-500 bg-rose-50/50" : "text-blue-700"
     )}>
       <div className="flex items-center justify-center gap-1">
@@ -452,7 +460,7 @@ const InventoryRow = ({
       </div>
     </td>
     <td className={cn(
-      "px-2 lg:px-4 py-2 border-r border-slate-400 w-24 lg:w-28",
+      "px-4 py-2 border-r border-slate-400 w-24 lg:w-28",
       item.isLow && "bg-rose-50/50"
     )}>
       {isAdmin ? (
@@ -545,7 +553,7 @@ const InventoryTableSection = ({
           </thead>
           <tbody>
             {Array.from({ length: maxRows }).map((_, idx) => (
-              <tr key={idx} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
+              <tr key={`${section.title}-${idx}`} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
                 {/* Left Column */}
                 {leftCol[idx] ? (
                   leftCol[idx].isHeader ? (
@@ -606,7 +614,7 @@ const InventoryTableSection = ({
           </thead>
           <tbody>
             {allItems.map((item, idx) => (
-              <tr key={idx} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
+              <tr key={item.isHeader ? `${section.title}-header-${item.title}` : `${section.title}-${item.size}-${item.gsm}-${idx}`} className="border-b border-slate-400 hover:bg-slate-50 transition-colors">
                 {item.isHeader ? (
                   <td colSpan={4} className="bg-[#0f2a43] py-1.5 px-4 text-center text-[10px] font-bold text-white uppercase tracking-widest border-l border-r border-slate-400">
                     {item.title}
@@ -709,11 +717,72 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [userRole, setUserRole] = useState<string | null>('viewer');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [userPages, setUserPages] = useState<string[]>([]);
-  const [userName, setUserName] = useState('Guest User');
+  const [userName, setUserName] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        setUserName(user.displayName || user.email || 'User');
+        
+        // Check if user is in staffs collection
+        try {
+          const staffDoc = await getDocs(query(collection(db, 'staffs'), where('uid', '==', user.uid)));
+          if (!staffDoc.empty) {
+            const staffData = staffDoc.docs[0].data();
+            setUserRole(staffData.role);
+            setUserPages(staffData.pages || []);
+          } else if (user.email === 'shafi3396@gmail.com') {
+            setUserRole('Admin');
+            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+          } else {
+            setUserRole('Viewer');
+            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+          }
+        } catch (e) {
+          console.error("Error checking staff role:", e);
+          if (user.email === 'shafi3396@gmail.com') {
+            setUserRole('Admin');
+            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+          } else {
+            setUserRole('Viewer');
+            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+          }
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUserRole(null);
+        setUserName('');
+      }
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Google Login Error:", error);
+      toast.error("Failed to login with Google. Please try again.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsAuthenticated(false);
+      setUserRole(null);
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
+  };
   const [roles, setRoles] = useState([
     { id: 'admin', name: 'Administrator', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools', 'admin'] },
     { id: 'editor', name: 'Editor', permissions: ['dashboard', 'inventory', 'movement', 'planning', 'tools'] },
@@ -811,6 +880,17 @@ export default function App() {
   const [jobCards, setJobCards] = useState<any[]>([]);
   const [cardPrefix, setCardPrefix] = useState<'EP' | 'FP'>('EP');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Pending Works State
   const [pendingWorks, setPendingWorks] = useState<any[]>([
@@ -897,6 +977,18 @@ export default function App() {
       subSection.items.push(item);
     });
     
+    // Remove duplicates within subsections
+    sections.forEach(s => {
+      s.subSections.forEach((ss: any) => {
+        const seenSizes = new Set();
+        ss.items = ss.items.filter((item: any) => {
+          if (seenSizes.has(item.size)) return false;
+          seenSizes.add(item.size);
+          return true;
+        });
+      });
+    });
+    
     // Sort items within subsections
     sections.forEach(s => {
       s.subSections.forEach((ss: any) => {
@@ -904,11 +996,20 @@ export default function App() {
       });
     });
 
+    // Sort sections: 280 GSM SECTION first, then 250 & 230 GSM SECTION, then others
+    sections.sort((a, b) => {
+      if (a.title === "280 GSM SECTION") return -1;
+      if (b.title === "280 GSM SECTION") return 1;
+      if (a.title === "250 & 230 GSM SECTION") return -1;
+      if (b.title === "250 & 230 GSM SECTION") return 1;
+      return 0;
+    });
+
     return sections;
   };
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthReady || !isAuthenticated) return;
 
     const checkAndSeedInventory = async () => {
       try {
@@ -1007,10 +1108,50 @@ export default function App() {
     }
   };
 
+  const handleResetInventory = async () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Reset Inventory',
+      message: 'Are you sure you want to reset the entire inventory to default? This will overwrite all current stock levels.',
+      onConfirm: async () => {
+        try {
+          const snapshot = await getDocs(collection(db, 'inventory'));
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+          
+          console.log("Re-seeding inventory...");
+          for (const section of inventoryData) {
+            for (const subSection of section.subSections) {
+              for (const item of subSection.items) {
+                await addDoc(collection(db, 'inventory'), {
+                  ...item,
+                  sectionTitle: section.title,
+                  subSectionTitle: subSection.title,
+                  timestamp: Timestamp.now()
+                });
+              }
+            }
+          }
+          
+          await addDoc(collection(db, 'auditLogs'), {
+            action: 'RESET_INVENTORY',
+            details: 'Inventory reset to default values',
+            timestamp: Timestamp.now(),
+            user: userName || 'Admin'
+          });
+          
+          toast.success("Inventory has been reset successfully.");
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'inventory');
+        }
+      }
+    });
+  };
+
   const handleSaveReorder = (key: string, item: any) => {
     const tracking = reorderTracking[key];
     if (!tracking || !tracking.company || tracking.ordQty === '0') {
-      alert('Please enter supplier and order quantity');
+      toast.error('Please enter supplier and order quantity');
       return;
     }
 
@@ -1032,7 +1173,7 @@ export default function App() {
 
     setReorderHistory(prev => [newHistoryEntry, ...prev]);
     logAction(`Reordered ${item.size}x${item.gsm} from ${tracking.company}`);
-    alert('Reorder log saved successfully!');
+    toast.success('Reorder log saved successfully!');
   };
 
   const [showExportModal, setShowExportModal] = useState(false);
@@ -1080,7 +1221,7 @@ export default function App() {
 
   const handleSaveToPdf = async () => {
     if (jobCards.length === 0) {
-      alert('No job cards to export.');
+      toast.error('No job cards to export.');
       return;
     }
 
@@ -1156,7 +1297,7 @@ export default function App() {
       pdf.save(`JobCards_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error: any) {
       console.error('PDF Generation Error:', error);
-      alert('Failed to generate PDF. Error: ' + error.message);
+      toast.error('Failed to generate PDF. Error: ' + error.message);
     } finally {
       setIsGenerating(false);
     }
@@ -1181,7 +1322,7 @@ export default function App() {
 
   const handleAiGenerate = async () => {
     if (!whatsappOrder.trim()) {
-      alert('Please paste a WhatsApp order first.');
+      toast.error('Please paste a WhatsApp order first.');
       return;
     }
 
@@ -1226,7 +1367,7 @@ export default function App() {
       setJobCards(prev => [...prev, ...newCards]);
     } catch (error) {
       console.error('AI Generation Error:', error);
-      alert('Failed to parse order. Please try again or use manual entry.');
+      toast.error('Failed to parse order. Please try again or use manual entry.');
     } finally {
       setIsGenerating(false);
     }
@@ -2010,7 +2151,7 @@ export default function App() {
     );
 
     if (alertsData.length === 0) {
-      alert("No reorder alerts to export.");
+      toast.error("No reorder alerts to export.");
       return;
     }
 
@@ -2049,7 +2190,7 @@ export default function App() {
     );
 
     if (alertsData.length === 0) {
-      alert("No reorder alerts to export.");
+      toast.error("No reorder alerts to export.");
       return;
     }
 
@@ -2093,7 +2234,7 @@ export default function App() {
       }));
 
     if (forecastData.length === 0) {
-      alert("No consumption data for forecast.");
+      toast.error("No consumption data for forecast.");
       return;
     }
 
@@ -2125,7 +2266,7 @@ export default function App() {
       ]);
 
     if (forecastData.length === 0) {
-      alert("No consumption data for forecast.");
+      toast.error("No consumption data for forecast.");
       return;
     }
 
@@ -2195,6 +2336,54 @@ export default function App() {
           </AnimatePresence>
         </div>
       )}
+
+      <Toaster position="top-right" richColors />
+      
+      {/* Confirm Modal */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100"
+            >
+              <div className="p-8">
+                <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mb-6">
+                  <AlertTriangle className="text-amber-500" size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-800 mb-2 uppercase tracking-tight">{confirmModal.title}</h3>
+                <p className="text-slate-500 leading-relaxed mb-8">{confirmModal.message}</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                    className="flex-1 p-4 bg-slate-100 text-slate-600 rounded-xl font-black uppercase tracking-wider hover:bg-slate-200 transition-all"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={() => {
+                      confirmModal.onConfirm();
+                      setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    }}
+                    className="flex-1 p-4 bg-rose-600 text-white rounded-xl font-black uppercase tracking-wider hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/25"
+                  >
+                    CONFIRM
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {!isAuthenticated ? (
       <LoginPage
@@ -2382,11 +2571,7 @@ export default function App() {
 
         <div className="p-4 mt-auto border-t border-slate-700/50">
           <button 
-            onClick={() => {
-              setIsAuthenticated(false);
-              setActiveTab('Dashboard');
-              setIsSidebarOpen(false);
-            }} 
+            onClick={handleLogout} 
             className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest"
           >
             <LogOutIcon size={18} />
@@ -2865,7 +3050,7 @@ export default function App() {
                   if (filteredSubSections.length === 0) return null;
 
                   return (
-                    <React.Fragment key={idx}>
+                    <React.Fragment key={section.title}>
                       <InventoryTableSection 
                         section={{ ...section, subSections: filteredSubSections }} 
                         onIncrement={handleIncrement}
@@ -5286,8 +5471,8 @@ export default function App() {
                       { icon: AlertCircle, title: 'PENDING IDENTITY', value: approvals.filter(a => a.status === 'Pending').length.toString(), sub: 'AWAITING VERIFICATION', color: 'text-amber-600', bg: 'bg-amber-50' },
                       { icon: Database, title: 'ASSET SKUS', value: '145', sub: 'LIVE RECORDS', color: 'text-emerald-600', bg: 'bg-emerald-50' },
                       { icon: Activity, title: 'OPERATIONS', value: auditLogs.length.toString(), sub: 'TOTAL LOGS', color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                    ].map((stat, idx) => (
-                      <div key={idx} className="bg-white p-6 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 lg:gap-6">
+                    ].map((stat) => (
+                      <div key={stat.title} className="bg-white p-6 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 lg:gap-6">
                         <div className={`w-12 h-12 lg:w-16 lg:h-16 ${stat.bg} ${stat.color} rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0`}>
                           <stat.icon size={24} />
                         </div>
@@ -5298,6 +5483,28 @@ export default function App() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="bg-white p-6 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className="text-sm lg:text-base font-black text-slate-900 uppercase tracking-widest">System Maintenance</h3>
+                        <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-widest">Critical system actions and resets</p>
+                      </div>
+                      <Database className="text-slate-400" size={24} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                        <h4 className="text-[10px] font-black text-rose-900 uppercase tracking-widest mb-1">Reset Inventory</h4>
+                        <p className="text-[10px] text-rose-600 font-bold uppercase tracking-widest mb-4">Restore all sections and data to default state</p>
+                        <button 
+                          onClick={handleResetInventory}
+                          className="w-full py-3 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20"
+                        >
+                          RESTORE DEFAULT DATA
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
