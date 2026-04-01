@@ -845,27 +845,39 @@ export default function App() {
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const [openApprovalDropdownId, setOpenApprovalDropdownId] = useState<number | null>(null);
   const [approvals, setApprovals] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<{ id: number, message: string, type: 'info' | 'success' | 'warning' }[]>([]);
+  const [notifications, setNotifications] = useState<{ id: number, message: string, type: 'info' | 'success' | 'warning', persistent?: boolean }[]>([]);
+  const lastRegistrationId = React.useRef<string | null>(localStorage.getItem('lastRegId'));
 
-  const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
+  const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info', persistent: boolean = false) => {
     const id = Date.now();
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 5000);
+    setNotifications(prev => [...prev, { id, message, type, persistent }]);
+    if (!persistent) {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id));
+      }, 8000);
+    }
+    
+    // Play notification sound
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(() => {}); // Ignore errors if browser blocks autoplay
+    } catch (e) {}
   };
 
   useEffect(() => {
-    if (hasPermission('admin')) {
-      const pendingCount = approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length;
-      const prevPendingCount = localStorage.getItem('prevPendingCount');
-      
-      if (prevPendingCount !== null && pendingCount > parseInt(prevPendingCount)) {
-        addNotification(`New registration request pending approval!`, 'info');
+    if (hasPermission('admin') && activeTab === 'Admin Panel') {
+      const pendingRegistrations = approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending');
+      if (pendingRegistrations.length > 0) {
+        const latestReg = pendingRegistrations[0];
+        if (latestReg.id !== lastRegistrationId.current) {
+          addNotification(`New registration request from "${latestReg.username}"!`, 'warning', true);
+          lastRegistrationId.current = latestReg.id;
+          localStorage.setItem('lastRegId', latestReg.id);
+        }
       }
-      localStorage.setItem('prevPendingCount', pendingCount.toString());
     }
-  }, [approvals]);
+  }, [approvals, activeTab]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Firebase Real-time Listeners
@@ -2142,39 +2154,47 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      {/* Notifications Toast */}
-      <div className="fixed bottom-6 right-6 z-[100] space-y-3 pointer-events-none">
-        <AnimatePresence>
-          {notifications.map((notification) => (
-            <motion.div
-              key={notification.id}
-              initial={{ opacity: 0, x: 50, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 20, scale: 0.9 }}
-              className={cn(
-                "pointer-events-auto px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[300px] border backdrop-blur-md",
-                notification.type === 'info' ? "bg-blue-600/90 text-white border-blue-400" :
-                notification.type === 'success' ? "bg-emerald-600/90 text-white border-emerald-400" :
-                "bg-amber-600/90 text-white border-amber-400"
-              )}
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <Bell size={20} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold tracking-tight">{notification.message}</p>
-                <p className="text-[10px] opacity-70 font-bold uppercase tracking-widest">System Alert</p>
-              </div>
-              <button 
-                onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
-                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+      {/* Notifications Toast - Restricted to Admin Panel */}
+      {activeTab === 'Admin Panel' && (
+        <div className="fixed bottom-6 right-6 z-[100] space-y-3 pointer-events-none">
+          <AnimatePresence>
+            {notifications.map((notification) => (
+              <motion.div
+                key={notification.id}
+                initial={{ opacity: 0, x: 50, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 20, scale: 0.9 }}
+                onClick={() => {
+                  if (notification.message.includes('registration')) {
+                    setActiveTab('Admin Panel');
+                    setAdminTab('Approval');
+                  }
+                }}
+                className={cn(
+                  "pointer-events-auto px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[300px] border backdrop-blur-md cursor-pointer",
+                  notification.type === 'info' ? "bg-blue-600/90 text-white border-blue-400" :
+                  notification.type === 'success' ? "bg-emerald-600/90 text-white border-emerald-400" :
+                  "bg-amber-600/90 text-white border-amber-400"
+                )}
               >
-                <X size={16} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Bell size={20} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold tracking-tight">{notification.message}</p>
+                  <p className="text-[10px] opacity-70 font-bold uppercase tracking-widest">System Alert</p>
+                </div>
+                <button 
+                  onClick={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+                  className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
       {!isAuthenticated ? (
       <LoginPage

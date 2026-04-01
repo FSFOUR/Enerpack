@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck } from 'lucide-react';
+import { auth } from '../firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface LoginPageProps {
   onLogin: (role: string, name: string, pages: string[]) => void;
@@ -12,9 +14,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
   const [password, setPassword] = useState('');
   const [showApprovalMessage, setShowApprovalMessage] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      // Check if this is the master admin email
+      if (user.email === 'shafi3396@gmail.com') {
+        onLogin('Admin', user.displayName || 'Master Admin', ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+      } else {
+        // Check if they are in the staffs list by email (if we had emails there)
+        // For now, only allow the master admin via Google
+        setError('Unauthorized admin access. Please use standard login for staff.');
+        await auth.signOut();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
     if (isRegistering) {
       onRegister(username, password);
@@ -36,7 +60,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
     } else if (username === 'pending' && password === 'pending') {
       setShowApprovalMessage(true);
     } else {
-      alert('Invalid credentials or account pending approval');
+      setError('Invalid credentials or account pending approval');
     }
   };
 
@@ -65,6 +89,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
             </div>
             <h1 className="text-xl font-black text-[#0f2a43] tracking-tighter">ENERPACK</h1>
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-[10px] font-bold uppercase tracking-wider text-center">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
@@ -97,9 +127,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, staff
               >
               {isRegistering ? 'REQUEST ACCESS' : 'ACCESS TERMINAL'}
             </button>
+
+            {!isRegistering && (
+              <div className="relative py-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-100"></div>
+                </div>
+                <div className="relative flex justify-center text-[8px] font-black uppercase tracking-widest">
+                  <span className="bg-white px-2 text-slate-400">Admin Access</span>
+                </div>
+              </div>
+            )}
+
+            {!isRegistering && (
+              <button 
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full p-3.5 sm:p-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-black uppercase tracking-[0.15em] hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xs sm:text-sm"
+              >
+                <ShieldCheck size={16} className="text-blue-600" />
+                ADMIN GOOGLE LOGIN
+              </button>
+            )}
+
             <button 
               type="button"
-              onClick={() => setIsRegistering(!isRegistering)}
+              onClick={() => { setIsRegistering(!isRegistering); setError(null); }}
               className="w-full p-3.5 sm:p-4 bg-slate-100 text-slate-600 rounded-xl font-black uppercase tracking-[0.15em] hover:bg-slate-200 transition-all active:scale-[0.98] mt-2 text-xs sm:text-sm"
             >
               {isRegistering ? 'BACK TO LOGIN' : 'REGISTER NEW ACCOUNT'}

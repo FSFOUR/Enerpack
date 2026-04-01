@@ -23,6 +23,7 @@
         "username": { "type": "string", "description": "Requested username" },
         "password": { "type": "string", "description": "Requested password (hashed or plain for this simple app)" },
         "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"], "description": "Request status" },
+        "type": { "type": "string", "description": "Type of registration request" },
         "details": { "type": "string", "description": "Description of the request" },
         "timestamp": { "type": "string", "format": "date-time", "description": "Request timestamp" },
         "pageAccess": { "type": "string", "description": "Default page access" }

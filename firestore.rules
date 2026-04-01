@@ -23,16 +23,22 @@ service cloud.firestore {
     //   - username: string (required) - Requested username
     //   - password: string (required) - Requested password
     //   - status: string (required, enum: ["Pending", "Approved", "Rejected"]) - Request status
+    //   - type: string (optional) - Type of registration request
     //   - details: string (optional) - Description of the request
     //   - timestamp: timestamp (required) - Request timestamp
     //   - pageAccess: string (optional) - Default page access
     //
-    // Collection: auditLogs
-    // Document ID: logId
+    // Collection: inventory
+    // Document ID: itemId
     // Fields:
-    //   - action: string (required) - The action performed
-    //   - user: string (required) - The user who performed the action
-    //   - timestamp: timestamp (required) - When the action occurred
+    //   - sectionTitle: string (required)
+    //   - subSectionTitle: string (required)
+    //   - size: string (required)
+    //   - gsm: string (required)
+    //   - stock: number (required)
+    //   - minQuantity: number (optional)
+    //   - remarks: string (optional)
+    //   - isLow: bool (optional)
     //
     // ===============================================================
 
@@ -52,6 +58,11 @@ service cloud.firestore {
       return isAuthenticated() &&
         (get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Admin' ||
           (request.auth.token.email == "shafi3396@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isEditor() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data.role == 'Editor' || isAdmin());
     }
 
     function hasRequiredFields(fields) {
@@ -79,11 +90,17 @@ service cloud.firestore {
 
     function isValidRegistration(data) {
       return hasRequiredFields(['username', 'password', 'status', 'timestamp']) &&
-             hasOnlyAllowedFields(['username', 'password', 'status', 'details', 'timestamp', 'pageAccess']) &&
+             hasOnlyAllowedFields(['username', 'password', 'status', 'type', 'details', 'timestamp', 'pageAccess']) &&
              data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
              data.password is string && data.password.size() > 0 && data.password.size() < 100 &&
              data.status in ['Pending', 'Approved', 'Rejected'] &&
              data.timestamp is timestamp;
+    }
+
+    function isValidInventory(data) {
+      return hasRequiredFields(['sectionTitle', 'subSectionTitle', 'size', 'gsm', 'stock']) &&
+             data.sectionTitle is string && data.subSectionTitle is string &&
+             data.size is string && data.gsm is string && data.stock is number;
     }
 
     function isValidAuditLog(data) {
@@ -109,6 +126,34 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isValidRegistration(request.resource.data); // Anyone can register
       allow update: if isAdmin() && isValidRegistration(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /inventory/{itemId} {
+      allow read: if isAuthenticated();
+      allow create: if isEditor() && isValidInventory(request.resource.data);
+      allow update: if isEditor() && isValidInventory(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /stockInLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isEditor();
+      allow update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
+    match /stockOutLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isEditor();
+      allow update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
+    match /pendingWorks/{workId} {
+      allow read: if isAuthenticated();
+      allow create: if isEditor();
+      allow update: if isEditor();
       allow delete: if isAdmin();
     }
 
