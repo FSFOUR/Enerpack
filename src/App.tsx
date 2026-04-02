@@ -717,18 +717,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [userPages, setUserPages] = useState<string[]>([]);
-  const [userName, setUserName] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>('Admin');
+  const [userPages, setUserPages] = useState<string[]>(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+  const [userName, setUserName] = useState('Admin User');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(true);
 
   useEffect(() => {
+    setIsAuthenticated(true);
+    setUserName('Admin User');
+    setActiveTab('Dashboard');
+    setUserRole('Admin');
+    setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
+    setIsAuthReady(true);
+    return;
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
         setUserName(user.displayName || user.email || 'User');
+        setActiveTab('Dashboard');
         
         // Check if user is in staffs collection
         try {
@@ -3376,10 +3385,31 @@ export default function App() {
                               type="text" 
                               placeholder="ENTER CODE TO AUTO-FILL"
                               value={stockOutItem.formData.itemCode}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, itemCode: e.target.value.toUpperCase() }
-                              })}
+                              onChange={(e) => {
+                                const newCode = e.target.value.toUpperCase();
+                                const lastLog = stockOutLogs.find(log => log.itemCode === newCode);
+                                if (lastLog) {
+                                  setStockOutItem({
+                                    ...stockOutItem,
+                                    formData: {
+                                      ...stockOutItem.formData,
+                                      itemCode: newCode,
+                                      company: lastLog.company || stockOutItem.formData.company,
+                                      workName: lastLog.workName || stockOutItem.formData.workName,
+                                      unit: lastLog.unit || stockOutItem.formData.unit,
+                                      cuttingSize: lastLog.cutSize || stockOutItem.formData.cuttingSize,
+                                      status: lastLog.status || stockOutItem.formData.status,
+                                      priority: lastLog.priority || stockOutItem.formData.priority,
+                                      remarks: lastLog.remarks || stockOutItem.formData.remarks
+                                    }
+                                  });
+                                } else {
+                                  setStockOutItem({
+                                    ...stockOutItem,
+                                    formData: { ...stockOutItem.formData, itemCode: newCode }
+                                  });
+                                }
+                              }}
                               className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
                             />
                           </div>
