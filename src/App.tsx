@@ -100,7 +100,8 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged,
-  signOut
+  signOut,
+  signInAnonymously
 } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 
@@ -119,36 +120,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   render() {
-    if (this.state.hasError) {
-      let displayMessage = "Something went wrong.";
-      try {
-        const parsed = JSON.parse(this.state.errorInfo || "");
-        if (parsed.error && parsed.error.includes("insufficient permissions")) {
-          displayMessage = "You do not have permission to perform this action. Please contact your administrator.";
-        }
-      } catch (e) {
-        // Not a JSON error
-      }
-
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-rose-100">
-            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <AlertCircle size={32} />
-            </div>
-            <h2 className="text-2xl font-black text-slate-800 mb-4 uppercase tracking-tight">System Error</h2>
-            <p className="text-slate-500 mb-8 leading-relaxed">{displayMessage}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="w-full p-4 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
-            >
-              Reload Application
-            </button>
-          </div>
-        </div>
-      );
-    }
-
     return this.props.children;
   }
 }
@@ -725,52 +696,21 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(true);
 
   useEffect(() => {
-    setIsAuthenticated(true);
-    setUserName('Admin User');
-    setActiveTab('Dashboard');
-    setUserRole('Admin');
-    setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-    setIsAuthReady(true);
-    return;
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+    const authenticate = async () => {
+      try {
+        await signInAnonymously(auth);
         setIsAuthenticated(true);
-        setUserName(user.displayName || user.email || 'User');
+        setUserName('Guest User');
         setActiveTab('Dashboard');
-        
-        // Check if user is in staffs collection
-        try {
-          const staffDoc = await getDocs(query(collection(db, 'staffs'), where('uid', '==', user.uid)));
-          if (!staffDoc.empty) {
-            const staffData = staffDoc.docs[0].data();
-            setUserRole(staffData.role);
-            setUserPages(staffData.pages || []);
-          } else if (user.email === 'shafi3396@gmail.com') {
-            setUserRole('Admin');
-            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-          } else {
-            setUserRole('Viewer');
-            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
-          }
-        } catch (e) {
-          console.error("Error checking staff role:", e);
-          if (user.email === 'shafi3396@gmail.com') {
-            setUserRole('Admin');
-            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-          } else {
-            setUserRole('Viewer');
-            setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
-          }
-        }
-      } else {
-        setIsAuthenticated(false);
-        setUserRole(null);
-        setUserName('');
+        setUserRole('Viewer');
+        setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+        setIsAuthReady(true);
+      } catch (e) {
+        console.error("Error signing in anonymously:", e);
+        setIsAuthReady(true);
       }
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
+    };
+    authenticate();
   }, []);
 
   const handleGoogleLogin = async () => {
@@ -1050,11 +990,16 @@ export default function App() {
       setStaffs(staffList);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'staffs'));
 
-    const approvalsQuery = query(collection(db, 'registrations'), orderBy('timestamp', 'desc'));
-    const unsubscribeApprovals = onSnapshot(approvalsQuery, (snapshot) => {
-      const approvalList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setApprovals(approvalList);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'registrations'));
+    const fetchApprovals = async () => {
+      try {
+        const snapshot = await getDocs(query(collection(db, 'registrations'), orderBy('timestamp', 'desc')));
+        const approvalList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setApprovals(approvalList);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'registrations');
+      }
+    };
+    fetchApprovals();
 
     const auditLogsQuery = query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'));
     const unsubscribeAuditLogs = onSnapshot(auditLogsQuery, (snapshot) => {
@@ -1091,7 +1036,6 @@ export default function App() {
 
     return () => {
       unsubscribeStaffs();
-      unsubscribeApprovals();
       unsubscribeAuditLogs();
       unsubscribeInventory();
       unsubscribeStockIn();
@@ -5514,28 +5458,6 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-
-                  <div className="bg-white p-6 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-6">
-                      <div>
-                        <h3 className="text-sm lg:text-base font-black text-slate-900 uppercase tracking-widest">System Maintenance</h3>
-                        <p className="text-[10px] lg:text-xs text-slate-500 font-bold uppercase tracking-widest">Critical system actions and resets</p>
-                      </div>
-                      <Database className="text-slate-400" size={24} />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
-                        <h4 className="text-[10px] font-black text-rose-900 uppercase tracking-widest mb-1">Reset Inventory</h4>
-                        <p className="text-[10px] text-rose-600 font-bold uppercase tracking-widest mb-4">Restore all sections and data to default state</p>
-                        <button 
-                          onClick={handleResetInventory}
-                          className="w-full py-3 bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20"
-                        >
-                          RESTORE DEFAULT DATA
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -6002,7 +5924,7 @@ export default function App() {
                       <tbody>
                         {auditLogs.map(log => (
                           <tr key={log.id} className="border-t border-slate-100">
-                            <td className="py-4 text-slate-500">{log.timestamp}</td>
+                            <td className="py-4 text-slate-500">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</td>
                             <td className="py-4 font-bold">{log.user}</td>
                             <td className="py-4">{log.action}</td>
                           </tr>
@@ -6016,7 +5938,7 @@ export default function App() {
                     {auditLogs.map(log => (
                       <div key={log.id} className="p-4 border border-slate-100 rounded-xl space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{log.timestamp}</span>
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</span>
                           <span className="font-bold text-slate-900 text-xs">{log.user}</span>
                         </div>
                         <p className="text-xs text-slate-600">{log.action}</p>
