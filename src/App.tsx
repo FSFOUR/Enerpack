@@ -100,8 +100,7 @@ import {
   signInWithPopup, 
   GoogleAuthProvider, 
   onAuthStateChanged,
-  signOut,
-  signInAnonymously
+  signOut
 } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from './firebase';
 
@@ -696,21 +695,12 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(true);
 
   useEffect(() => {
-    const authenticate = async () => {
-      try {
-        await signInAnonymously(auth);
-        setIsAuthenticated(true);
-        setUserName('Guest User');
-        setActiveTab('Dashboard');
-        setUserRole('Viewer');
-        setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
-        setIsAuthReady(true);
-      } catch (e) {
-        console.error("Error signing in anonymously:", e);
-        setIsAuthReady(true);
-      }
-    };
-    authenticate();
+    setIsAuthenticated(true);
+    setUserName('Guest User');
+    setActiveTab('Dashboard');
+    setUserRole('Viewer');
+    setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+    setIsAuthReady(true);
   }, []);
 
   const handleGoogleLogin = async () => {
