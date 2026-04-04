@@ -409,7 +409,7 @@ const InventoryRow = ({
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string) => void,
+  onDelete: (st: string, sbt: string, sz: string, gsm: string) => void,
   isAdmin: boolean
 }) => (
   <>
@@ -454,7 +454,7 @@ const InventoryRow = ({
             <Edit2 size={10} />
           </button>
           <button 
-            onClick={() => onDelete(sectionTitle, subTitle, item.size)}
+            onClick={() => onDelete(sectionTitle, subTitle, item.size, item.gsm)}
             className="p-1 border border-slate-400 text-slate-400 rounded hover:bg-slate-50"
           >
             <Trash2 size={10} />
@@ -481,7 +481,7 @@ const InventoryTableSection = ({
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string) => void,
+  onDelete: (st: string, sbt: string, sz: string, gsm: string) => void,
   canEdit: boolean
 }) => {
   const allItems: any[] = [];
@@ -762,7 +762,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [editingItem, setEditingItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
-  const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string, gsm: string } | null>(null);
   const [stockInItem, setStockInItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
   const [stockOutItem, setStockOutItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
 
@@ -1506,29 +1506,34 @@ export default function App() {
     }
   };
 
-  const handleDelete = (sectionTitle: string, subTitle: string, size: string) => {
-    setDeletingItem({ sectionTitle, subTitle, size });
+  const handleDelete = (sectionTitle: string, subTitle: string, size: string, gsm: string) => {
+    setDeletingItem({ sectionTitle, subTitle, size, gsm });
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingItem) return;
-    const { sectionTitle, subTitle, size } = deletingItem;
+    const { sectionTitle, subTitle, size, gsm } = deletingItem;
     
     try {
       const q = query(
         collection(db, 'inventory'), 
         where('sectionTitle', '==', sectionTitle),
         where('subSectionTitle', '==', subTitle),
-        where('size', '==', size)
+        where('size', '==', size),
+        where('gsm', '==', gsm)
       );
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
         await deleteDoc(snapshot.docs[0].ref);
-        logAction(`Deleted inventory item: ${size}`);
+        logAction(`Deleted inventory item: ${size} (${gsm} GSM)`);
+        toast.success(`SKU ${size} deleted successfully`);
+      } else {
+        toast.error(`SKU ${size} not found in database`);
       }
-      setDeletingItem(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'inventory');
+    } finally {
+      setDeletingItem(null);
     }
   };
 
