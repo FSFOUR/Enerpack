@@ -2332,9 +2332,9 @@ export default function App() {
       <LoginPage
         onLogin={(role: string, name: string = 'System User', pages: string[] = []) => { 
           setIsAuthenticated(true); 
-          setUserRole('Viewer'); 
-          setUserName('Guest User');
-          setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+          setUserRole(role); 
+          setUserName(name);
+          setUserPages(pages);
           setActiveTab('Dashboard');
         }}
         onRegister={async (username, password) => {
