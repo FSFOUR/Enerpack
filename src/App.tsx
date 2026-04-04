@@ -772,6 +772,9 @@ export default function App() {
   const [quickTrackerMode, setQuickTrackerMode] = useState<'IN' | 'OUT'>('OUT');
   const [quickTrackerQty, setQuickTrackerQty] = useState('');
   const [quickTrackerHistory, setQuickTrackerHistory] = useState<any[]>([]);
+  const [quickTrackerHistorySearch, setQuickTrackerHistorySearch] = useState('');
+  const [quickTrackerStartDate, setQuickTrackerStartDate] = useState('');
+  const [quickTrackerEndDate, setQuickTrackerEndDate] = useState('');
 
   // Stock In Logs State
   const [stockInLogs, setStockInLogs] = useState<any[]>([
@@ -1532,7 +1535,7 @@ export default function App() {
       remarks: ""
     };
 
-    let targetSection = "OTHER SECTION";
+    let targetSection = `${newSkuGsm} GSM SECTION`;
     const section = inventoryData.find(s => s.title.includes(newSkuGsm));
     if (section) {
       targetSection = section.title;
@@ -1827,6 +1830,19 @@ export default function App() {
       sacc + sub.items.reduce((isacc, item) => isacc + item.stock, 0), 0
     ), 0
   );
+
+  const filteredQuickTrackerHistory = quickTrackerHistory.filter(entry => {
+    const matchesSearch = 
+      entry.size.toLowerCase().includes(quickTrackerHistorySearch.toLowerCase()) ||
+      entry.gsm.toString().toLowerCase().includes(quickTrackerHistorySearch.toLowerCase()) ||
+      entry.type.toLowerCase().includes(quickTrackerHistorySearch.toLowerCase());
+    
+    const matchesDate = 
+      (!quickTrackerStartDate || entry.date >= quickTrackerStartDate) &&
+      (!quickTrackerEndDate || entry.date <= quickTrackerEndDate);
+      
+    return matchesSearch && matchesDate;
+  });
 
   const filteredLogs = stockInLogs.filter(log => 
     log.size.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
@@ -2919,7 +2935,7 @@ export default function App() {
                     exit={{ opacity: 0, height: 0 }}
                     className="hidden lg:block overflow-hidden"
                   >
-                    <div className="bg-white p-4 lg:p-6 rounded-3xl shadow-sm border border-slate-400 mb-8">
+                    <div className="bg-white p-4 lg:p-6 rounded-3xl shadow-sm border border-dashed border-slate-400 mb-8">
                       <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
                         <div className="flex-1 space-y-2 w-full">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SIZE</label>
@@ -2933,25 +2949,13 @@ export default function App() {
                         </div>
                         <div className="w-full lg:w-48 space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">GSM</label>
-                          <div className="relative">
-                            <select 
-                              value={newSkuGsm}
-                              onChange={(e) => setNewSkuGsm(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none font-bold"
-                            >
-                              <option value="280">280</option>
-                              <option value="250">250</option>
-                              <option value="230">230</option>
-                              <option value="200">200</option>
-                              <option value="150">150</option>
-                              <option value="100">100</option>
-                              <option value="140GYT">140GYT</option>
-                              <option value="130">130</option>
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                              <ChevronRight className="rotate-90 text-slate-400" size={14} />
-                            </div>
-                          </div>
+                          <input 
+                            type="text" 
+                            value={newSkuGsm}
+                            onChange={(e) => setNewSkuGsm(e.target.value)}
+                            placeholder="Enter GSM..."
+                            className="w-full bg-slate-50 border border-slate-400 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-bold"
+                          />
                         </div>
                         <div className="w-full lg:w-48 space-y-2">
                           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">INITIAL STOCK</label>
@@ -3654,6 +3658,7 @@ export default function App() {
                               gsm: currentSelectedEntry.item.gsm,
                               type: quickTrackerMode,
                               qty: qty,
+                              date: new Date().toISOString().split('T')[0],
                               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                             };
                             setQuickTrackerHistory([newEntry, ...quickTrackerHistory]);
@@ -3688,18 +3693,64 @@ export default function App() {
 
                   {/* History Card */}
                   <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-0 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                      <Clock className="text-slate-400" size={18} />
-                      <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">HISTORY</h3>
+                    <div className="p-6 border-b border-slate-100 flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Clock className="text-slate-400" size={18} />
+                          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">HISTORY</h3>
+                        </div>
+                        {quickTrackerHistory.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => {
+                                setQuickTrackerHistorySearch('');
+                                setQuickTrackerStartDate('');
+                                setQuickTrackerEndDate('');
+                              }}
+                              className="text-[10px] font-bold text-blue-500 hover:text-blue-600 uppercase tracking-widest"
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                          <input 
+                            type="text" 
+                            placeholder="Search history..."
+                            value={quickTrackerHistorySearch}
+                            onChange={(e) => setQuickTrackerHistorySearch(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="date" 
+                            value={quickTrackerStartDate}
+                            onChange={(e) => setQuickTrackerStartDate(e.target.value)}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                          <span className="text-slate-300 text-xs">-</span>
+                          <input 
+                            type="date" 
+                            value={quickTrackerEndDate}
+                            onChange={(e) => setQuickTrackerEndDate(e.target.value)}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                      {quickTrackerHistory.length === 0 ? (
+                      {filteredQuickTrackerHistory.length === 0 ? (
                         <div className="h-full flex items-center justify-center text-slate-300 font-bold text-xs uppercase tracking-widest">
-                          NO RECORDS
+                          {quickTrackerHistory.length === 0 ? "NO RECORDS" : "NO MATCHES FOUND"}
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {quickTrackerHistory.map(entry => (
+                          {filteredQuickTrackerHistory.map(entry => (
                             <div key={entry.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                               <div className="flex items-center gap-4">
                                 <div className={cn(
@@ -3710,7 +3761,11 @@ export default function App() {
                                 </div>
                                 <div>
                                   <p className="font-bold text-slate-900">{entry.size} <span className="text-slate-400 text-xs">({entry.gsm} GSM)</span></p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.time}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.date}</p>
+                                    <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{entry.time}</p>
+                                  </div>
                                 </div>
                               </div>
                               <div className={cn(
