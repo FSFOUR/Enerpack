@@ -683,24 +683,141 @@ const StatCard = ({
   </div>
 );
 
+const ChangePasswordTab = ({ currentUserId, staffs, onPasswordChanged }: { currentUserId: string | null, staffs: any[], onPasswordChanged: () => void }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUserId) {
+      toast.error("User session not found. Please log in again.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      toast.error("Password must be at least 4 characters long.");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const user = staffs.find(s => s.id === currentUserId);
+      if (!user) {
+        toast.error("User not found in database.");
+        setIsUpdating(false);
+        return;
+      }
+
+      if (user.password !== currentPassword) {
+        toast.error("Incorrect current password.");
+        setIsUpdating(false);
+        return;
+      }
+
+      await updateDoc(doc(db, 'staffs', currentUserId), {
+        password: newPassword
+      });
+
+      toast.success("Password updated successfully!");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      onPasswordChanged();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'staffs');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-md mx-auto bg-white p-8 rounded-[32px] shadow-sm border border-slate-200"
+    >
+      <div className="flex items-center gap-4 mb-8">
+        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+          <Shield size={24} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Security Settings</h2>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Update your account password</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleUpdatePassword} className="space-y-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Current Password</label>
+          <input 
+            type="password" 
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 font-bold"
+            placeholder="••••••••"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">New Password</label>
+          <input 
+            type="password" 
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 font-bold"
+            placeholder="••••••••"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Confirm New Password</label>
+          <input 
+            type="password" 
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 font-bold"
+            placeholder="••••••••"
+            required
+          />
+        </div>
+
+        <button 
+          type="submit"
+          disabled={isUpdating}
+          className="w-full p-5 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-[0.2em] hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/25 active:scale-[0.98] disabled:opacity-50"
+        >
+          {isUpdating ? 'UPDATING...' : 'UPDATE PASSWORD'}
+        </button>
+      </form>
+    </motion.div>
+  );
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
   const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [userRole, setUserRole] = useState<string | null>('Admin');
-  const [userPages, setUserPages] = useState<string[]>(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin']);
-  const [userName, setUserName] = useState('Admin User');
+  const [userRole, setUserRole] = useState<string | null>('Viewer');
+  const [userPages, setUserPages] = useState<string[]>(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+  const [userName, setUserName] = useState('Guest User');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAuthReady, setIsAuthReady] = useState(true);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
     setIsAuthenticated(true);
-    setUserName('Guest User');
-    setActiveTab('Dashboard');
-    setUserRole('Viewer');
-    setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
     setIsAuthReady(true);
+    setActiveTab('Dashboard');
   }, []);
 
   const handleGoogleLogin = async () => {
@@ -975,7 +1092,45 @@ export default function App() {
         handleFirestoreError(error, OperationType.LIST, 'inventory');
       }
     };
+
+    const checkAndSeedStaffs = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'staffs'));
+        if (snapshot.empty) {
+          console.log("Seeding initial staffs...");
+          const initialStaffs = [
+            {
+              uid: 'admin-initial',
+              name: 'Master Administrator',
+              username: 'admin',
+              password: 'Enerpack2022',
+              role: 'Admin',
+              status: 'Active',
+              pages: ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin'],
+              createdAt: Timestamp.now()
+            },
+            {
+              uid: 'editor-initial',
+              name: 'System Editor',
+              username: 'editor',
+              password: 'editor',
+              role: 'Editor',
+              status: 'Active',
+              pages: ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools'],
+              createdAt: Timestamp.now()
+            }
+          ];
+          for (const staff of initialStaffs) {
+            await addDoc(collection(db, 'staffs'), staff);
+          }
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.LIST, 'staffs');
+      }
+    };
+
     checkAndSeedInventory();
+    checkAndSeedStaffs();
 
     const staffsQuery = query(collection(db, 'staffs'), orderBy('name'));
     const unsubscribeStaffs = onSnapshot(staffsQuery, (snapshot) => {
@@ -2391,11 +2546,12 @@ export default function App() {
 
       {!isAuthenticated ? (
       <LoginPage
-        onLogin={(role: string, name: string = 'System User', pages: string[] = []) => { 
+        onLogin={(role: string, name: string = 'System User', pages: string[] = [], userId?: string) => { 
           setIsAuthenticated(true); 
           setUserRole(role); 
           setUserName(name);
-          setUserPages(pages);
+          setUserPages([...pages, 'Change Password']);
+          setCurrentUserId(userId || null);
           setActiveTab('Dashboard');
         }}
         onRegister={async (username, password) => {
@@ -2560,15 +2716,23 @@ export default function App() {
             </>
           )}
 
-          {hasPermission('admin') && (
+          {(userRole === 'Admin' || userRole === 'Editor') && currentUserId && (
             <>
               <SectionHeader label="System" />
+              {userRole === 'Admin' && (
+                <SidebarItem 
+                  icon={Settings} 
+                  label="Admin Control" 
+                  active={activeTab === 'Admin Panel'}
+                  onClick={() => { setActiveTab('Admin Panel'); setIsSidebarOpen(false); }}
+                  badge={approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length}
+                />
+              )}
               <SidebarItem 
-                icon={Settings} 
-                label="Admin Control" 
-                active={activeTab === 'Admin Panel'}
-                onClick={() => { setActiveTab('Admin Panel'); setIsSidebarOpen(false); }}
-                badge={approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length}
+                icon={Shield} 
+                label="Change Password" 
+                active={activeTab === 'Change Password'}
+                onClick={() => { setActiveTab('Change Password'); setIsSidebarOpen(false); }}
               />
             </>
           )}
@@ -5444,6 +5608,16 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {activeTab === 'Change Password' && (
+            <ChangePasswordTab 
+              currentUserId={currentUserId} 
+              staffs={staffs} 
+              onPasswordChanged={() => {
+                logAction('Password changed successfully');
+              }} 
+            />
           )}
 
           {activeTab === 'Admin Panel' && (

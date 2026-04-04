@@ -8,6 +8,7 @@
         "uid": { "type": "string", "description": "Firebase Auth UID" },
         "name": { "type": "string", "description": "Full name" },
         "username": { "type": "string", "description": "Username for login" },
+        "password": { "type": "string", "description": "Login password" },
         "role": { "type": "string", "enum": ["Admin", "Editor", "Viewer"], "description": "User role" },
         "status": { "type": "string", "enum": ["Active", "Inactive"], "description": "Account status" },
         "pages": { "type": "array", "items": { "type": "string" }, "description": "Pages the user can access" },
@@ -171,7 +172,7 @@
         "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
       },
       "required": ["jobCardNo", "workName", "size", "gsm", "timestamp"]
-    }
+    },
     "ReorderDraft": {
       "title": "ReorderDraft",
       "description": "A draft for a reorder alert.",
