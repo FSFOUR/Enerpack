@@ -160,6 +160,31 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /reorderDrafts/{draftId} {
+      allow read, write: if true;
+    }
+
+    match /quickTrackerHistory/{logId} {
+      allow read: if true;
+      allow create: if true; // Relaxed for local auth
+      allow update: if true; // Relaxed for local auth
+      allow delete: if isAdmin();
+    }
+
+    match /reorderHistory/{logId} {
+      allow read: if true;
+      allow create: if true; // Relaxed for local auth
+      allow update: if true; // Relaxed for local auth
+      allow delete: if isAdmin();
+    }
+
+    match /jobCards/{cardId} {
+      allow read: if true;
+      allow create: if true; // Relaxed for local auth
+      allow update: if true; // Relaxed for local auth
+      allow delete: if isAdmin();
+    }
+
     match /auditLogs/{logId} {
       allow read: if true;
       // TEMPORARY FIX: Allowing create for everyone because local authentication is not compatible with Firebase Auth.

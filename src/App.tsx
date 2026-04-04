@@ -806,7 +806,7 @@ export default function App() {
   ]);
   const [searchStockOutLogQuery, setSearchStockOutLogQuery] = useState('');
   const [searchAlertsQuery, setSearchAlertsQuery] = useState('');
-  const [reorderTracking, setReorderTracking] = useState<Record<string, any>>({});
+  const [reorderDrafts, setReorderDrafts] = useState<Record<string, any>>({});
   const [reorderHistory, setReorderHistory] = useState<any[]>([]);
   const [searchReorderHistoryQuery, setSearchReorderHistoryQuery] = useState('');
   const [searchForecastQuery, setSearchForecastQuery] = useState('');
@@ -1020,6 +1020,33 @@ export default function App() {
       setPendingWorks(works);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'pendingWorks'));
 
+    const quickTrackerHistoryQuery = query(collection(db, 'quickTrackerHistory'), orderBy('timestamp', 'desc'));
+    const unsubscribeQuickTrackerHistory = onSnapshot(quickTrackerHistoryQuery, (snapshot) => {
+      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setQuickTrackerHistory(history);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'quickTrackerHistory'));
+
+    const reorderHistoryQuery = query(collection(db, 'reorderHistory'), orderBy('timestamp', 'desc'));
+    const unsubscribeReorderHistory = onSnapshot(reorderHistoryQuery, (snapshot) => {
+      const history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReorderHistory(history);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'reorderHistory'));
+
+    const jobCardsQuery = query(collection(db, 'jobCards'), orderBy('timestamp', 'desc'));
+    const unsubscribeJobCards = onSnapshot(jobCardsQuery, (snapshot) => {
+      const cards = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setJobCards(cards);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'jobCards'));
+
+    const reorderDraftsQuery = query(collection(db, 'reorderDrafts'));
+    const unsubscribeReorderDrafts = onSnapshot(reorderDraftsQuery, (snapshot) => {
+      const drafts: Record<string, any> = {};
+      snapshot.docs.forEach(doc => {
+        drafts[doc.id] = doc.data();
+      });
+      setReorderDrafts(drafts);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'reorderDrafts'));
+
     return () => {
       unsubscribeStaffs();
       unsubscribeApprovals();
@@ -1028,8 +1055,12 @@ export default function App() {
       unsubscribeStockIn();
       unsubscribeStockOut();
       unsubscribePendingWorks();
+      unsubscribeQuickTrackerHistory();
+      unsubscribeReorderHistory();
+      unsubscribeJobCards();
+      unsubscribeReorderDrafts();
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthReady]);
 
   const notifyAdmin = async (type: string, details: string) => {
     // In Firebase version, we can just log it or send a specific notification if needed
@@ -1088,15 +1119,14 @@ export default function App() {
     });
   };
 
-  const handleSaveReorder = (key: string, item: any) => {
-    const tracking = reorderTracking[key];
+  const handleSaveReorder = async (key: string, item: any) => {
+    const tracking = reorderDrafts[key];
     if (!tracking || !tracking.company || tracking.ordQty === '0') {
       toast.error('Please enter supplier and order quantity');
       return;
     }
 
     const newHistoryEntry = {
-      id: Date.now(),
       date: new Date().toISOString().split('T')[0],
       size: item.size,
       gsm: item.gsm,
@@ -1108,12 +1138,20 @@ export default function App() {
       ordDate: tracking.ordDate,
       expDelivery: tracking.expDelivery,
       status: tracking.status,
-      remarks: tracking.remarks
+      remarks: tracking.remarks,
+      timestamp: Timestamp.now()
     };
 
-    setReorderHistory(prev => [newHistoryEntry, ...prev]);
-    logAction(`Reordered ${item.size}x${item.gsm} from ${tracking.company}`);
-    toast.success('Reorder log saved successfully!');
+    try {
+      await addDoc(collection(db, 'reorderHistory'), newHistoryEntry);
+      // Delete draft if it exists
+      const draftId = `${item.size}-${item.gsm}`;
+      await deleteDoc(doc(db, 'reorderDrafts', draftId));
+      logAction(`Reordered ${item.size}x${item.gsm} from ${tracking.company}`);
+      toast.success('Reorder log saved successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'reorderHistory');
+    }
   };
 
   const [showExportModal, setShowExportModal] = useState(false);
@@ -1299,12 +1337,15 @@ export default function App() {
       const parsedCards = JSON.parse(response.text);
       const newCards = parsedCards.map((card: any, index: number) => ({
         ...card,
-        id: Date.now() + index,
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
-        loadingDate: '' // Keep loading date empty as requested
+        loadingDate: '', // Keep loading date empty as requested
+        timestamp: Timestamp.now()
       }));
 
-      setJobCards(prev => [...prev, ...newCards]);
+      for (const card of newCards) {
+        await addDoc(collection(db, 'jobCards'), card);
+      }
+      toast.success('Job cards generated successfully!');
     } catch (error) {
       console.error('AI Generation Error:', error);
       toast.error('Failed to parse order. Please try again or use manual entry.');
@@ -1313,9 +1354,8 @@ export default function App() {
     }
   };
 
-  const handleManualBlankCard = () => {
+  const handleManualBlankCard = async () => {
     const newCard = {
-      id: Date.now(),
       jobCardNo: generateJobCardNo(cardPrefix, jobCards.length),
       date: '',
       workName: '',
@@ -1323,9 +1363,15 @@ export default function App() {
       gsm: '',
       totalGross: '',
       deliveryLoc: '',
-      loadingDate: ''
+      loadingDate: '',
+      timestamp: Timestamp.now()
     };
-    setJobCards(prev => [...prev, newCard]);
+    try {
+      await addDoc(collection(db, 'jobCards'), newCard);
+      toast.success('Manual job card added!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'jobCards');
+    }
   };
 
   const handleIncrement = (sectionTitle: string, subTitle: string, size: string) => {
@@ -2085,7 +2131,7 @@ export default function App() {
           )
         ).map(item => {
           const key = `${item.size}-${item.gsm}`;
-          const tracking = reorderTracking[key] || {};
+          const tracking = reorderDrafts[key] || {};
           return {
             'SIZE': item.size,
             'GSM': item.gsm,
@@ -2124,7 +2170,7 @@ export default function App() {
           )
         ).map(item => {
           const key = `${item.size}-${item.gsm}`;
-          const tracking = reorderTracking[key] || {};
+          const tracking = reorderDrafts[key] || {};
           return [
             item.size,
             item.gsm,
@@ -3646,23 +3692,27 @@ export default function App() {
 
                       {isAdmin ? (
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             if (!currentSelectedEntry || !quickTrackerQty) return;
                             const qty = parseInt(quickTrackerQty) || 0;
                             const delta = quickTrackerMode === 'IN' ? qty : -qty;
                             updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
                             
                             const newEntry = {
-                              id: Date.now(),
                               size: currentSelectedEntry.item.size,
                               gsm: currentSelectedEntry.item.gsm,
                               type: quickTrackerMode,
                               qty: qty,
                               date: new Date().toISOString().split('T')[0],
-                              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                              timestamp: Timestamp.now()
                             };
-                            setQuickTrackerHistory([newEntry, ...quickTrackerHistory]);
-                            setQuickTrackerQty('');
+                            try {
+                              await addDoc(collection(db, 'quickTrackerHistory'), newEntry);
+                              setQuickTrackerQty('');
+                            } catch (error) {
+                              handleFirestoreError(error, OperationType.CREATE, 'quickTrackerHistory');
+                            }
                           }}
                           disabled={!currentSelectedEntry || !quickTrackerQty}
                           className={cn(
@@ -4933,7 +4983,7 @@ export default function App() {
                             }))
                           )
                         ).map((entry, idx) => {
-                          const tracking = reorderTracking[entry.key] || {
+                          const tracking = reorderDrafts[entry.key] || {
                             company: '',
                             ordQty: '0',
                             ordDate: '',
@@ -4942,14 +4992,16 @@ export default function App() {
                             remarks: ''
                           };
                           
-                          const updateField = (field: string, value: any) => {
-                            setReorderTracking(prev => ({
-                              ...prev,
-                              [entry.key]: {
+                          const updateField = async (field: string, value: any) => {
+                            try {
+                              await setDoc(doc(db, 'reorderDrafts', entry.key), {
                                 ...tracking,
-                                [field]: value
-                              }
-                            }));
+                                [field]: value,
+                                itemKey: entry.key
+                              }, { merge: true });
+                            } catch (error) {
+                              handleFirestoreError(error, OperationType.UPDATE, `reorderDrafts/${entry.key}`);
+                            }
                           };
 
                           return (
@@ -5072,7 +5124,7 @@ export default function App() {
                       }))
                     )
                   ).map((entry) => {
-                    const tracking = reorderTracking[entry.key] || {
+                    const tracking = reorderDrafts[entry.key] || {
                       company: '',
                       ordQty: '0',
                       ordDate: '',
@@ -5081,14 +5133,16 @@ export default function App() {
                       remarks: ''
                     };
                     
-                    const updateField = (field: string, value: any) => {
-                      setReorderTracking(prev => ({
-                        ...prev,
-                        [entry.key]: {
+                    const updateField = async (field: string, value: any) => {
+                      try {
+                        await setDoc(doc(db, 'reorderDrafts', entry.key), {
                           ...tracking,
-                          [field]: value
-                        }
-                      }));
+                          [field]: value,
+                          itemKey: entry.key
+                        }, { merge: true });
+                      } catch (error) {
+                        handleFirestoreError(error, OperationType.UPDATE, `reorderDrafts/${entry.key}`);
+                      }
                     };
 
                     return (
@@ -6097,7 +6151,18 @@ export default function App() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 lg:gap-3">
                       <button 
-                        onClick={() => setJobCards([])}
+                        onClick={async () => {
+                          if (window.confirm('Clear all job cards?')) {
+                            try {
+                              const snapshot = await getDocs(collection(db, 'jobCards'));
+                              const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+                              await Promise.all(deletePromises);
+                              toast.success('All job cards cleared');
+                            } catch (error) {
+                              handleFirestoreError(error, OperationType.DELETE, 'jobCards');
+                            }
+                          }
+                        }}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 px-3 lg:px-4 py-2 rounded-lg text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all"
                       >
                         <Trash size={14} /> CLEAR
@@ -6134,7 +6199,14 @@ export default function App() {
                         <div key={card.id} className="relative group print:break-inside-avoid w-full flex justify-center lg:w-auto">
                           <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 print:hidden">
                             <button 
-                              onClick={() => setJobCards(prev => prev.filter(c => c.id !== card.id))}
+                              onClick={async () => {
+                                try {
+                                  await deleteDoc(doc(db, 'jobCards', card.id));
+                                  toast.success('Job card deleted');
+                                } catch (error) {
+                                  handleFirestoreError(error, OperationType.DELETE, `jobCards/${card.id}`);
+                                }
+                              }}
                               className="p-1.5 bg-rose-500 text-white rounded-full shadow-lg hover:bg-rose-600 transition-colors"
                             >
                               <Trash size={12} />
@@ -6161,10 +6233,12 @@ export default function App() {
                                 <input 
                                   type="date" 
                                   value={card.date} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].date = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { date: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold print:hidden"
                                   style={{ fontSize: '11pt', color: '#000000' }}
@@ -6180,10 +6254,12 @@ export default function App() {
                                 <input 
                                   type="text" 
                                   value={card.workName} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].workName = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { workName: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent font-bold h-full"
                                   style={{ fontSize: '11pt', color: '#000000' }}
@@ -6196,10 +6272,12 @@ export default function App() {
                                 <input 
                                   type="text" 
                                   value={card.size} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].size = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { size: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
                                   style={{ fontSize: '11pt', color: '#000000' }}
@@ -6212,10 +6290,12 @@ export default function App() {
                                 <input 
                                   type="text" 
                                   value={card.gsm} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].gsm = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { gsm: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
                                   style={{ fontSize: '11pt', color: '#000000' }}
@@ -6228,10 +6308,12 @@ export default function App() {
                                 <input 
                                   type="text" 
                                   value={card.totalGross} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].totalGross = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { totalGross: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
                                   style={{ fontSize: '11pt', color: '#000000' }}
@@ -6243,10 +6325,12 @@ export default function App() {
                               <div className="p-0">
                                 <select 
                                   value={card.deliveryLoc} 
-                                  onChange={(e) => {
-                                    const newCards = [...jobCards];
-                                    newCards[idx].deliveryLoc = e.target.value;
-                                    setJobCards(newCards);
+                                  onChange={async (e) => {
+                                    try {
+                                      await updateDoc(doc(db, 'jobCards', card.id), { deliveryLoc: e.target.value });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
+                                    }
                                   }}
                                   className="w-full border-none focus:ring-0 p-2 bg-transparent h-full appearance-none font-bold"
                                   style={{ fontSize: '11pt', color: '#000000' }}

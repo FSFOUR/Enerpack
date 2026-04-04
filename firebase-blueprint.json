@@ -118,9 +118,81 @@
         "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
       },
       "required": ["date", "size", "gsm", "qty", "status", "timestamp"]
+    },
+    "QuickTrackerHistory": {
+      "title": "QuickTrackerHistory",
+      "description": "A history entry for quick tracker actions.",
+      "type": "object",
+      "properties": {
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "type": { "type": "string", "enum": ["IN", "OUT"], "description": "Action type" },
+        "qty": { "type": "number", "description": "Quantity" },
+        "date": { "type": "string", "format": "date", "description": "Date of action" },
+        "time": { "type": "string", "description": "Time of action" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["size", "gsm", "type", "qty", "date", "time", "timestamp"]
+    },
+    "ReorderHistory": {
+      "title": "ReorderHistory",
+      "description": "A history entry for reorder actions.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "Date of reorder" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "min": { "type": "number", "description": "Minimum quantity" },
+        "curr": { "type": "number", "description": "Current stock" },
+        "short": { "type": "number", "description": "Shortage amount" },
+        "company": { "type": "string", "description": "Supplier company" },
+        "ordQty": { "type": "string", "description": "Ordered quantity" },
+        "ordDate": { "type": "string", "description": "Order date" },
+        "expDelivery": { "type": "string", "description": "Expected delivery date" },
+        "status": { "type": "string", "description": "Order status" },
+        "remarks": { "type": "string", "description": "Optional remarks" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["date", "size", "gsm", "company", "ordQty", "timestamp"]
+    },
+    "JobCard": {
+      "title": "JobCard",
+      "description": "A generated job card.",
+      "type": "object",
+      "properties": {
+        "jobCardNo": { "type": "string", "description": "Unique card number" },
+        "date": { "type": "string", "format": "date", "description": "Date of generation" },
+        "workName": { "type": "string", "description": "Work name" },
+        "size": { "type": "string", "description": "Item size" },
+        "gsm": { "type": "string", "description": "Item GSM" },
+        "totalGross": { "type": "string", "description": "Total gross quantity" },
+        "deliveryLoc": { "type": "string", "description": "Delivery location" },
+        "loadingDate": { "type": "string", "description": "Loading date" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["jobCardNo", "workName", "size", "gsm", "timestamp"]
+    }
+    "ReorderDraft": {
+      "title": "ReorderDraft",
+      "description": "A draft for a reorder alert.",
+      "type": "object",
+      "properties": {
+        "itemKey": { "type": "string", "description": "Unique key for the item (size-gsm)" },
+        "company": { "type": "string", "description": "Company name" },
+        "ordQty": { "type": "string", "description": "Ordered quantity" },
+        "ordDate": { "type": "string", "format": "date", "description": "Order date" },
+        "expDelivery": { "type": "string", "format": "date", "description": "Expected delivery date" },
+        "status": { "type": "string", "description": "Order status" },
+        "remarks": { "type": "string", "description": "Remarks" }
+      },
+      "required": ["itemKey"]
     }
   },
   "firestore": {
+    "/reorderDrafts/{draftId}": {
+      "schema": "ReorderDraft",
+      "description": "Drafts for reorder alerts."
+    },
     "/staffs/{staffId}": {
       "schema": "Staff",
       "description": "Collection of staff members."
@@ -148,6 +220,18 @@
     "/pendingWorks/{workId}": {
       "schema": "PendingWork",
       "description": "Collection of pending work orders."
+    },
+    "/quickTrackerHistory/{logId}": {
+      "schema": "QuickTrackerHistory",
+      "description": "Collection of quick tracker history entries."
+    },
+    "/reorderHistory/{logId}": {
+      "schema": "ReorderHistory",
+      "description": "Collection of reorder history entries."
+    },
+    "/jobCards/{cardId}": {
+      "schema": "JobCard",
+      "description": "Collection of generated job cards."
     }
   }
 }
