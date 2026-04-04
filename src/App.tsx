@@ -980,16 +980,11 @@ export default function App() {
       setStaffs(staffList);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'staffs'));
 
-    const fetchApprovals = async () => {
-      try {
-        const snapshot = await getDocs(query(collection(db, 'registrations'), orderBy('timestamp', 'desc')));
-        const approvalList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setApprovals(approvalList);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.LIST, 'registrations');
-      }
-    };
-    fetchApprovals();
+    const approvalsQuery = query(collection(db, 'registrations'), orderBy('timestamp', 'desc'));
+    const unsubscribeApprovals = onSnapshot(approvalsQuery, (snapshot) => {
+      const approvalList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setApprovals(approvalList);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'registrations'));
 
     const auditLogsQuery = query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'));
     const unsubscribeAuditLogs = onSnapshot(auditLogsQuery, (snapshot) => {
@@ -1001,9 +996,7 @@ export default function App() {
     const unsubscribeInventory = onSnapshot(inventoryQuery, (snapshot) => {
       const inventoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const structuredInventory = reconstructInventory(inventoryList);
-      if (structuredInventory.length > 0) {
-        setInventory(structuredInventory);
-      }
+      setInventory(structuredInventory);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'inventory'));
 
     const stockInQuery = query(collection(db, 'stockInLogs'), orderBy('timestamp', 'desc'));
@@ -1026,6 +1019,7 @@ export default function App() {
 
     return () => {
       unsubscribeStaffs();
+      unsubscribeApprovals();
       unsubscribeAuditLogs();
       unsubscribeInventory();
       unsubscribeStockIn();
@@ -5294,36 +5288,45 @@ export default function App() {
                   <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                       <BarChart2 className="text-slate-400" size={24} />
-                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Top Distribution</h3>
+                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Demand Forecast</h3>
                     </div>
-                    <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Volume Base</span>
                   </div>
-                  <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 gap-4">
-                    <RotateCcw size={48} className="opacity-20" />
-                    <p className="text-sm font-bold uppercase tracking-widest">No movement recorded</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                          <th className="pb-4 text-left">Item Code</th>
+                          <th className="pb-4 text-left">Size</th>
+                          <th className="pb-4 text-left">GSM</th>
+                          <th className="pb-4 text-right">Avg Monthly</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const consumption: Record<string, { total: number, months: Set<string> }> = {};
+                          stockOutLogs.forEach(log => {
+                            const key = `${log.itemCode}|${log.size}|${log.gsm}`;
+                            const month = log.date.substring(0, 7); // YYYY-MM
+                            if (!consumption[key]) consumption[key] = { total: 0, months: new Set() };
+                            consumption[key].total += log.out;
+                            consumption[key].months.add(month);
+                          });
+                          return Object.entries(consumption).map(([key, data]) => {
+                            const [itemCode, size, gsm] = key.split('|');
+                            const avg = data.total / data.months.size;
+                            return (
+                              <tr key={key} className="border-b border-slate-50 text-xs font-bold text-slate-700">
+                                <td className="py-4">{itemCode}</td>
+                                <td className="py-4">{size}</td>
+                                <td className="py-4">{gsm}</td>
+                                <td className="py-4 text-right">{avg.toFixed(2)}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Ranking Table</h3>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total: 0 Units</span>
-                  </div>
-                  <table className="w-full mt-8">
-                    <thead>
-                      <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                        <th className="pb-4 text-left">Rank</th>
-                        <th className="pb-4 text-left">Item</th>
-                        <th className="pb-4 text-left">Volume</th>
-                        <th className="pb-4 text-left">Share</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td colSpan={4} className="py-20 text-center text-slate-300 font-bold uppercase tracking-widest text-sm">No records found</td>
-                      </tr>
-                    </tbody>
-                  </table>
                 </div>
               </div>
             </motion.div>
