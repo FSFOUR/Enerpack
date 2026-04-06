@@ -831,22 +831,45 @@ const ChangePasswordTab = ({ currentUserId, staffs, onPasswordChanged }: { curre
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('Change Password');
+  const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [userRole, setUserRole] = useState<string | null>('Admin');
-  const [userPages, setUserPages] = useState<string[]>(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin', 'Change Password']);
-  const [userName, setUserName] = useState('Master Administrator');
-  const [currentUserId, setCurrentUserId] = useState<string | null>('admin-initial');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const saved = localStorage.getItem('isAuthenticated');
+    return saved === null ? true : saved === 'true';
+  });
+  const [userRole, setUserRole] = useState<string | null>(() => localStorage.getItem('userRole') || 'Viewer');
+  const [userPages, setUserPages] = useState<string[]>(() => {
+    const saved = localStorage.getItem('userPages');
+    return saved ? JSON.parse(saved) : ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools'];
+  });
+  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Guest User');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('currentUserId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    setIsAuthenticated(true);
     setIsAuthReady(true);
-    setActiveTab('Change Password');
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab) {
+      setActiveTab(savedTab);
+    } else {
+      setActiveTab('Dashboard');
+    }
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('isAuthenticated', isAuthenticated.toString());
+    if (userRole) localStorage.setItem('userRole', userRole);
+    localStorage.setItem('userPages', JSON.stringify(userPages));
+    localStorage.setItem('userName', userName);
+    if (currentUserId) localStorage.setItem('currentUserId', currentUserId);
+    else localStorage.removeItem('currentUserId');
+  }, [isAuthenticated, userRole, userPages, userName, currentUserId]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -862,7 +885,12 @@ export default function App() {
     try {
       await signOut(auth);
       setIsAuthenticated(false);
-      setUserRole(null);
+      setUserRole('Viewer');
+      setUserName('Guest User');
+      setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+      setCurrentUserId(null);
+      setActiveTab('Dashboard');
+      localStorage.clear();
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -2774,8 +2802,17 @@ export default function App() {
             onClick={handleLogout} 
             className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest"
           >
-            <LogOutIcon size={18} />
-            LOG OUT
+            {currentUserId ? (
+              <>
+                <LogOutIcon size={18} />
+                LOG OUT
+              </>
+            ) : (
+              <>
+                <LogIn size={18} />
+                LOGIN
+              </>
+            )}
           </button>
         </div>
       </aside>
