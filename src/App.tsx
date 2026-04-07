@@ -60,7 +60,8 @@ import {
   RefreshCw,
   ArrowLeft,
   Move,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -141,27 +142,11 @@ const sortSizes = (a: string, b: string) => {
 };
 
 // --- Mock Data ---
-const movementData = [
-  { name: 'JUL', value: 300 },
-  { name: 'AUG', value: 300 },
-  { name: 'SEP', value: 300 },
-  { name: 'OCT', value: 300 },
-  { name: 'NOV', value: 300 },
-  { name: 'DEC', value: 450 },
-];
+const movementData: any[] = [];
 
-const distributionData = [
-  { name: '280 GSM', value: 44, color: '#3b82f6' },
-  { name: '200 GSM', value: 21, color: '#1e293b' },
-  { name: '130 GSM', value: 9, color: '#f97316' },
-  { name: '140GYT GSM', value: 9, color: '#10b981' },
-];
+const distributionData: any[] = [];
 
-const highVelocityData = [
-  { name: '54 X 280', value: 600, max: 1000 },
-  { name: '56 X 280', value: 420, max: 1000 },
-  { name: '60 X 200', value: 210, max: 1000 },
-];
+const highVelocityData: any[] = [];
 
 const inventoryData = [
   {
@@ -414,15 +399,15 @@ const InventoryRow = ({
 }) => (
   <>
     <td className={cn(
-      "px-4 py-2 border-l border-r border-slate-400 text-center font-black text-[10px] lg:text-sm w-16 lg:w-20",
+      "px-4 py-2 border-l border-r border-slate-400 text-center font-black text-[10px] lg:text-sm whitespace-nowrap",
       item.isLow && "bg-rose-50/50"
     )}>{item.size}</td>
     <td className={cn(
-      "px-4 py-2 border-r border-slate-400 text-center text-slate-400 text-[10px] lg:text-sm w-12 lg:w-16",
+      "px-4 py-2 border-r border-slate-400 text-center text-slate-400 text-[10px] lg:text-sm whitespace-nowrap",
       item.isLow && "bg-rose-50/50"
     )}>{item.gsm}</td>
     <td className={cn(
-      "px-4 py-2 border-r border-slate-400 text-center text-[10px] lg:text-sm font-bold w-16 lg:w-20",
+      "px-4 py-2 border-r border-slate-400 text-center text-[10px] lg:text-sm font-bold whitespace-nowrap",
       item.isLow ? "text-rose-500 bg-rose-50/50" : "text-blue-700"
     )}>
       <div className="flex items-center justify-center gap-1">
@@ -430,7 +415,7 @@ const InventoryRow = ({
       </div>
     </td>
     <td className={cn(
-      "px-4 py-2 border-r border-slate-400 w-24 lg:w-28",
+      "px-4 py-2 border-r border-slate-400 whitespace-nowrap",
       item.isLow && "bg-rose-50/50"
     )}>
       {isAdmin ? (
@@ -507,18 +492,18 @@ const InventoryTableSection = ({
       </div>
       <div className="overflow-x-auto custom-scrollbar">
         {/* Desktop View: Two Columns */}
-        <table className="hidden lg:table w-full border-collapse text-sm font-bold uppercase tracking-wider table-fixed">
+        <table className="hidden lg:table w-full border-collapse text-sm font-bold uppercase tracking-wider table-auto">
           <thead>
             <tr className="bg-slate-50/50 text-slate-500 border-b border-slate-400">
-              <th className="px-4 py-3 border-l border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">SIZE</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">GSM</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">STOCK</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-[10px] tracking-widest">ACTION</th>
+              <th className="px-4 py-3 border-l border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">ACTION</th>
               
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">SIZE</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-16 text-[10px] tracking-widest">GSM</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-20 text-[10px] tracking-widest">STOCK</th>
-              <th className="px-4 py-3 border-r border-slate-400 text-center w-28 text-[10px] tracking-widest">ACTION</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">SIZE</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">GSM</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">STOCK</th>
+              <th className="px-4 py-3 border-r border-slate-400 text-center whitespace-nowrap text-[10px] tracking-widest">ACTION</th>
             </tr>
           </thead>
           <tbody>
@@ -843,7 +828,7 @@ export default function App() {
     const saved = localStorage.getItem('userPages');
     return saved ? JSON.parse(saved) : ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools'];
   });
-  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Guest User');
+  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Master Administrator');
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('currentUserId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -950,33 +935,12 @@ export default function App() {
   const [quickTrackerEndDate, setQuickTrackerEndDate] = useState('');
 
   // Stock In Logs State
-  const [stockInLogs, setStockInLogs] = useState<any[]>([
-    {
-      id: 1,
-      date: '2026-03-12',
-      month: 'March',
-      size: '56',
-      gsm: '280',
-      quantity: 1000,
-      company: 'SREEPATHI',
-      invoice: 'JB/25-26/1536',
-      storageLoc: '',
-      remarks: ''
-    }
-  ]);
+  const [stockInLogs, setStockInLogs] = useState<any[]>([]);
   const [searchLogQuery, setSearchLogQuery] = useState('');
   const [editingLog, setEditingLog] = useState<any | null>(null);
 
   // Stock Out Logs State
-  const [stockOutLogs, setStockOutLogs] = useState<any[]>([
-    { id: 1, date: '2026-01-10', size: '60', gsm: '280', out: 450, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 4500, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 2, date: '2026-01-15', size: '54', gsm: '280', out: 300, unit: 'GROSS', itemCode: 'FW10058', workName: 'Walkaroo', cutSize: '50', sheets: 3000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 3, date: '2026-02-05', size: '60', gsm: '280', out: 500, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 5000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 4, date: '2026-02-20', size: '56', gsm: '280', out: 200, unit: 'GROSS', itemCode: 'FW10059', workName: 'Paragon', cutSize: '52', sheets: 2000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 5, date: '2026-03-01', size: '60', gsm: '280', out: 350, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 3500, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 6, date: '2026-03-10', size: '54', gsm: '280', out: 400, unit: 'GROSS', itemCode: 'FW10058', workName: 'Walkaroo', cutSize: '50', sheets: 4000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' },
-    { id: 7, date: '2026-03-12', size: '60', gsm: '280', out: 100, unit: 'GROSS', itemCode: 'FW10057', workName: 'VKC Casual', cutSize: '55', sheets: 1000, status: 'DELIVERED', vehicle: 'KL 10 AT 1234', location: 'AKP', remarks: '' }
-  ]);
+  const [stockOutLogs, setStockOutLogs] = useState<any[]>([]);
   const [searchStockOutLogQuery, setSearchStockOutLogQuery] = useState('');
   const [searchAlertsQuery, setSearchAlertsQuery] = useState('');
   const [reorderDrafts, setReorderDrafts] = useState<Record<string, any>>({});
@@ -1008,32 +972,70 @@ export default function App() {
   });
 
   // Pending Works State
-  const [pendingWorks, setPendingWorks] = useState<any[]>([
-    {
-      id: 1,
-      date: '2026-03-12',
-      size: '60',
-      gsm: '280',
-      qty: 100,
-      unit: 'CUTTING',
-      company: 'SREEPATHI',
-      itemCode: 'FW10057',
-      workName: 'VKC Casual',
-      cutSize: '55',
-      sheets: 1000,
-      priority: 'MEDIUM',
-      status: 'CUTTING',
-      remarks: ''
-    }
-  ]);
+  const [pendingWorks, setPendingWorks] = useState<any[]>([]);
   const [searchPendingQuery, setSearchPendingQuery] = useState('');
   const [editingPendingWork, setEditingPendingWork] = useState<any | null>(null);
   const [deliveringWork, setDeliveringWork] = useState<any | null>(null);
+  const [isClearing, setIsClearing] = useState<string | null>(null);
+
+  const handleClearCollection = (collectionName: string, label: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Deletion',
+      message: `Are you sure you want to clear ALL ${label}? This action cannot be undone and will permanently delete all records from the database.`,
+      onConfirm: async () => {
+        setIsClearing(collectionName);
+        try {
+          const snapshot = await getDocs(collection(db, collectionName));
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+          toast.success(`${label} cleared successfully`);
+          if (collectionName !== 'auditLogs') {
+            await logAction(`Cleared all ${label}`);
+          }
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, collectionName);
+        } finally {
+          setIsClearing(null);
+        }
+      }
+    });
+  };
+  const [isDelivering, setIsDelivering] = useState(false);
   const [deliveryFormData, setDeliveryFormData] = useState({ 
     vehicleNumber: 'KL65S7466', 
-    deliveryLocation: '',
+    deliveryLocation: 'AKP',
     deliveryDate: new Date().toISOString().split('T')[0]
   });
+
+  const handleDeliverWork = async (work: any, deliveryData: any) => {
+    try {
+      const newLog = {
+        date: work.date,
+        deliveryDate: deliveryData.deliveryDate,
+        size: work.size,
+        gsm: work.gsm,
+        out: work.qty,
+        unit: work.unit,
+        itemCode: work.itemCode,
+        workName: work.workName,
+        cutSize: work.cutSize,
+        sheets: work.sheets,
+        status: 'DELIVERED',
+        vehicle: deliveryData.vehicleNumber,
+        location: deliveryData.deliveryLocation,
+        remarks: work.remarks || '',
+        timestamp: Timestamp.now()
+      };
+      await addDoc(collection(db, 'stockOutLogs'), newLog);
+      await deleteDoc(doc(db, 'pendingWorks', work.id));
+      logAction(`Delivered work: ${work.workName}`);
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'pendingWorks/stockOutLogs');
+      return false;
+    }
+  };
 
   // Admin Panel State
   const [staffs, setStaffs] = useState<any[]>([]);
@@ -4126,16 +4128,16 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#1e40af] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">MONTH</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">IN</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">COMPANY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">INVOICE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STORAGE LOC</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">REMARKS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest">ACTIONS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DATE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">MONTH</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">IN</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">COMPANY</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">INVOICE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STORAGE LOC</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">REMARKS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4146,16 +4148,16 @@ export default function App() {
                       ) : (
                         filteredLogs.map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-500 border-r border-slate-100">{formatDate(log.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.month}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
-                            <td className="px-4 py-1 text-sm font-black text-emerald-600 border-r border-slate-100">{log.quantity}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{log.company}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{log.invoice}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100">{log.storageLoc}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100">{log.remarks}</td>
-                            <td className="px-4 py-1">
+                            <td className="px-4 py-1 text-xs font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap">{formatDate(log.date)}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.month}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.size}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.gsm}</td>
+                            <td className="px-4 py-1 text-sm font-black text-emerald-600 border-r border-slate-100 whitespace-nowrap">{log.quantity}</td>
+                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{log.company}</td>
+                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{log.invoice}</td>
+                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.storageLoc}</td>
+                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
+                            <td className="px-4 py-1 whitespace-nowrap">
                               {isAdmin ? (
                                 <div className="flex items-center justify-center gap-2">
                                   <button 
@@ -4165,15 +4167,21 @@ export default function App() {
                                     <Edit2 size={14} />
                                   </button>
                                   <button 
-                                    onClick={async () => {
-                                      if (window.confirm('Delete this log?')) {
-                                        try {
-                                          await deleteDoc(doc(db, 'stockInLogs', log.id));
-                                          logAction(`Deleted stock in log: ${log.size}x${log.gsm}`);
-                                        } catch (error) {
-                                          handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                    onClick={() => {
+                                      setConfirmModal({
+                                        isOpen: true,
+                                        title: 'Delete Log',
+                                        message: 'Are you sure you want to delete this log? This action cannot be undone.',
+                                        onConfirm: async () => {
+                                          try {
+                                            await deleteDoc(doc(db, 'stockInLogs', log.id));
+                                            logAction(`Deleted stock in log: ${log.size}x${log.gsm}`);
+                                            toast.success('Log deleted successfully');
+                                          } catch (error) {
+                                            handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                          }
                                         }
-                                      }
+                                      });
                                     }}
                                     className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                   >
@@ -4228,14 +4236,20 @@ export default function App() {
                                   <Edit2 size={14} />
                                 </button>
                                 <button 
-                                  onClick={async () => {
-                                    if (window.confirm('Delete this log?')) {
-                                      try {
-                                        await deleteDoc(doc(db, 'stockInLogs', log.id));
-                                      } catch (error) {
-                                        handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                  onClick={() => {
+                                    setConfirmModal({
+                                      isOpen: true,
+                                      title: 'Delete Log',
+                                      message: 'Are you sure you want to delete this log? This action cannot be undone.',
+                                      onConfirm: async () => {
+                                        try {
+                                          await deleteDoc(doc(db, 'stockInLogs', log.id));
+                                          toast.success('Log deleted successfully');
+                                        } catch (error) {
+                                          handleFirestoreError(error, OperationType.DELETE, `stockInLogs/${log.id}`);
+                                        }
                                       }
-                                    }
+                                    });
                                   }}
                                   className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
                                 >
@@ -4248,7 +4262,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {log.remarks && (
+                        {log.remarks && log.remarks !== 'Stock Adjusted' && (
                           <div className="p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500 italic">
                             {log.remarks}
                           </div>
@@ -4432,20 +4446,20 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#8b1a1a] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 first:rounded-tl-[40px]">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">OUT</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">UNIT</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">ITEM CODE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10" style={{ width: '50mm', minWidth: '50mm' }}>WORK NAME</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">CUT SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SHEETS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STATUS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DELIVERY DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">VEHICLE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">LOCATION</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest last:rounded-tr-[40px]">REMARKS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 first:rounded-tl-[40px] whitespace-nowrap">DATE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">OUT</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">UNIT</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">ITEM CODE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">WORK NAME</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">CUT SIZE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SHEETS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STATUS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DELIVERY DATE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">VEHICLE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">LOCATION</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest last:rounded-tr-[40px] whitespace-nowrap">REMARKS</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4464,24 +4478,24 @@ export default function App() {
                           log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
                         ).map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{formatDate(log.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{log.gsm}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-rose-600 border-r border-slate-100">{log.out}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-500 border-r border-slate-100">{log.unit}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100">{log.itemCode}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left" style={{ width: '50mm', minWidth: '50mm' }}>{log.workName}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100">{log.cutSize}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100">{log.sheets}</td>
-                            <td className="px-4 py-1 border-r border-slate-100">
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{formatDate(log.date)}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.size}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.gsm}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-rose-600 border-r border-slate-100 whitespace-nowrap">{log.out}</td>
+                            <td className="px-4 py-1 text-[10px] font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.unit}</td>
+                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 whitespace-nowrap">{log.itemCode}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left whitespace-nowrap">{log.workName}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{log.cutSize}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{log.sheets}</td>
+                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
                               <span className="text-[10px] font-bold uppercase px-3 py-1 rounded-lg bg-emerald-100 text-emerald-600">
                                 {log.status}
                               </span>
                             </td>
-                            <td className="px-4 py-1 text-xs font-bold text-emerald-600 border-r border-slate-100">{formatDate(log.deliveryDate || log.date)}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.vehicle}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100">{log.location}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500">{log.remarks}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-emerald-600 border-r border-slate-100 whitespace-nowrap">{formatDate(log.deliveryDate || log.date)}</td>
+                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.vehicle}</td>
+                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.location}</td>
+                            <td className="px-4 py-1 text-xs text-slate-500 whitespace-nowrap">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
                           </tr>
                         ))
                       )}
@@ -4542,7 +4556,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {log.remarks && (
+                        {log.remarks && log.remarks !== 'Stock Adjusted' && (
                           <div className="p-3 bg-slate-50 rounded-xl text-[10px] text-slate-500 italic">
                             {log.remarks}
                           </div>
@@ -4614,19 +4628,19 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#f26522] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">QTY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">COMPANY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">ITEM CODE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10" style={{ width: '50mm', minWidth: '50mm' }}>WORK NAME</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">CUT SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">SHEETS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">PRIORITY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">STATUS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">REMARKS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest">ACTIONS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DATE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">QTY</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">COMPANY</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">ITEM CODE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">WORK NAME</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">CUT SIZE</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SHEETS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">PRIORITY</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STATUS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">REMARKS</th>
+                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4637,19 +4651,19 @@ export default function App() {
                       ) : (
                         filteredPendingWorks.map((work) => (
                           <tr key={work.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{formatDate(work.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{work.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100">{work.gsm}</td>
-                            <td className="px-4 py-1 text-xs font-bold border-r border-slate-100">
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{formatDate(work.date)}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{work.size}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{work.gsm}</td>
+                            <td className="px-4 py-1 text-xs font-bold border-r border-slate-100 whitespace-nowrap">
                               <span className="text-rose-500">{work.qty}</span>
                               <span className="text-[8px] text-slate-400 ml-1 uppercase">{work.unit}</span>
                             </td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100">{work.company}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100">{work.itemCode}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left" style={{ width: '50mm', minWidth: '50mm' }}>{work.workName}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100">{work.cutSize}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100">{work.sheets}</td>
-                            <td className="px-4 py-1 border-r border-slate-100">
+                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{work.company}</td>
+                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 whitespace-nowrap">{work.itemCode}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left whitespace-nowrap">{work.workName}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{work.cutSize}</td>
+                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{work.sheets}</td>
+                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
                               <select 
                                 value={work.priority}
                                 disabled={!canEdit}
@@ -4675,7 +4689,7 @@ export default function App() {
                                 <option value="HIGH">High</option>
                               </select>
                             </td>
-                            <td className="px-4 py-1 border-r border-slate-100">
+                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
                               <select 
                                 value={work.status}
                                 disabled={!canEdit}
@@ -4710,15 +4724,45 @@ export default function App() {
                                 <option value="OTHER">Other</option>
                               </select>
                             </td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100">{work.remarks}</td>
-                            <td className="px-4 py-1">
+                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{work.remarks}</td>
+                            <td className="px-4 py-1 whitespace-nowrap">
                               {canEdit ? (
-                                <button 
-                                  onClick={() => setEditingPendingWork({ ...work })}
-                                  className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
+                                <div className="flex items-center justify-center gap-2">
+                                  <button 
+                                    onClick={() => setEditingPendingWork({ ...work })}
+                                    className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                    title="Edit"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => setDeliveringWork(work)}
+                                    className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                                    title="Deliver (with details)"
+                                  >
+                                    <Truck size={14} />
+                                  </button>
+                                  <button 
+                                    disabled={isDelivering}
+                                    onClick={async () => {
+                                      setIsDelivering(true);
+                                      const success = await handleDeliverWork(work, {
+                                        vehicleNumber: 'KL65S7466',
+                                        deliveryLocation: 'AKP',
+                                        deliveryDate: new Date().toISOString().split('T')[0]
+                                      });
+                                      if (success) {
+                                        toast.success(`"${work.workName}" delivered successfully!`);
+                                        setActiveTab('Stock Out Logs');
+                                      }
+                                      setIsDelivering(false);
+                                    }}
+                                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Quick Deliver"
+                                  >
+                                    <Zap size={14} />
+                                  </button>
+                                </div>
                               ) : (
                                 <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
                               )}
@@ -4901,47 +4945,37 @@ export default function App() {
 
                         <div className="space-y-4 pt-4">
                           <button 
+                            disabled={isDelivering}
                             onClick={async () => {
-                              try {
-                                const newLog = {
-                                  date: deliveringWork.date, // Keep original stock out date
-                                  deliveryDate: deliveryFormData.deliveryDate, // Add specific delivery date
-                                  size: deliveringWork.size,
-                                  gsm: deliveringWork.gsm,
-                                  out: deliveringWork.qty,
-                                  unit: deliveringWork.unit,
-                                  itemCode: deliveringWork.itemCode,
-                                  workName: deliveringWork.workName,
-                                  cutSize: deliveringWork.cutSize,
-                                  sheets: deliveringWork.sheets,
-                                  status: 'DELIVERED',
-                                  vehicle: deliveryFormData.vehicleNumber,
-                                  location: deliveryFormData.deliveryLocation,
-                                  remarks: deliveringWork.remarks,
-                                  timestamp: Timestamp.now()
-                                };
-                                await addDoc(collection(db, 'stockOutLogs'), newLog);
-                                await deleteDoc(doc(db, 'pendingWorks', deliveringWork.id));
-                                logAction(`Delivered work: ${deliveringWork.workName}`);
+                              setIsDelivering(true);
+                              const success = await handleDeliverWork(deliveringWork, deliveryFormData);
+                              if (success) {
+                                toast.success(`"${deliveringWork.workName}" delivered successfully!`);
                                 setDeliveringWork(null);
+                                setActiveTab('Stock Out Logs');
                                 setDeliveryFormData({ 
                                   vehicleNumber: 'KL65S7466', 
-                                  deliveryLocation: '',
+                                  deliveryLocation: 'AKP',
                                   deliveryDate: new Date().toISOString().split('T')[0]
                                 });
-                              } catch (error) {
-                                handleFirestoreError(error, OperationType.WRITE, 'pendingWorks/stockOutLogs');
                               }
+                              setIsDelivering(false);
                             }}
-                            className="w-full bg-emerald-600 text-white py-5 rounded-3xl font-bold text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+                            className="w-full bg-emerald-600 text-white py-5 rounded-3xl font-bold text-sm uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            CONFIRM RELEASE
+                            {isDelivering ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                PROCESSING...
+                              </div>
+                            ) : 'CONFIRM RELEASE'}
                           </button>
                           <button 
+                            disabled={isDelivering}
                             onClick={() => setDeliveringWork(null)}
-                            className="w-full text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors"
+                            className="w-full text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors py-2 text-center"
                           >
-                            Dismiss
+                            DISMISS
                           </button>
                         </div>
                       </div>
@@ -5171,18 +5205,18 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#d32f2f] text-white">
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">SIZE</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">GSM</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">MIN</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">CURR</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20">SHORT</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '180px' }}>COMPANY</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '100px' }}>ORD QTY</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '150px' }}>ORD DATE</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '150px' }}>EXP DELIVERY</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '130px' }}>STATUS</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20" style={{ width: '180px' }}>REMARKS</th>
-                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider">LOG</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">SIZE</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">GSM</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">MIN</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">CURR</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">SHORT</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">COMPANY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">ORD QTY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">ORD DATE</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">EXP DELIVERY</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">STATUS</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider border-r border-white/20 whitespace-nowrap">REMARKS</th>
+                        <th className="px-2 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">LOG</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -5243,12 +5277,12 @@ export default function App() {
 
                           return (
                             <tr key={entry.key} className={cn("transition-colors", idx % 2 === 1 ? "bg-[#fffde7]" : "bg-white")}>
-                              <td className="px-2 py-2 text-xs font-black text-slate-900 border-r border-slate-200">{entry.item.size}</td>
-                              <td className="px-2 py-2 text-xs font-bold text-slate-800 border-r border-slate-200">{entry.item.gsm}</td>
-                              <td className="px-2 py-2 text-xs font-bold text-slate-500 border-r border-slate-200">{entry.item.minQuantity || 500}</td>
-                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200">{entry.item.stock}</td>
-                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200">{(entry.item.minQuantity || 500) - entry.item.stock}</td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 text-xs font-black text-slate-900 border-r border-slate-200 whitespace-nowrap">{entry.item.size}</td>
+                              <td className="px-2 py-2 text-xs font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">{entry.item.gsm}</td>
+                              <td className="px-2 py-2 text-xs font-bold text-slate-500 border-r border-slate-200 whitespace-nowrap">{entry.item.minQuantity || 500}</td>
+                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200 whitespace-nowrap">{entry.item.stock}</td>
+                              <td className="px-2 py-2 text-xs font-black text-red-600 border-r border-slate-200 whitespace-nowrap">{(entry.item.minQuantity || 500) - entry.item.stock}</td>
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <input 
                                   type="text"
                                   value={tracking.company}
@@ -5257,7 +5291,7 @@ export default function App() {
                                   className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500"
                                 />
                               </td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <input 
                                   type="text"
                                   value={tracking.ordQty}
@@ -5265,7 +5299,7 @@ export default function App() {
                                   className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] text-center focus:outline-none focus:border-red-500"
                                 />
                               </td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <div className="relative">
                                   <input 
                                     type="date"
@@ -5276,7 +5310,7 @@ export default function App() {
                                   <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
                                 </div>
                               </td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <div className="relative">
                                   <input 
                                     type="date"
@@ -5287,7 +5321,7 @@ export default function App() {
                                   <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} />
                                 </div>
                               </td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <select 
                                   value={tracking.status}
                                   onChange={(e) => updateField('status', e.target.value)}
@@ -5299,7 +5333,7 @@ export default function App() {
                                   <option>Delivered</option>
                                 </select>
                               </td>
-                              <td className="px-2 py-2 border-r border-slate-200">
+                              <td className="px-2 py-2 border-r border-slate-200 whitespace-nowrap">
                                 <input 
                                   type="text"
                                   value={tracking.remarks}
@@ -5308,7 +5342,7 @@ export default function App() {
                                   className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-red-500"
                                 />
                               </td>
-                              <td className="px-2 py-2">
+                              <td className="px-2 py-2 whitespace-nowrap">
                                 <button 
                                   onClick={() => handleSaveReorder(entry.key, entry.item)}
                                   className="p-1.5 bg-[#7b1fa2] text-white rounded hover:bg-[#6a1b9a] transition-colors shadow-sm"
@@ -5522,12 +5556,12 @@ export default function App() {
                 <table className="w-full text-center border-collapse">
                   <thead>
                     <tr className="bg-[#7b1fa2] text-white">
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">DATE</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">SIZE</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">GSM</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">COMPANY</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">ORD QTY</th>
-                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider">STATUS</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">DATE</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">SIZE</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">GSM</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">COMPANY</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">ORD QTY</th>
+                      <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">STATUS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -5538,12 +5572,12 @@ export default function App() {
                     ) : (
                       reorderHistory.map((entry, idx) => (
                         <tr key={entry.id} className={idx % 2 === 1 ? "bg-slate-50" : "bg-white"}>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{formatDate(entry.date)}</td>
-                          <td className="px-4 py-3 text-xs font-black text-slate-900">{entry.size}</td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.gsm}</td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">{entry.company}</td>
-                          <td className="px-4 py-3 text-xs font-black text-slate-900">{entry.ordQty}</td>
-                          <td className="px-4 py-3 text-xs font-bold text-slate-700">
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">{formatDate(entry.date)}</td>
+                          <td className="px-4 py-3 text-xs font-black text-slate-900 whitespace-nowrap">{entry.size}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">{entry.gsm}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">{entry.company}</td>
+                          <td className="px-4 py-3 text-xs font-black text-slate-900 whitespace-nowrap">{entry.ordQty}</td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-700 whitespace-nowrap">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${entry.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                               {entry.status}
                             </span>
@@ -6151,9 +6185,38 @@ export default function App() {
                             </div>
                             <div>
                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">PAGES</p>
-                              <button className="w-full bg-slate-50 p-2 rounded-lg font-bold text-xs text-slate-800 flex items-center justify-between">
-                                {approval.pageAccess ? '1 Page' : '0 Pages'} <ChevronDown size={10} />
-                              </button>
+                              <div className="relative">
+                                <button 
+                                  onClick={() => setOpenApprovalDropdownId(openApprovalDropdownId === approval.id ? null : approval.id)}
+                                  className="w-full bg-slate-50 p-2 rounded-lg font-bold text-xs text-slate-800 flex items-center justify-between"
+                                >
+                                  {approval.pageAccess?.length || 0} Pages <ChevronDown size={10} />
+                                </button>
+                                {openApprovalDropdownId === approval.id && (
+                                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-100 shadow-xl rounded-xl p-2 z-50">
+                                    {['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools', 'Admin'].map(page => (
+                                      <label key={page} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer text-[10px] font-bold text-slate-600">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={approval.pageAccess?.includes(page)}
+                                          onChange={async (e) => {
+                                            const newPages = e.target.checked 
+                                              ? [...(approval.pageAccess || []), page]
+                                              : (approval.pageAccess || []).filter((p: string) => p !== page);
+                                            try {
+                                              await updateDoc(doc(db, 'registrations', approval.id), { pageAccess: newPages });
+                                            } catch (error) {
+                                              handleFirestoreError(error, OperationType.UPDATE, `registrations/${approval.id}`);
+                                            }
+                                          }}
+                                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        {page}
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                               {approval.status === 'Pending' && (
@@ -6205,7 +6268,18 @@ export default function App() {
                     <div className="flex items-center justify-between mb-6">
                       <h3 className="text-lg font-black text-slate-800 uppercase">Editor Updates</h3>
                       <button 
-                        onClick={() => setApprovals(prev => prev.map(a => a.type === 'Editor Update' ? { ...a, status: 'Read' } : a))}
+                        onClick={async () => {
+                          try {
+                            const editorUpdates = approvals.filter(a => a.type === 'Editor Update' && a.status === 'Unread');
+                            const updatePromises = editorUpdates.map(update => 
+                              updateDoc(doc(db, 'registrations', update.id), { status: 'Read' })
+                            );
+                            await Promise.all(updatePromises);
+                            toast.success('All updates marked as read');
+                          } catch (error) {
+                            handleFirestoreError(error, OperationType.UPDATE, 'registrations');
+                          }
+                        }}
                         className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline"
                       >
                         Mark all as read
@@ -6236,14 +6310,26 @@ export default function App() {
                               </div>
                               {update.status === 'Unread' && (
                                 <button 
-                                  onClick={() => setApprovals(prev => prev.map(a => a.id === update.id ? { ...a, status: 'Read' } : a))}
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoc(doc(db, 'registrations', update.id), { status: 'Read' });
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `registrations/${update.id}`);
+                                    }
+                                  }}
                                   className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                                 >
                                   <CheckCircle size={16} />
                                 </button>
                               )}
                               <button 
-                                onClick={() => setApprovals(prev => prev.filter(a => a.id !== update.id))}
+                                onClick={async () => {
+                                  try {
+                                    await deleteDoc(doc(db, 'registrations', update.id));
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.DELETE, `registrations/${update.id}`);
+                                  }
+                                }}
                                 className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                               >
                                 <Trash2 size={16} />
@@ -6258,42 +6344,118 @@ export default function App() {
               )}
 
               {adminTab === 'Audit Log' && (
-                <div className="bg-white p-4 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm">
-                  <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Audit Logs</h3>
-                  
-                  {/* Desktop Table */}
-                  <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-slate-400 uppercase tracking-widest">
-                          <th className="pb-4">Timestamp</th>
-                          <th className="pb-4">User</th>
-                          <th className="pb-4">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {auditLogs.map(log => (
-                          <tr key={log.id} className="border-t border-slate-100">
-                            <td className="py-4 text-slate-500">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</td>
-                            <td className="py-4 font-bold">{log.user}</td>
-                            <td className="py-4">{log.action}</td>
+                <div className="space-y-6">
+                  <div className="bg-white p-4 lg:p-8 rounded-2xl lg:rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 className="text-lg font-black text-slate-800 uppercase mb-6">Audit Logs</h3>
+                    
+                    {/* Desktop Table */}
+                    <div className="hidden lg:block overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-slate-400 uppercase tracking-widest">
+                            <th className="pb-4">Timestamp</th>
+                            <th className="pb-4">User</th>
+                            <th className="pb-4">Action</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {auditLogs.map(log => (
+                            <tr key={log.id} className="border-t border-slate-100">
+                              <td className="py-4 text-slate-500">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</td>
+                              <td className="py-4 font-bold">{log.user}</td>
+                              <td className="py-4">{log.action}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Cards */}
+                    <div className="lg:hidden space-y-4">
+                      {auditLogs.map(log => (
+                        <div key={log.id} className="p-4 border border-slate-100 rounded-xl space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</span>
+                            <span className="font-bold text-slate-900 text-xs">{log.user}</span>
+                          </div>
+                          <p className="text-xs text-slate-600">{log.action}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Mobile Cards */}
-                  <div className="lg:hidden space-y-4">
-                    {auditLogs.map(log => (
-                      <div key={log.id} className="p-4 border border-slate-100 rounded-xl space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : log.timestamp}</span>
-                          <span className="font-bold text-slate-900 text-xs">{log.user}</span>
-                        </div>
-                        <p className="text-xs text-slate-600">{log.action}</p>
+                  <div className="bg-white p-4 lg:p-8 rounded-2xl lg:rounded-3xl border border-rose-100 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="p-2 bg-rose-50 text-rose-600 rounded-full">
+                        <Trash2 size={20} />
                       </div>
-                    ))}
+                      <h3 className="text-lg font-black text-slate-800 uppercase">Data Management</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <button 
+                        onClick={() => handleClearCollection('stockInLogs', 'Stock In Logs')}
+                        disabled={isClearing !== null}
+                        className="flex items-center justify-center gap-2 bg-rose-50 text-rose-600 p-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClearing === 'stockInLogs' ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                            CLEARING...
+                          </div>
+                        ) : (
+                          <><Trash2 size={16} /> CLEAR STOCK IN</>
+                        )}
+                      </button>
+
+                      <button 
+                        onClick={() => handleClearCollection('stockOutLogs', 'Stock Out Logs')}
+                        disabled={isClearing !== null}
+                        className="flex items-center justify-center gap-2 bg-rose-50 text-rose-600 p-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClearing === 'stockOutLogs' ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                            CLEARING...
+                          </div>
+                        ) : (
+                          <><Trash2 size={16} /> CLEAR STOCK OUT</>
+                        )}
+                      </button>
+
+                      <button 
+                        onClick={() => handleClearCollection('pendingWorks', 'Pending Works')}
+                        disabled={isClearing !== null}
+                        className="flex items-center justify-center gap-2 bg-rose-50 text-rose-600 p-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-100 transition-all border border-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClearing === 'pendingWorks' ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                            CLEARING...
+                          </div>
+                        ) : (
+                          <><Trash2 size={16} /> CLEAR PENDING WORKS</>
+                        )}
+                      </button>
+
+                      <button 
+                        onClick={() => handleClearCollection('auditLogs', 'Audit Logs')}
+                        disabled={isClearing !== null}
+                        className="flex items-center justify-center gap-2 bg-rose-600 text-white p-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClearing === 'auditLogs' ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            CLEARING...
+                          </div>
+                        ) : (
+                          <><Trash2 size={16} /> CLEAR AUDIT LOG</>
+                        )}
+                      </button>
+                    </div>
+                    <p className="mt-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
+                      Warning: These actions will permanently delete all records from the database.
+                    </p>
                   </div>
                 </div>
               )}
@@ -6398,17 +6560,22 @@ export default function App() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 lg:gap-3">
                       <button 
-                        onClick={async () => {
-                          if (window.confirm('Clear all job cards?')) {
-                            try {
-                              const snapshot = await getDocs(collection(db, 'jobCards'));
-                              const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-                              await Promise.all(deletePromises);
-                              toast.success('All job cards cleared');
-                            } catch (error) {
-                              handleFirestoreError(error, OperationType.DELETE, 'jobCards');
+                        onClick={() => {
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Clear Job Cards',
+                            message: 'Are you sure you want to clear all job cards? This action cannot be undone.',
+                            onConfirm: async () => {
+                              try {
+                                const snapshot = await getDocs(collection(db, 'jobCards'));
+                                const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+                                await Promise.all(deletePromises);
+                                toast.success('All job cards cleared');
+                              } catch (error) {
+                                handleFirestoreError(error, OperationType.DELETE, 'jobCards');
+                              }
                             }
-                          }
+                          });
                         }}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 text-rose-600 px-3 lg:px-4 py-2 rounded-lg text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all"
                       >

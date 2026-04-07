@@ -135,23 +135,23 @@ service cloud.firestore {
 
     match /stockInLogs/{logId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /stockOutLogs/{logId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /pendingWorks/{workId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /reorderDrafts/{draftId} {
@@ -160,31 +160,30 @@ service cloud.firestore {
 
     match /quickTrackerHistory/{logId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /reorderHistory/{logId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /jobCards/{cardId} {
       allow read: if true;
-      allow create: if true; // Relaxed for local auth
-      allow update: if true; // Relaxed for local auth
-      allow delete: if isAdmin();
+      allow create: if true; 
+      allow update: if true; 
+      allow delete: if true; 
     }
 
     match /auditLogs/{logId} {
       allow read: if true;
-      // TEMPORARY FIX: Allowing create for everyone because local authentication is not compatible with Firebase Auth.
       allow create: if isValidAuditLog(request.resource.data);
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if true;
     }
 
     // Default deny
