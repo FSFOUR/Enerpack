@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Toaster, toast } from 'sonner';
@@ -142,11 +142,6 @@ const sortSizes = (a: string, b: string) => {
 };
 
 // --- Mock Data ---
-const movementData: any[] = [];
-
-const distributionData: any[] = [];
-
-const highVelocityData: any[] = [];
 
 const inventoryData = [
   {
@@ -819,16 +814,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [adminTab, setAdminTab] = useState('Overview');
   const [inventory, setInventory] = useState(inventoryData);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const saved = localStorage.getItem('isAuthenticated');
-    return saved === null ? true : saved === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(() => localStorage.getItem('userRole') || 'Viewer');
   const [userPages, setUserPages] = useState<string[]>(() => {
     const saved = localStorage.getItem('userPages');
     return saved ? JSON.parse(saved) : ['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools'];
   });
-  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Master Administrator');
+  const [userName, setUserName] = useState(() => localStorage.getItem('userName') || 'Guest User');
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('currentUserId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -869,13 +861,23 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setIsAuthenticated(false);
-      setUserRole('Viewer');
-      setUserName('Guest User');
-      setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
-      setCurrentUserId(null);
-      setActiveTab('Dashboard');
-      localStorage.clear();
+      if (currentUserId) {
+        // If logged in as a specific user, go back to Guest Mode (Dashboard)
+        setIsAuthenticated(true);
+        setUserRole('Viewer');
+        setUserName('Guest User');
+        setUserPages(['Dashboard', 'Inventory', 'Movement', 'Planning', 'Tools']);
+        setCurrentUserId(null);
+        setActiveTab('Dashboard');
+        localStorage.clear();
+        // Set guest defaults for next session
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userRole', 'Viewer');
+        localStorage.setItem('userName', 'Guest User');
+      } else {
+        // If already a guest, show Login Page to allow admin access
+        setIsAuthenticated(false);
+      }
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -947,6 +949,87 @@ export default function App() {
   const [reorderHistory, setReorderHistory] = useState<any[]>([]);
   const [searchReorderHistoryQuery, setSearchReorderHistoryQuery] = useState('');
   const [searchForecastQuery, setSearchForecastQuery] = useState('');
+
+  const volumeMTD = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.toLocaleString('default', { month: 'long' });
+    const currentYear = now.getFullYear().toString();
+    
+    const inVolume = stockInLogs
+      .filter(log => log.month === currentMonth && log.date.includes(currentYear))
+      .reduce((acc, log) => acc + (log.quantity || 0), 0);
+      
+    const outVolume = stockOutLogs
+      .filter(log => {
+        const logDate = new Date(log.date);
+        return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+      })
+      .reduce((acc, log) => acc + (log.out || 0), 0);
+      
+    return inVolume + outVolume;
+  }, [stockInLogs, stockOutLogs]);
+
+  const dashboardMovementData = useMemo(() => {
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d.toISOString().split('T')[0];
+    });
+
+    return last7Days.map(date => {
+      const inQty = stockInLogs
+        .filter(log => log.date === date)
+        .reduce((acc, log) => acc + (log.quantity || 0), 0);
+      const outQty = stockOutLogs
+        .filter(log => log.date === date)
+        .reduce((acc, log) => acc + (log.out || 0), 0);
+      
+      return {
+        name: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        value: inQty + outQty
+      };
+    });
+  }, [stockInLogs, stockOutLogs]);
+
+  const dashboardDistributionData = useMemo(() => {
+    const sections = inventory.map(section => {
+      const totalSectionStock = section.subSections.reduce((acc, sub) => 
+        acc + sub.items.reduce((iAcc, item) => iAcc + (item.stock || 0), 0), 0
+      );
+      return {
+        name: section.title.replace(' SECTION', ''),
+        value: totalSectionStock
+      };
+    });
+
+    const total = sections.reduce((acc, s) => acc + s.value, 0);
+    if (total === 0) return [];
+
+    const colors = ['#3b82f6', '#10b981', '#6366f1', '#f59e0b', '#ef4444'];
+    return sections
+      .filter(s => s.value > 0)
+      .map((s, i) => ({
+        ...s,
+        value: Math.round((s.value / total) * 100),
+        color: colors[i % colors.length]
+      }));
+  }, [inventory]);
+
+  const dashboardHighVelocityData = useMemo(() => {
+    const itemMap = new Map();
+    stockOutLogs.forEach(log => {
+      const key = log.itemCode || `${log.size}x${log.gsm}`;
+      itemMap.set(key, (itemMap.get(key) || 0) + (log.out || 0));
+    });
+
+    const sorted = Array.from(itemMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    const max = sorted.length > 0 ? sorted[0].value : 100;
+    return sorted.map(item => ({ ...item, max }));
+  }, [stockOutLogs]);
   const [calcInputs, setCalcInputs] = useState({
     gsm: '280',
     width: '60',
@@ -2929,7 +3012,7 @@ export default function App() {
                 />
                 <StatCard 
                   label="Volume (MTD)" 
-                  value="0" 
+                  value={volumeMTD.toLocaleString()} 
                   trend="5.2%" 
                   icon={Activity} 
                   iconBg="bg-indigo-50" 
@@ -2954,7 +3037,7 @@ export default function App() {
                   </div>
                   <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={movementData}>
+                      <LineChart data={dashboardMovementData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis 
                           dataKey="name" 
@@ -2991,7 +3074,7 @@ export default function App() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={distributionData}
+                          data={dashboardDistributionData}
                           cx="50%"
                           cy="50%"
                           innerRadius={60}
@@ -2999,19 +3082,19 @@ export default function App() {
                           paddingAngle={5}
                           dataKey="value"
                         >
-                          {distributionData.map((entry, index) => (
+                          {dashboardDistributionData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-2xl font-bold text-slate-800">145</span>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Categories</span>
+                      <span className="text-2xl font-bold text-slate-800">{inventory.length}</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sections</span>
                     </div>
                   </div>
                   <div className="mt-8 space-y-3">
-                    {distributionData.map((item) => (
+                    {dashboardDistributionData.map((item) => (
                       <div key={item.name} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
@@ -3031,22 +3114,26 @@ export default function App() {
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">High Velocity Inventory</h3>
                 </div>
                 <div className="space-y-8">
-                  {highVelocityData.map((item) => (
-                    <div key={item.name}>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
-                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{item.value} Units</span>
+                  {dashboardHighVelocityData.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">No movement data yet</div>
+                  ) : (
+                    dashboardHighVelocityData.map((item) => (
+                      <div key={item.name}>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{item.value} Units</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(item.value / item.max) * 100}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className="h-full bg-blue-600"
+                          />
+                        </div>
                       </div>
-                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(item.value / item.max) * 100}%` }}
-                          transition={{ duration: 1, ease: "easeOut" }}
-                          className="h-full bg-blue-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </motion.div>
