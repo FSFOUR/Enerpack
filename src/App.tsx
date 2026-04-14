@@ -939,11 +939,39 @@ export default function App() {
   // Stock In Logs State
   const [stockInLogs, setStockInLogs] = useState<any[]>([]);
   const [searchLogQuery, setSearchLogQuery] = useState('');
+  const [logFilters, setLogFilters] = useState({
+    date: '',
+    month: '',
+    size: '',
+    gsm: '',
+    quantity: '',
+    company: '',
+    invoice: '',
+    storageLoc: '',
+    remarks: ''
+  });
   const [editingLog, setEditingLog] = useState<any | null>(null);
 
   // Stock Out Logs State
   const [stockOutLogs, setStockOutLogs] = useState<any[]>([]);
   const [searchStockOutLogQuery, setSearchStockOutLogQuery] = useState('');
+  const [stockOutFilters, setStockOutFilters] = useState({
+    date: '',
+    size: '',
+    gsm: '',
+    out: '',
+    unit: '',
+    itemCode: '',
+    workName: '',
+    cutSize: '',
+    sheets: '',
+    status: '',
+    deliveryDate: '',
+    vehicle: '',
+    location: '',
+    remarks: ''
+  });
+  const [editingStockOutLog, setEditingStockOutLog] = useState<any | null>(null);
   const [searchAlertsQuery, setSearchAlertsQuery] = useState('');
   const [reorderDrafts, setReorderDrafts] = useState<Record<string, any>>({});
   const [reorderHistory, setReorderHistory] = useState<any[]>([]);
@@ -1057,6 +1085,17 @@ export default function App() {
   // Pending Works State
   const [pendingWorks, setPendingWorks] = useState<any[]>([]);
   const [searchPendingQuery, setSearchPendingQuery] = useState('');
+  const [pendingWorksFilters, setPendingWorksFilters] = useState({
+    date: '',
+    size: '',
+    gsm: '',
+    qty: '',
+    company: '',
+    itemCode: '',
+    workName: '',
+    status: '',
+    remarks: ''
+  });
   const [editingPendingWork, setEditingPendingWork] = useState<any | null>(null);
   const [deliveringWork, setDeliveringWork] = useState<any | null>(null);
   const [isClearing, setIsClearing] = useState<string | null>(null);
@@ -1525,8 +1564,8 @@ export default function App() {
             tableWidth: cardWidth,
             theme: 'grid',
             styles: {
-              fontSize: 10,
-              cellPadding: 4,
+              fontSize: 12,
+              cellPadding: 6,
               lineColor: [0, 0, 0],
               lineWidth: 0.5,
               textColor: [0, 0, 0],
@@ -1561,7 +1600,7 @@ export default function App() {
             didParseCell: (data) => {
               // Extra height for signature rows
               if (data.row.index >= 8) {
-                data.cell.styles.minCellHeight = 22;
+                data.cell.styles.minCellHeight = 28;
               }
             },
             // Ensure borders are drawn correctly on all cells
@@ -1603,9 +1642,15 @@ export default function App() {
       return;
     }
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      toast.error('Gemini API key is not configured. Please check your environment variables.');
+      return;
+    }
+
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Parse the following WhatsApp order and extract job card details. 
@@ -1633,6 +1678,10 @@ export default function App() {
         }
       });
 
+      if (!response.text) {
+        throw new Error('AI returned an empty response.');
+      }
+
       const parsedCards = JSON.parse(response.text);
       const newCards = parsedCards.map((card: any, index: number) => ({
         ...card,
@@ -1645,9 +1694,11 @@ export default function App() {
         await addDoc(collection(db, 'jobCards'), card);
       }
       toast.success('Job cards generated successfully!');
+      setWhatsappOrder(''); // Clear after success
     } catch (error) {
       console.error('AI Generation Error:', error);
-      toast.error('Failed to parse order. Please try again or use manual entry.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to parse order: ${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }
@@ -2194,19 +2245,72 @@ export default function App() {
     return matchesSearch && matchesDate;
   });
 
-  const filteredLogs = stockInLogs.filter(log => 
-    log.size.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-    log.company.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-    log.invoice.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-    log.month.toLowerCase().includes(searchLogQuery.toLowerCase())
-  );
+  const filteredLogs = stockInLogs.filter(log => {
+    const matchesSearch = 
+      log.size.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+      log.company.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+      log.invoice.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
+      log.month.toLowerCase().includes(searchLogQuery.toLowerCase());
 
-  const filteredPendingWorks = pendingWorks.filter(work => 
-    work.workName.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-    work.company.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-    work.itemCode.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-    work.size.toLowerCase().includes(searchPendingQuery.toLowerCase())
-  );
+    const matchesFilters = 
+      formatDate(log.date).toLowerCase().includes(logFilters.date.toLowerCase()) &&
+      log.month.toLowerCase().includes(logFilters.month.toLowerCase()) &&
+      log.size.toLowerCase().includes(logFilters.size.toLowerCase()) &&
+      log.gsm.toString().toLowerCase().includes(logFilters.gsm.toLowerCase()) &&
+      log.quantity.toString().toLowerCase().includes(logFilters.quantity.toLowerCase()) &&
+      log.company.toLowerCase().includes(logFilters.company.toLowerCase()) &&
+      log.invoice.toLowerCase().includes(logFilters.invoice.toLowerCase()) &&
+      log.storageLoc.toLowerCase().includes(logFilters.storageLoc.toLowerCase()) &&
+      (log.remarks || '').toLowerCase().includes(logFilters.remarks.toLowerCase());
+
+    return matchesSearch && matchesFilters;
+  });
+
+  const filteredOutLogs = stockOutLogs.filter(log => {
+    const matchesSearch = 
+      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+      (log.company || '').toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
+      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase());
+
+    const matchesFilters = 
+      formatDate(log.date).toLowerCase().includes(stockOutFilters.date.toLowerCase()) &&
+      log.size.toLowerCase().includes(stockOutFilters.size.toLowerCase()) &&
+      log.gsm.toString().toLowerCase().includes(stockOutFilters.gsm.toLowerCase()) &&
+      log.out.toString().toLowerCase().includes(stockOutFilters.out.toLowerCase()) &&
+      log.unit.toLowerCase().includes(stockOutFilters.unit.toLowerCase()) &&
+      log.itemCode.toLowerCase().includes(stockOutFilters.itemCode.toLowerCase()) &&
+      log.workName.toLowerCase().includes(stockOutFilters.workName.toLowerCase()) &&
+      log.cutSize.toLowerCase().includes(stockOutFilters.cutSize.toLowerCase()) &&
+      log.sheets.toString().toLowerCase().includes(stockOutFilters.sheets.toLowerCase()) &&
+      log.status.toLowerCase().includes(stockOutFilters.status.toLowerCase()) &&
+      formatDate(log.deliveryDate || log.date).toLowerCase().includes(stockOutFilters.deliveryDate.toLowerCase()) &&
+      log.vehicle.toLowerCase().includes(stockOutFilters.vehicle.toLowerCase()) &&
+      log.location.toLowerCase().includes(stockOutFilters.location.toLowerCase()) &&
+      (log.remarks || '').toLowerCase().includes(stockOutFilters.remarks.toLowerCase());
+
+    return matchesSearch && matchesFilters;
+  });
+
+  const filteredPendingWorks = pendingWorks.filter(work => {
+    const matchesSearch = 
+      work.workName.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+      work.company.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+      work.itemCode.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
+      work.size.toLowerCase().includes(searchPendingQuery.toLowerCase());
+
+    const matchesFilters = 
+      formatDate(work.date).toLowerCase().includes(pendingWorksFilters.date.toLowerCase()) &&
+      work.size.toLowerCase().includes(pendingWorksFilters.size.toLowerCase()) &&
+      work.gsm.toString().toLowerCase().includes(pendingWorksFilters.gsm.toLowerCase()) &&
+      work.qty.toString().toLowerCase().includes(pendingWorksFilters.qty.toLowerCase()) &&
+      work.company.toLowerCase().includes(pendingWorksFilters.company.toLowerCase()) &&
+      work.itemCode.toLowerCase().includes(pendingWorksFilters.itemCode.toLowerCase()) &&
+      work.workName.toLowerCase().includes(pendingWorksFilters.workName.toLowerCase()) &&
+      work.status.toLowerCase().includes(pendingWorksFilters.status.toLowerCase()) &&
+      (work.remarks || '').toLowerCase().includes(pendingWorksFilters.remarks.toLowerCase());
+
+    return matchesSearch && matchesFilters;
+  });
 
   const handleExportStockInXLSX = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -4215,16 +4319,109 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#1e40af] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">MONTH</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">IN</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">COMPANY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">INVOICE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STORAGE LOC</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">REMARKS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[90px]">DATE</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[70px]">MONTH</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[70px]">SIZE</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[50px]">GSM</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[50px]">IN</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">COMPANY</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[80px]">INVOICE</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 w-[90px]">STORAGE LOC</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10">REMARKS</th>
+                        <th className="px-2 py-2 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
+                      </tr>
+                      <tr className="bg-slate-100">
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.date}
+                            onChange={(e) => setLogFilters({...logFilters, date: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[70px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.month}
+                            onChange={(e) => setLogFilters({...logFilters, month: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[70px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.size}
+                            onChange={(e) => setLogFilters({...logFilters, size: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[50px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.gsm}
+                            onChange={(e) => setLogFilters({...logFilters, gsm: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[50px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.quantity}
+                            onChange={(e) => setLogFilters({...logFilters, quantity: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.company}
+                            onChange={(e) => setLogFilters({...logFilters, company: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.invoice}
+                            onChange={(e) => setLogFilters({...logFilters, invoice: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.storageLoc}
+                            onChange={(e) => setLogFilters({...logFilters, storageLoc: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-2 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-normal text-slate-600"
+                            value={logFilters.remarks}
+                            onChange={(e) => setLogFilters({...logFilters, remarks: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1">
+                          <button 
+                            onClick={() => setLogFilters({
+                              date: '', month: '', size: '', gsm: '', quantity: '', company: '', invoice: '', storageLoc: '', remarks: ''
+                            })}
+                            className="text-[8px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-widest"
+                          >
+                            Clear
+                          </button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4235,23 +4432,23 @@ export default function App() {
                       ) : (
                         filteredLogs.map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap">{formatDate(log.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.month}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.gsm}</td>
-                            <td className="px-4 py-1 text-sm font-black text-emerald-600 border-r border-slate-100 whitespace-nowrap">{log.quantity}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{log.company}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{log.invoice}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.storageLoc}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
-                            <td className="px-4 py-1 whitespace-nowrap">
+                            <td className="px-2 py-1 text-[12px] font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap w-[90px]">{formatDate(log.date)}</td>
+                            <td className="px-2 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[70px] uppercase">{log.month}</td>
+                            <td className="px-2 py-1 text-[12px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[70px]">{log.size}</td>
+                            <td className="px-2 py-1 text-[12px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[50px]">{log.gsm}</td>
+                            <td className="px-2 py-1 text-[12px] font-black text-emerald-600 border-r border-slate-100 whitespace-nowrap w-[50px]">{log.quantity}</td>
+                            <td className="px-2 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 text-left">{log.company}</td>
+                            <td className="px-2 py-1 text-[11px] font-bold text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap w-[80px]">{log.invoice}</td>
+                            <td className="px-2 py-1 text-[11px] text-slate-500 border-r border-slate-100 uppercase w-[90px]">{log.storageLoc}</td>
+                            <td className="px-2 py-1 text-[11px] text-slate-500 border-r border-slate-100">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
+                            <td className="px-2 py-1 whitespace-nowrap">
                               {isAdmin ? (
-                                <div className="flex items-center justify-center gap-2">
+                                <div className="flex items-center justify-center gap-1">
                                   <button 
                                     onClick={() => setEditingLog(log)}
-                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                    className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
                                   >
-                                    <Edit2 size={14} />
+                                    <Edit2 size={12} />
                                   </button>
                                   <button 
                                     onClick={() => {
@@ -4270,9 +4467,9 @@ export default function App() {
                                         }
                                       });
                                     }}
-                                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors"
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={12} />
                                   </button>
                                 </div>
                               ) : (
@@ -4533,56 +4730,224 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#8b1a1a] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 first:rounded-tl-[40px] whitespace-nowrap">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">OUT</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">UNIT</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">ITEM CODE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">WORK NAME</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">CUT SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SHEETS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STATUS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DELIVERY DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">VEHICLE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">LOCATION</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest last:rounded-tr-[40px] whitespace-nowrap">REMARKS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 first:rounded-tl-[40px] whitespace-nowrap w-[90px]">DATE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[80px]">SIZE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[70px]">GSM</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[60px]">OUT</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[80px]">UNIT</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[90px]">ITEM CODE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10">WORK NAME</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[80px]">CUT SIZE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[60px]">SHEETS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[90px]">STATUS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[100px]">DELIVERY DATE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[90px]">VEHICLE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[80px]">LOCATION</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[120px]">REMARKS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest last:rounded-tr-[40px] whitespace-nowrap">ACTIONS</th>
+                      </tr>
+                      <tr className="bg-slate-100">
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.date}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, date: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.size}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, size: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[70px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.gsm}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, gsm: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[60px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.out}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, out: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.unit}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, unit: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.itemCode}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, itemCode: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-2 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.workName}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, workName: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.cutSize}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, cutSize: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[60px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.sheets}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, sheets: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.status}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, status: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[100px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.deliveryDate}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, deliveryDate: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.vehicle}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, vehicle: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.location}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, location: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[120px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-2 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-rose-500 font-normal text-slate-600"
+                            value={stockOutFilters.remarks}
+                            onChange={(e) => setStockOutFilters({...stockOutFilters, remarks: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1">
+                          <button 
+                            onClick={() => setStockOutFilters({
+                              date: '', size: '', gsm: '', out: '', unit: '', itemCode: '', workName: '', cutSize: '', sheets: '', status: '', deliveryDate: '', vehicle: '', location: '', remarks: ''
+                            })}
+                            className="text-[8px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-widest"
+                          >
+                            Clear
+                          </button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {stockOutLogs.filter(log => 
-                        log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                        log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                        log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-                      ).length === 0 ? (
+                      {filteredOutLogs.length === 0 ? (
                         <tr>
                           <td colSpan={14} className="px-6 py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</td>
                         </tr>
                       ) : (
-                        stockOutLogs.filter(log => 
-                          log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                          log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                          log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-                        ).map((log) => (
+                        filteredOutLogs.map((log) => (
                           <tr key={log.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{formatDate(log.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.gsm}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-rose-600 border-r border-slate-100 whitespace-nowrap">{log.out}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap">{log.unit}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 whitespace-nowrap">{log.itemCode}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left whitespace-nowrap">{log.workName}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{log.cutSize}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{log.sheets}</td>
-                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
-                              <span className="text-[10px] font-bold uppercase px-3 py-1 rounded-lg bg-emerald-100 text-emerald-600">
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[90px]">{formatDate(log.date)}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[80px]">{log.size}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[70px]">{log.gsm}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-rose-600 border-r border-slate-100 whitespace-nowrap w-[60px]">{log.out}</td>
+                            <td className="px-1 py-1 text-[10px] font-bold text-slate-500 border-r border-slate-100 whitespace-nowrap w-[80px]">{log.unit}</td>
+                            <td className="px-1 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 w-[90px]">{log.itemCode}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 text-left">{log.workName}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap w-[80px]">{log.cutSize}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap w-[60px]">{log.sheets}</td>
+                            <td className="px-1 py-1 border-r border-slate-100 whitespace-nowrap w-[90px]">
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-600">
                                 {log.status}
                               </span>
                             </td>
-                            <td className="px-4 py-1 text-xs font-bold text-emerald-600 border-r border-slate-100 whitespace-nowrap">{formatDate(log.deliveryDate || log.date)}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.vehicle}</td>
-                            <td className="px-4 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{log.location}</td>
-                            <td className="px-4 py-1 text-xs text-slate-500 whitespace-nowrap">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-emerald-600 border-r border-slate-100 whitespace-nowrap w-[100px]">{formatDate(log.deliveryDate || log.date)}</td>
+                            <td className="px-1 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 w-[90px]">{log.vehicle}</td>
+                            <td className="px-1 py-1 text-[10px] font-bold text-slate-900 border-r border-slate-100 w-[80px]">{log.location}</td>
+                            <td className="px-1 py-1 text-[10px] text-slate-500 border-r border-slate-100 w-[120px]">{log.remarks === 'Stock Adjusted' ? '' : log.remarks}</td>
+                            <td className="px-1 py-1 whitespace-nowrap">
+                              {canEdit ? (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button 
+                                    onClick={() => setEditingStockOutLog({ ...log })}
+                                    className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                    title="Edit"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={async () => {
+                                      setConfirmModal({
+                                        isOpen: true,
+                                        title: 'Delete Log',
+                                        message: 'Are you sure you want to delete this stock out log? This will NOT restore the stock automatically.',
+                                        onConfirm: async () => {
+                                          try {
+                                            await deleteDoc(doc(db, 'stockOutLogs', log.id));
+                                            logAction(`Deleted stock out log for ${log.workName}`);
+                                            toast.success('Log deleted successfully');
+                                          } catch (error) {
+                                            handleFirestoreError(error, OperationType.DELETE, `stockOutLogs/${log.id}`);
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
+                              )}
+                            </td>
                           </tr>
                         ))
                       )}
@@ -4592,18 +4957,10 @@ export default function App() {
 
                 {/* Mobile Card View */}
                 <div className="lg:hidden divide-y divide-slate-100">
-                  {stockOutLogs.filter(log => 
-                    log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                    log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                    log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-                  ).length === 0 ? (
+                  {filteredOutLogs.length === 0 ? (
                     <div className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No logs found</div>
                   ) : (
-                    stockOutLogs.filter(log => 
-                      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                      log.company?.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-                      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase())
-                    ).map((log) => (
+                    filteredOutLogs.map((log) => (
                       <div key={log.id} className="p-6 space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="text-xs font-bold text-slate-500">{formatDate(log.date)}</div>
@@ -4652,6 +5009,140 @@ export default function App() {
                     ))
                   )}
                 </div>
+
+                {/* Edit Stock Out Log Modal */}
+                <AnimatePresence>
+                  {editingStockOutLog && (
+                    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden"
+                      >
+                        <div className="p-8 space-y-8">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600">
+                                <Edit2 size={20} />
+                              </div>
+                              <div>
+                                <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">Edit Stock Out Log</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modify existing delivery details</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => setEditingStockOutLog(null)}
+                              className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400"
+                            >
+                              <X size={20} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
+                              <input 
+                                type="date" 
+                                value={editingStockOutLog.date}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, date: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity Out</label>
+                              <input 
+                                type="number" 
+                                value={editingStockOutLog.out}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, out: parseInt(e.target.value) || 0 })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Name</label>
+                              <input 
+                                type="text" 
+                                value={editingStockOutLog.workName}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, workName: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Code</label>
+                              <input 
+                                type="text" 
+                                value={editingStockOutLog.itemCode}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, itemCode: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vehicle</label>
+                              <input 
+                                type="text" 
+                                value={editingStockOutLog.vehicle}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, vehicle: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Location</label>
+                              <input 
+                                type="text" 
+                                value={editingStockOutLog.location}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, location: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Delivery Date</label>
+                              <input 
+                                type="date" 
+                                value={editingStockOutLog.deliveryDate || editingStockOutLog.date}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, deliveryDate: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Remarks</label>
+                              <input 
+                                type="text" 
+                                value={editingStockOutLog.remarks}
+                                onChange={(e) => setEditingStockOutLog({ ...editingStockOutLog, remarks: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-4 pt-6 border-t border-slate-100">
+                            <button 
+                              onClick={() => setEditingStockOutLog(null)}
+                              className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  await updateDoc(doc(db, 'stockOutLogs', editingStockOutLog.id), editingStockOutLog);
+                                  logAction(`Updated stock out log: ${editingStockOutLog.workName}`);
+                                  setEditingStockOutLog(null);
+                                  toast.success('Log updated successfully');
+                                } catch (error) {
+                                  handleFirestoreError(error, OperationType.UPDATE, `stockOutLogs/${editingStockOutLog.id}`);
+                                }
+                              }}
+                              className="flex items-center gap-2 bg-rose-600 text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
+                            >
+                              <Save size={18} />
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           )}
@@ -4715,19 +5206,115 @@ export default function App() {
                   <table className="w-full text-center border-collapse">
                     <thead>
                       <tr className="bg-[#f26522] text-white">
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">DATE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">GSM</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">QTY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">COMPANY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">ITEM CODE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">WORK NAME</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">CUT SIZE</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">SHEETS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">PRIORITY</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">STATUS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap">REMARKS</th>
-                        <th className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[90px]">DATE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[70px]">SIZE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[50px]">GSM</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[50px]">QTY</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[90px]">COMPANY</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[80px]">ITEM CODE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10">WORK NAME</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[80px]">CUT SIZE</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[60px]">SHEETS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[80px]">PRIORITY</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 whitespace-nowrap w-[100px]">STATUS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest border-r border-white/10 w-[120px]">REMARKS</th>
+                        <th className="px-1 py-2 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">ACTIONS</th>
+                      </tr>
+                      <tr className="bg-slate-100">
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.date}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, date: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[70px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.size}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, size: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[50px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.gsm}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, gsm: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[50px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.qty}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, qty: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[90px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.company}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, company: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.itemCode}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, itemCode: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.workName}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, workName: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]"></th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[60px]"></th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[80px]"></th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[100px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-1 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.status}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, status: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1 border-r border-slate-200 w-[120px]">
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full text-[11px] px-2 py-1 rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-orange-500 font-normal text-slate-600"
+                            value={pendingWorksFilters.remarks}
+                            onChange={(e) => setPendingWorksFilters({...pendingWorksFilters, remarks: e.target.value})}
+                          />
+                        </th>
+                        <th className="px-2 py-1">
+                          <button 
+                            onClick={() => setPendingWorksFilters({
+                              date: '', size: '', gsm: '', qty: '', company: '', itemCode: '', workName: '', status: '', remarks: ''
+                            })}
+                            className="text-[8px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-widest"
+                          >
+                            Clear
+                          </button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4738,19 +5325,19 @@ export default function App() {
                       ) : (
                         filteredPendingWorks.map((work) => (
                           <tr key={work.id} className="hover:bg-slate-50 transition-colors" style={{ height: '10mm' }}>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{formatDate(work.date)}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{work.size}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">{work.gsm}</td>
-                            <td className="px-4 py-1 text-xs font-bold border-r border-slate-100 whitespace-nowrap">
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[90px]">{formatDate(work.date)}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[70px]">{work.size}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[50px]">{work.gsm}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold border-r border-slate-100 whitespace-nowrap w-[50px]">
                               <span className="text-rose-500">{work.qty}</span>
-                              <span className="text-[8px] text-slate-400 ml-1 uppercase">{work.unit}</span>
+                              <span className="text-[9px] text-slate-400 ml-1 uppercase">{work.unit}</span>
                             </td>
-                            <td className="px-4 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 whitespace-nowrap">{work.company}</td>
-                            <td className="px-4 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 whitespace-nowrap">{work.itemCode}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-slate-900 border-r border-slate-100 text-left whitespace-nowrap">{work.workName}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{work.cutSize}</td>
-                            <td className="px-4 py-1 text-xs font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap">{work.sheets}</td>
-                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
+                            <td className="px-1 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 w-[90px]">{work.company}</td>
+                            <td className="px-1 py-1 text-[10px] font-black text-blue-600 uppercase border-r border-slate-100 w-[80px]">{work.itemCode}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 text-left">{work.workName}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap w-[80px]">{work.cutSize}</td>
+                            <td className="px-1 py-1 text-[11px] font-bold text-blue-600 border-r border-slate-100 whitespace-nowrap w-[60px]">{work.sheets}</td>
+                            <td className="px-1 py-1 border-r border-slate-100 whitespace-nowrap w-[80px]">
                               <select 
                                 value={work.priority}
                                 disabled={!canEdit}
@@ -4765,18 +5352,18 @@ export default function App() {
                                   }
                                 }}
                                 className={cn(
-                                  "text-[10px] font-bold uppercase px-3 py-1 rounded-lg focus:outline-none border-none",
+                                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg focus:outline-none border-none w-full",
                                   !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer",
                                   work.priority === 'HIGH' ? "bg-rose-100 text-rose-600" : 
                                   work.priority === 'MEDIUM' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-600"
                                 )}
                               >
                                 <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
+                                <option value="MEDIUM">Med</option>
                                 <option value="HIGH">High</option>
                               </select>
                             </td>
-                            <td className="px-4 py-1 border-r border-slate-100 whitespace-nowrap">
+                            <td className="px-1 py-1 border-r border-slate-100 whitespace-nowrap w-[100px]">
                               <select 
                                 value={work.status}
                                 disabled={!canEdit}
@@ -4796,38 +5383,38 @@ export default function App() {
                                   }
                                 }}
                                 className={cn(
-                                  "text-[10px] font-bold uppercase px-3 py-1 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none",
+                                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none w-full",
                                   !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer"
                                 )}
                               >
                                 <option value="CUTTING">Cutting</option>
-                                <option value="CUTTING FINISHED">Cutting Finished</option>
-                                <option value="OUT OF STOCK">Out of Stock</option>
-                                <option value="ORDER PLACED">Order Placed</option>
-                                <option value="WAITING FOR REEL">Waiting for Reel</option>
+                                <option value="CUTTING FINISHED">Cut Fin</option>
+                                <option value="OUT OF STOCK">OOS</option>
+                                <option value="ORDER PLACED">Ordered</option>
+                                <option value="WAITING FOR REEL">Waiting</option>
                                 <option value="PENDING">Pending</option>
                                 <option value="DELIVERED">Delivered</option>
                                 <option value="CANCELLED">Cancelled</option>
                                 <option value="OTHER">Other</option>
                               </select>
                             </td>
-                            <td className="px-4 py-1 text-xs text-slate-500 border-r border-slate-100 whitespace-nowrap">{work.remarks}</td>
-                            <td className="px-4 py-1 whitespace-nowrap">
+                            <td className="px-1 py-1 text-[10px] text-slate-500 border-r border-slate-100 w-[120px]">{work.remarks}</td>
+                            <td className="px-1 py-1 whitespace-nowrap">
                               {canEdit ? (
-                                <div className="flex items-center justify-center gap-2">
+                                <div className="flex items-center justify-center gap-1">
                                   <button 
                                     onClick={() => setEditingPendingWork({ ...work })}
-                                    className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                    className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors border border-slate-200"
                                     title="Edit"
                                   >
-                                    <Edit2 size={14} />
+                                    <Edit2 size={12} />
                                   </button>
                                   <button 
                                     onClick={() => setDeliveringWork(work)}
-                                    className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200"
+                                    className="p-1 text-emerald-500 hover:bg-emerald-50 rounded transition-colors border border-emerald-200"
                                     title="Deliver (with details)"
                                   >
-                                    <Truck size={14} />
+                                    <Truck size={12} />
                                   </button>
                                   <button 
                                     disabled={isDelivering}
@@ -4844,10 +5431,10 @@ export default function App() {
                                       }
                                       setIsDelivering(false);
                                     }}
-                                    className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Quick Deliver"
                                   >
-                                    <Zap size={14} />
+                                    <Zap size={12} />
                                   </button>
                                 </div>
                               ) : (
@@ -6682,6 +7269,26 @@ export default function App() {
                         {isGenerating ? <Activity className="animate-spin" size={14} /> : <Save size={14} />}
                         {isGenerating ? 'SAVING...' : 'SAVE'}
                       </button>
+                      <button 
+                        onClick={() => {
+                          const worksheet = XLSX.utils.json_to_sheet(jobCards.map(card => ({
+                            'Job Card No': card.jobCardNo,
+                            'Date': card.date,
+                            'Work Name': card.workName,
+                            'Size': card.size,
+                            'GSM': card.gsm,
+                            'Total Gross': card.totalGross,
+                            'Delivery Location': card.deliveryLoc,
+                            'Loading Date': card.loadingDate
+                          })));
+                          const workbook = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(workbook, worksheet, "Job Cards");
+                          XLSX.writeFile(workbook, `JobCards_${new Date().toISOString().split('T')[0]}.xlsx`);
+                        }}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-amber-50 text-amber-600 px-3 lg:px-4 py-2 rounded-lg text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all"
+                      >
+                        <FileSpreadsheet size={14} /> EXCEL
+                      </button>
                     </div>
                   </div>
 
@@ -6698,7 +7305,54 @@ export default function App() {
                     ) : (
                       jobCards.map((card, idx) => (
                         <div key={card.id} className="relative group print:break-inside-avoid w-full flex justify-center lg:w-auto">
-                          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 print:hidden">
+                          <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 print:hidden flex gap-2">
+                            <button 
+                              onClick={() => {
+                                const printWindow = window.open('', '_blank');
+                                if (printWindow) {
+                                  printWindow.document.write(`
+                                    <html>
+                                      <head>
+                                        <title>Job Card ${card.jobCardNo}</title>
+                                        <style>
+                                          body { font-family: Arial, sans-serif; padding: 20px; }
+                                          .card { border: 2px solid black; width: 140mm; margin: 0 auto; }
+                                          .row { display: grid; grid-template-columns: 160px 1fr; border-bottom: 2px solid black; }
+                                          .row:last-child { border-bottom: none; }
+                                          .label { padding: 12px; font-weight: bold; text-transform: uppercase; border-right: 2px solid black; }
+                                          .value { padding: 12px; font-weight: bold; }
+                                          .sign-area { min-height: 50px; }
+                                          @media print {
+                                            body { padding: 0; }
+                                            .card { width: 100%; border-width: 2px; }
+                                          }
+                                        </style>
+                                      </head>
+                                      <body>
+                                        <div class="card">
+                                          <div class="row"><div class="label">JOB CARD NO:</div><div class="value">${card.jobCardNo}</div></div>
+                                          <div class="row"><div class="label">DATE:</div><div class="value">${formatDate(card.date)}</div></div>
+                                          <div class="row"><div class="label">WORK NAME:</div><div class="value">${card.workName}</div></div>
+                                          <div class="row"><div class="label">SIZE:</div><div class="value">${card.size}</div></div>
+                                          <div class="row"><div class="label">GSM:</div><div class="value">${card.gsm}</div></div>
+                                          <div class="row"><div class="label">TOTAL GROSS:</div><div class="value">${card.totalGross}</div></div>
+                                          <div class="row"><div class="label">DELIVERY LOCATION:</div><div class="value">${card.deliveryLoc}</div></div>
+                                          <div class="row"><div class="label">LOADING DATE:</div><div class="value">${formatDate(card.loadingDate)}</div></div>
+                                          <div class="row"><div class="label">SUPERVISOR SIGN:</div><div class="value sign-area"></div></div>
+                                          <div class="row"><div class="label">ACCOUNTANT SIGN:</div><div class="value sign-area"></div></div>
+                                        </div>
+                                        <script>window.print(); window.close();</script>
+                                      </body>
+                                    </html>
+                                  `);
+                                  printWindow.document.close();
+                                }
+                              }}
+                              className="p-1.5 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-colors"
+                              title="Print this card"
+                            >
+                              <Printer size={12} />
+                            </button>
                             <button 
                               onClick={async () => {
                                 try {
@@ -6714,22 +7368,22 @@ export default function App() {
                             </button>
                           </div>
                           <div 
-                            className="w-full max-w-[450px] bg-white border-2 border-black p-0 flex flex-col gap-0 shadow-xl print:shadow-none print:m-0 print:border-2 print:w-[120mm] print:max-w-[120mm]"
+                            className="w-full max-w-[500px] bg-white border-2 border-black p-0 flex flex-col gap-0 shadow-xl print:shadow-none print:m-0 print:border-2 print:w-[140mm] print:max-w-[140mm]"
                             style={{ 
                               fontFamily: 'Arial, sans-serif', 
-                              fontSize: '11pt', 
+                              fontSize: '13pt', 
                               lineHeight: '1.4',
                               backgroundColor: '#ffffff',
                               borderColor: '#000000',
                               color: '#000000'
                             }}
                           >
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>JOB CARD NO:</div>
-                              <div className="p-2 font-bold">{card.jobCardNo}</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>JOB CARD NO:</div>
+                              <div className="p-3 font-bold">{card.jobCardNo}</div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>DATE:</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>DATE:</div>
                               <div className="p-0 relative">
                                 <input 
                                   type="date" 
@@ -6741,16 +7395,16 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold print:hidden"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full font-bold print:hidden"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
-                                <div className="hidden print:block p-2 font-bold">
+                                <div className="hidden print:block p-3 font-bold">
                                   {formatDate(card.date)}
                                 </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>WORK NAME</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>WORK NAME</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -6762,13 +7416,13 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent font-bold h-full"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent font-bold h-full"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>SIZE</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>SIZE</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -6780,13 +7434,13 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full font-bold"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>GSM</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>GSM</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -6798,13 +7452,13 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full font-bold"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>TOTAL GROSS</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>TOTAL GROSS</div>
                               <div className="p-0">
                                 <input 
                                   type="text" 
@@ -6816,13 +7470,13 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full font-bold"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>DELIVERY LOCATION</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>DELIVERY LOCATION</div>
                               <div className="p-0">
                                 <select 
                                   value={card.deliveryLoc} 
@@ -6833,8 +7487,8 @@ export default function App() {
                                       handleFirestoreError(error, OperationType.UPDATE, `jobCards/${card.id}`);
                                     }
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full appearance-none font-bold"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full appearance-none font-bold"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 >
                                   <option value="">Select Location</option>
                                   <option value="AKP">AKP</option>
@@ -6845,8 +7499,8 @@ export default function App() {
                                 </select>
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>LOADING DATE</div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>LOADING DATE</div>
                               <div className="p-0 relative">
                                 <input 
                                   type="date" 
@@ -6856,21 +7510,21 @@ export default function App() {
                                     newCards[idx].loadingDate = e.target.value;
                                     setJobCards(newCards);
                                   }}
-                                  className="w-full border-none focus:ring-0 p-2 bg-transparent h-full font-bold print:hidden"
-                                  style={{ fontSize: '11pt', color: '#000000' }}
+                                  className="w-full border-none focus:ring-0 p-3 bg-transparent h-full font-bold print:hidden"
+                                  style={{ fontSize: '13pt', color: '#000000' }}
                                 />
-                                <div className="hidden print:block p-2 font-bold">
+                                <div className="hidden print:block p-3 font-bold">
                                   {formatDate(card.loadingDate)}
                                 </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>SUPERVISOR SIGN</div>
-                              <div className="p-2 min-h-[40px]"></div>
+                            <div className="grid grid-cols-[160px_1fr] border-b-2 border-black" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>SUPERVISOR SIGN</div>
+                              <div className="p-3 min-h-[50px]"></div>
                             </div>
-                            <div className="grid grid-cols-[140px_1fr]" style={{ borderColor: '#000000' }}>
-                              <div className="p-2 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>ACCOUNTANT SIGN</div>
-                              <div className="p-2 min-h-[40px]"></div>
+                            <div className="grid grid-cols-[160px_1fr]" style={{ borderColor: '#000000' }}>
+                              <div className="p-3 font-bold uppercase border-r-2 border-black flex items-center" style={{ borderColor: '#000000' }}>ACCOUNTANT SIGN</div>
+                              <div className="p-3 min-h-[50px]"></div>
                             </div>
                           </div>
                         </div>
