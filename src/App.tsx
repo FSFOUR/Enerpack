@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { LoginPage } from './components/LoginPage';
-import { GoogleGenAI, Type } from "@google/genai";
 import { Toaster, toast } from 'sonner';
 import { 
   LayoutDashboard, 
@@ -386,7 +385,7 @@ const InventoryRow = ({
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string, gsm: string) => void,
+  onDelete: (st: string, sbt: string, sz: string, gsm: string, id: string) => void,
   isAdmin: boolean
 }) => (
   <>
@@ -431,7 +430,7 @@ const InventoryRow = ({
             <Edit2 size={10} />
           </button>
           <button 
-            onClick={() => onDelete(sectionTitle, subTitle, item.size, item.gsm)}
+            onClick={() => onDelete(sectionTitle, subTitle, item.size, item.gsm, item.id)}
             className="p-1 border border-slate-400 text-slate-400 rounded hover:bg-slate-50"
           >
             <Trash2 size={10} />
@@ -458,7 +457,7 @@ const InventoryTableSection = ({
   onIncrement: (st: string, sbt: string, sz: string) => void,
   onDecrement: (st: string, sbt: string, sz: string) => void,
   onEdit: (st: string, sbt: string, item: any) => void,
-  onDelete: (st: string, sbt: string, sz: string, gsm: string) => void,
+  onDelete: (st: string, sbt: string, sz: string, gsm: string, id: string) => void,
   canEdit: boolean
 }) => {
   let leftCol: any[] = [];
@@ -972,7 +971,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [editingItem, setEditingItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
-  const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string, gsm: string } | null>(null);
+  const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string, gsm: string, id: string } | null>(null);
   const [stockInItem, setStockInItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
   const [stockOutItem, setStockOutItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
 
@@ -1699,47 +1698,22 @@ export default function App() {
       return;
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      toast.error('Gemini API key is not configured. Please check your environment variables.');
-      return;
-    }
-
     setIsGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
-        contents: `Parse the following WhatsApp order and extract job card details. 
-        Return an array of objects with these fields: date (YYYY-MM-DD), workName, size, gsm, totalGross, deliveryLoc, loadingDate (YYYY-MM-DD).
-        If multiple items are in the order, return multiple objects.
-        Order: ${whatsappOrder}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                date: { type: Type.STRING },
-                workName: { type: Type.STRING },
-                size: { type: Type.STRING },
-                gsm: { type: Type.STRING },
-                totalGross: { type: Type.STRING },
-                deliveryLoc: { type: Type.STRING },
-                loadingDate: { type: Type.STRING },
-              },
-              required: ["workName", "size", "gsm"]
-            }
-          }
-        }
+      const response = await fetch('/api/generate-job-cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ whatsappOrder }),
       });
 
-      if (!response.text) {
-        throw new Error('AI returned an empty response.');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate job cards');
       }
 
-      const parsedCards = JSON.parse(response.text);
+      const parsedCards = await response.json();
       const newCards = parsedCards.map((card: any, index: number) => ({
         ...card,
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
@@ -1944,30 +1918,18 @@ export default function App() {
     }
   };
 
-  const handleDelete = (sectionTitle: string, subTitle: string, size: string, gsm: string) => {
-    setDeletingItem({ sectionTitle, subTitle, size, gsm });
+  const handleDelete = (sectionTitle: string, subTitle: string, size: string, gsm: string, id: string) => {
+    setDeletingItem({ sectionTitle, subTitle, size, gsm, id });
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingItem) return;
-    const { sectionTitle, subTitle, size, gsm } = deletingItem;
+    const { id } = deletingItem;
     
     try {
-      const q = query(
-        collection(db, 'inventory'), 
-        where('sectionTitle', '==', sectionTitle),
-        where('subSectionTitle', '==', subTitle),
-        where('size', '==', size),
-        where('gsm', '==', gsm)
-      );
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        await deleteDoc(snapshot.docs[0].ref);
-        logAction(`Deleted inventory item: ${size} (${gsm} GSM)`);
-        toast.success(`SKU ${size} deleted successfully`);
-      } else {
-        toast.error(`SKU ${size} not found in database`);
-      }
+      await deleteDoc(doc(db, 'inventory', id));
+      logAction(`Deleted inventory item: ${deletingItem.size} (${deletingItem.gsm} GSM)`);
+      toast.success(`SKU ${deletingItem.size} deleted successfully`);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'inventory');
     } finally {
@@ -2025,8 +1987,9 @@ export default function App() {
     };
 
     // Find section from dynamic inventory state
-    const section = inventory.find(s => s.title.toUpperCase().replace(/\s/g, '').includes(newSkuGsm.toUpperCase().replace(/\s/g, '')));
-    const targetSection = section ? section.title : `${newSkuGsm} GSM SECTION`;
+    const cleanGsm = newSkuGsm.toUpperCase().replace('GSM', '').trim();
+    const section = inventory.find(s => s.title.toUpperCase().replace('GSM', '').trim().includes(cleanGsm));
+    const targetSection = section ? section.title : `${newSkuGsm.toUpperCase().includes('GSM') ? newSkuGsm.toUpperCase() : newSkuGsm.toUpperCase() + ' GSM'} SECTION`;
 
     // Find appropriate subsection Title
     let targetSubSection = "SINGLE SIZE"; 

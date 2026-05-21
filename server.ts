@@ -11,6 +11,56 @@ async function startServer() {
   const PORT = 3000;
 
   // API routes go here
+  app.use(express.json());
+  
+  app.post("/api/generate-job-cards", async (req, res) => {
+    const { whatsappOrder } = req.body;
+    
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Gemini API key is not configured" });
+    }
+
+    try {
+      const { GoogleGenAI, Type } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-lite-preview",
+        contents: `Parse the following WhatsApp order and extract job card details. 
+        Return an array of objects with these fields: date (YYYY-MM-DD), workName, size, gsm, totalGross, deliveryLoc, loadingDate (YYYY-MM-DD).
+        If multiple items are in the order, return multiple objects.
+        Order: ${whatsappOrder}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                date: { type: Type.STRING },
+                workName: { type: Type.STRING },
+                size: { type: Type.STRING },
+                gsm: { type: Type.STRING },
+                totalGross: { type: Type.STRING },
+                deliveryLoc: { type: Type.STRING },
+                loadingDate: { type: Type.STRING },
+              },
+              required: ["workName", "size", "gsm"]
+            }
+          }
+        }
+      });
+
+      if (!response.text) {
+        throw new Error('AI returned an empty response.');
+      }
+
+      res.json(JSON.parse(response.text));
+    } catch (error) {
+      console.error("AI Generation Error:", error);
+      res.status(500).json({ error: "Failed to generate job cards" });
+    }
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
