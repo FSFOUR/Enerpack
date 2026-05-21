@@ -148,7 +148,7 @@ const inventoryData = [
     title: "280 GSM SECTION",
     subSections: [
       {
-        title: "SINGLE SIZE",
+        title: "ALL SIZES",
         items: [
           { size: "54", gsm: "280", stock: 1279, isLow: false, minQuantity: 100, remarks: "" },
           { size: "56", gsm: "280", stock: 243, isLow: true, minQuantity: 100, remarks: "" },
@@ -173,11 +173,6 @@ const inventoryData = [
           { size: "100", gsm: "280", stock: 1999, isLow: false },
           { size: "104", gsm: "280", stock: 955, isLow: false },
           { size: "108", gsm: "280", stock: 1568, isLow: false },
-        ]
-      },
-      {
-        title: "DOUBLE SIZE",
-        items: [
           { size: "47*64", gsm: "280", stock: 59, isLow: true },
           { size: "54*73.5", gsm: "280", stock: 55, isLow: true },
           { size: "54*86", gsm: "280", stock: 157, isLow: true },
@@ -216,7 +211,7 @@ const inventoryData = [
           { size: "90*66", gsm: "280", stock: 108, isLow: true },
           { size: "94.5*80.3", gsm: "280", stock: 32, isLow: true },
           { size: "100*74", gsm: "280", stock: 20, isLow: true },
-          { size: "108*76", gsm: "280", stock: 103, isLow: true },
+          { size: "108*76", gsm: "280", stock: 103, isLow: true }
         ]
       }
     ]
@@ -312,6 +307,7 @@ const inventoryData = [
           { size: "70", gsm: "140GYT", stock: 1016, isLow: false },
           { size: "73", gsm: "140GYT", stock: 0, isLow: true },
           { size: "77", gsm: "140GYT", stock: 1805, isLow: false },
+          { size: "80", gsm: "140GYT", stock: 0, isLow: false },
           { size: "82", gsm: "140GYT", stock: 0, isLow: true },
           { size: "85", gsm: "140GYT", stock: 0, isLow: true },
           { size: "88", gsm: "140GYT", stock: 0, isLow: true },
@@ -360,6 +356,7 @@ const inventoryData = [
         title: "100",
         items: [
           { size: "60", gsm: "100", stock: 150, isLow: true },
+          { size: "65", gsm: "100", stock: 100, isLow: false },
           { size: "66", gsm: "100", stock: 116, isLow: true },
           { size: "92", gsm: "100", stock: 396, isLow: true },
           { size: "100", gsm: "100", stock: 416, isLow: true },
@@ -464,21 +461,74 @@ const InventoryTableSection = ({
   onDelete: (st: string, sbt: string, sz: string, gsm: string) => void,
   canEdit: boolean
 }) => {
-  const allItems: any[] = [];
-  if (section.subSections) {
+  let leftCol: any[] = [];
+  let rightCol: any[] = [];
+  let maxRows = 0;
+  let allItems: any[] = [];
+
+  if (section.title === "280 GSM SECTION") {
     section.subSections.forEach((sub: any) => {
-      const excludedTitles = ["SINGLE SIZE", "150", "100"];
-      if (!excludedTitles.includes(sub.title)) {
-        allItems.push({ isHeader: true, title: sub.title });
-      }
       sub.items.forEach((item: any) => allItems.push({ ...item, subTitle: sub.title }));
     });
+    
+    const singleItems = allItems.filter(item => !item.size.includes('*'));
+    const doubleItems = allItems.filter(item => item.size.includes('*'));
+    
+    const allExpandedItems = [
+      { isHeader: true, title: 'SINGLE SIZES' },
+      ...singleItems,
+      { isHeader: true, title: 'DOUBLE SIZES' },
+      ...doubleItems
+    ];
+    
+    const targetSize = Math.ceil(allExpandedItems.length / 2);
+    
+    leftCol = allExpandedItems.slice(0, targetSize);
+    rightCol = allExpandedItems.slice(targetSize);
+    
+    // Ensure both columns have headers
+    if (leftCol.length > 0 && !leftCol[0].isHeader) {
+        leftCol.unshift({ isHeader: true, title: 'SINGLE SIZES' });
+    }
+    if (rightCol.length > 0 && !rightCol[0].isHeader) {
+        const firstItem = rightCol[0];
+        const isDouble = firstItem.size && firstItem.size.includes('*');
+        const header = isDouble ? { isHeader: true, title: 'DOUBLE SIZES' } : { isHeader: true, title: 'SINGLE SIZES' };
+        if (!rightCol.some(item => item.isHeader && item.title === header.title)) {
+            rightCol.unshift(header);
+        }
+    }
+    
+    maxRows = Math.max(leftCol.length, rightCol.length);
+    allItems = allExpandedItems;
+  } else if (section.title === "150, 100 GSM SECTION") {
+    section.subSections.forEach((sub: any) => {
+      const subItems = sub.items.map((item: any) => ({ ...item, subTitle: sub.title }));
+      if (sub.title === "150") {
+        leftCol.push({ isHeader: true, title: sub.title }, ...subItems);
+      } else if (sub.title === "100") {
+        rightCol.push({ isHeader: true, title: sub.title }, ...subItems);
+      }
+    });                
+    maxRows = Math.max(leftCol.length, rightCol.length);
+    allItems = [...leftCol, ...rightCol];
+  } else {
+    // Other sections get generic split
+    if (section.subSections) {
+      section.subSections.forEach((sub: any) => {
+        const excludedTitles = ["SINGLE SIZE"];
+        if (!excludedTitles.includes(sub.title)) {
+          allItems.push({ isHeader: true, title: sub.title });
+        }
+        sub.items.forEach((item: any) => allItems.push({ ...item, subTitle: sub.title }));
+      });
+    }
+  
+    const half = Math.ceil(allItems.length / 2);
+    leftCol = allItems.slice(0, half);
+    rightCol = allItems.slice(half);
+    maxRows = half;
   }
-
-  const half = Math.ceil(allItems.length / 2);
-  const leftCol = allItems.slice(0, half);
-  const rightCol = allItems.slice(half);
-  const maxRows = half;
 
   return (
     <div className="mb-8 bg-white rounded-3xl shadow-sm border border-slate-400 overflow-hidden">
@@ -1070,6 +1120,13 @@ export default function App() {
   const [jobCards, setJobCards] = useState<any[]>([]);
   const [cardPrefix, setCardPrefix] = useState<'EP' | 'FP'>('EP');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [negativeStockWarning, setNegativeStockWarning] = useState<{
+    sectionTitle: string,
+    subTitle: string,
+    size: string,
+    delta: number,
+    onConfirm: () => Promise<void>
+  } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -1543,13 +1600,13 @@ export default function App() {
 
     setIsGenerating(true);
     try {
-      const pdf = new jsPDF('l', 'mm', 'a4');
+      const pdf = new jsPDF('l', 'mm', 'a4'); // Use landscape for A4
       const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 10;
       const gap = 10;
-      const cardWidth = (pageWidth - (margin * 2) - gap) / 2;
+      const cardWidth = 130;
+      const margin = (pageWidth - (2 * cardWidth + gap)) / 2;
       
-      // Process cards in pairs
+      // Process cards in pairs for better fit
       for (let i = 0; i < jobCards.length; i += 2) {
         if (i > 0) pdf.addPage();
         
@@ -1564,8 +1621,8 @@ export default function App() {
             tableWidth: cardWidth,
             theme: 'grid',
             styles: {
-              fontSize: 12,
-              cellPadding: 6,
+              fontSize: 10,
+              cellPadding: 4,
               lineColor: [0, 0, 0],
               lineWidth: 0.5,
               textColor: [0, 0, 0],
@@ -1575,12 +1632,12 @@ export default function App() {
             },
             columnStyles: {
               0: { 
-                cellWidth: cardWidth * 0.4, 
+                cellWidth: cardWidth * 0.35, 
                 fontStyle: 'bold',
                 fillColor: [255, 255, 255],
               },
               1: { 
-                cellWidth: cardWidth * 0.6,
+                cellWidth: cardWidth * 0.65,
                 fontStyle: 'bold',
                 fillColor: [255, 255, 255],
               },
@@ -1600,7 +1657,7 @@ export default function App() {
             didParseCell: (data) => {
               // Extra height for signature rows
               if (data.row.index >= 8) {
-                data.cell.styles.minCellHeight = 28;
+                data.cell.styles.minCellHeight = 20;
               }
             },
             // Ensure borders are drawn correctly on all cells
@@ -1652,7 +1709,7 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-flash-lite-preview",
         contents: `Parse the following WhatsApp order and extract job card details. 
         Return an array of objects with these fields: date (YYYY-MM-DD), workName, size, gsm, totalGross, deliveryLoc, loadingDate (YYYY-MM-DD).
         If multiple items are in the order, return multiple objects.
@@ -1695,10 +1752,18 @@ export default function App() {
       }
       toast.success('Job cards generated successfully!');
       setWhatsappOrder(''); // Clear after success
-    } catch (error) {
+    } catch (error: any) {
       console.error('AI Generation Error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast.error(`Failed to parse order: ${errorMessage}`);
+      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check for specific billing/quota errors
+      if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('spending cap')) {
+        toast.error('AI Quota Exceeded: Your project has exceeded its spending cap in AI Studio. Please visit https://ai.studio/spend to manage your limits.', {
+          duration: 10000
+        });
+      } else {
+        toast.error(`Failed to parse order: ${errorMessage}`);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -1752,25 +1817,32 @@ export default function App() {
     if (!stockInItem || !stockInItem.formData.quantity) return;
     
     const quantity = parseInt(stockInItem.formData.quantity) || 0;
-    await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity);
+
+    const followUp = async () => {
+      try {
+        await addDoc(collection(db, 'stockInLogs'), {
+          date: stockInItem.formData.date,
+          month: stockInItem.formData.month,
+          size: stockInItem.item.size,
+          gsm: stockInItem.item.gsm,
+          quantity: quantity,
+          company: stockInItem.formData.company,
+          invoice: stockInItem.formData.invoiceNo,
+          storageLoc: stockInItem.formData.storageLocation,
+          remarks: stockInItem.formData.remarks,
+          timestamp: Timestamp.now()
+        });
+        logAction(`Stock In: ${quantity} units of ${stockInItem.item.size}x${stockInItem.item.gsm} for ${stockInItem.formData.company}`);
+        setStockInItem(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'stockInLogs');
+      }
+    };
     
-    try {
-      await addDoc(collection(db, 'stockInLogs'), {
-        date: stockInItem.formData.date,
-        month: stockInItem.formData.month,
-        size: stockInItem.item.size,
-        gsm: stockInItem.item.gsm,
-        quantity: quantity,
-        company: stockInItem.formData.company,
-        invoice: stockInItem.formData.invoiceNo,
-        storageLoc: stockInItem.formData.storageLocation,
-        remarks: stockInItem.formData.remarks,
-        timestamp: Timestamp.now()
-      });
-      logAction(`Stock In: ${quantity} units of ${stockInItem.item.size}x${stockInItem.item.gsm} for ${stockInItem.formData.company}`);
-      setStockInItem(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'stockInLogs');
+    const success = await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity, false, followUp);
+    
+    if (success) {
+      await followUp();
     }
   };
 
@@ -1807,33 +1879,40 @@ export default function App() {
     if (!stockOutItem || !stockOutItem.formData.quantity) return;
     
     const quantity = parseInt(stockOutItem.formData.quantity) || 0;
-    await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity);
+
+    const followUp = async () => {
+      try {
+        await addDoc(collection(db, 'pendingWorks'), {
+          date: stockOutItem.formData.date,
+          size: stockOutItem.item.size,
+          gsm: stockOutItem.item.gsm,
+          qty: quantity,
+          unit: stockOutItem.formData.unit,
+          company: stockOutItem.formData.company,
+          itemCode: stockOutItem.formData.itemCode,
+          workName: stockOutItem.formData.workName,
+          cutSize: stockOutItem.formData.cuttingSize,
+          sheets: parseInt(stockOutItem.formData.sheets) || 0,
+          priority: stockOutItem.formData.priority.toUpperCase(),
+          status: stockOutItem.formData.status.toUpperCase(),
+          remarks: stockOutItem.formData.remarks,
+          timestamp: Timestamp.now()
+        });
+        logAction(`Added new pending work: ${stockOutItem.formData.workName}`);
+        setStockOutItem(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'pendingWorks');
+      }
+    };
     
-    try {
-      await addDoc(collection(db, 'pendingWorks'), {
-        date: stockOutItem.formData.date,
-        size: stockOutItem.item.size,
-        gsm: stockOutItem.item.gsm,
-        qty: quantity,
-        unit: stockOutItem.formData.unit,
-        company: stockOutItem.formData.company,
-        itemCode: stockOutItem.formData.itemCode,
-        workName: stockOutItem.formData.workName,
-        cutSize: stockOutItem.formData.cuttingSize,
-        sheets: parseInt(stockOutItem.formData.sheets) || 0,
-        priority: stockOutItem.formData.priority.toUpperCase(),
-        status: stockOutItem.formData.status.toUpperCase(),
-        remarks: stockOutItem.formData.remarks,
-        timestamp: Timestamp.now()
-      });
-      logAction(`Added new pending work: ${stockOutItem.formData.workName}`);
-      setStockOutItem(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'pendingWorks');
+    const success = await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity, false, followUp);
+    
+    if (success) {
+      await followUp();
     }
   };
 
-  const updateStock = async (sectionTitle: string, subTitle: string, size: string, delta: number) => {
+  const updateStock = async (sectionTitle: string, subTitle: string, size: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>): Promise<boolean> => {
     try {
       const q = query(
         collection(db, 'inventory'), 
@@ -1845,14 +1924,23 @@ export default function App() {
       if (!snapshot.empty) {
         const docRef = snapshot.docs[0].ref;
         const currentData = snapshot.docs[0].data();
-        const newStock = Math.max(0, (currentData.stock || 0) + delta);
+        const newStock = (currentData.stock || 0) + delta;
+
+        if (newStock < 0 && !force) {
+          setNegativeStockWarning({ sectionTitle, subTitle, size, delta, onConfirm: onConfirm || (async () => {}) });
+          return false;
+        }
+
         await updateDoc(docRef, {
           stock: newStock,
           isLow: newStock < (currentData.minQuantity || 100)
         });
+        return true;
       }
+      return false;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'inventory');
+      return false;
     }
   };
 
@@ -1936,15 +2024,24 @@ export default function App() {
       remarks: ""
     };
 
-    let targetSection = `${newSkuGsm} GSM SECTION`;
-    const section = inventoryData.find(s => s.title.includes(newSkuGsm));
-    if (section) {
-      targetSection = section.title;
-    }
+    // Find section from dynamic inventory state
+    const section = inventory.find(s => s.title.toUpperCase().replace(/\s/g, '').includes(newSkuGsm.toUpperCase().replace(/\s/g, '')));
+    const targetSection = section ? section.title : `${newSkuGsm} GSM SECTION`;
 
-    let targetSubSection = "SINGLE SIZE";
-    if (newSkuSize.includes('*')) {
-      targetSubSection = "DOUBLE SIZE";
+    // Find appropriate subsection Title
+    let targetSubSection = "SINGLE SIZE"; 
+    if (section) {
+        if (newSkuSize.includes('*')) {
+            // Try to find a subsection title that is likely "double", otherwise default
+            const dSub = section.subSections.find((ss: any) => ss.title.toUpperCase().includes("DOUBLE"));
+            targetSubSection = dSub ? dSub.title : "DOUBLE SIZE";
+        } else {
+            // Try to find a subsection title that is NOT "double", otherwise default
+            const sSub = section.subSections.find((ss: any) => !ss.title.toUpperCase().includes("DOUBLE"));
+            targetSubSection = sSub ? sSub.title : "SINGLE SIZE";
+        }
+    } else {
+        targetSubSection = newSkuSize.includes('*') ? "DOUBLE SIZE" : "SINGLE SIZE";
     }
 
     try {
@@ -1958,6 +2055,7 @@ export default function App() {
       setShowNewSkuForm(false);
       setNewSkuSize('');
       setNewSkuStock('0');
+      setNewSkuGsm('');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'inventory');
     }
@@ -2064,7 +2162,7 @@ export default function App() {
       const renderSection = (section: any, startY: number) => {
       const allItems: any[] = [];
       section.subSections.forEach((sub: any) => {
-        const excludedTitles = ["SINGLE SIZE", "150", "100"];
+        const excludedTitles = ["SINGLE SIZE"];
         if (!excludedTitles.includes(sub.title)) {
           allItems.push({ isHeader: true, title: sub.title });
         }
@@ -3503,7 +3601,7 @@ export default function App() {
                           <label className="text-sm font-semibold text-slate-700">Size</label>
                           <input 
                             type="text" 
-                            value={editingItem.item.size}
+                            value={editingItem.item.size || ''}
                             onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, size: e.target.value } })}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                           />
@@ -3511,7 +3609,7 @@ export default function App() {
                         <div className="space-y-1.5">
                           <label className="text-sm font-semibold text-slate-700">GSM / Section</label>
                           <select 
-                            value={editingItem.item.gsm}
+                            value={editingItem.item.gsm || ''}
                             onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, gsm: e.target.value } })}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                           >
@@ -3539,7 +3637,7 @@ export default function App() {
                           <label className="text-sm font-semibold text-slate-700">Remarks</label>
                           <textarea 
                             rows={3}
-                            value={editingItem.item.remarks}
+                            value={editingItem.item.remarks || ''}
                             onChange={(e) => setEditingItem({ ...editingItem, item: { ...editingItem.item, remarks: e.target.value } })}
                             className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
                           />
@@ -3590,7 +3688,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Date</label>
                             <input 
                               type="date" 
-                              value={stockInItem.formData.date}
+                              value={stockInItem.formData.date || ''}
                               onChange={(e) => {
                                 const date = new Date(e.target.value);
                                 setStockInItem({
@@ -3622,7 +3720,7 @@ export default function App() {
                             <input 
                               type="text" 
                               placeholder="SREEPATHI"
-                              value={stockInItem.formData.company}
+                              value={stockInItem.formData.company || ''}
                               onChange={(e) => setStockInItem({
                                 ...stockInItem,
                                 formData: { ...stockInItem.formData, company: e.target.value.toUpperCase() }
@@ -3634,7 +3732,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Quantity (In)</label>
                             <input 
                               type="number" 
-                              value={stockInItem.formData.quantity}
+                              value={stockInItem.formData.quantity || ''}
                               onChange={(e) => setStockInItem({
                                 ...stockInItem,
                                 formData: { ...stockInItem.formData, quantity: e.target.value }
@@ -3649,7 +3747,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Invoice No</label>
                             <input 
                               type="text" 
-                              value={stockInItem.formData.invoiceNo}
+                              value={stockInItem.formData.invoiceNo || ''}
                               onChange={(e) => setStockInItem({
                                 ...stockInItem,
                                 formData: { ...stockInItem.formData, invoiceNo: e.target.value }
@@ -3661,7 +3759,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Storage Location (CAPS)</label>
                             <input 
                               type="text" 
-                              value={stockInItem.formData.storageLocation}
+                              value={stockInItem.formData.storageLocation || ''}
                               onChange={(e) => setStockInItem({
                                 ...stockInItem,
                                 formData: { ...stockInItem.formData, storageLocation: e.target.value.toUpperCase() }
@@ -3675,7 +3773,7 @@ export default function App() {
                           <label className="text-sm font-semibold text-slate-600">Remarks</label>
                           <textarea 
                             rows={3}
-                            value={stockInItem.formData.remarks}
+                            value={stockInItem.formData.remarks || ''}
                             onChange={(e) => setStockInItem({
                               ...stockInItem,
                               formData: { ...stockInItem.formData, remarks: e.target.value }
@@ -3731,7 +3829,7 @@ export default function App() {
                             <div className="relative">
                               <input 
                                 type="date" 
-                                value={stockOutItem.formData.date}
+                                value={stockOutItem.formData.date || ''}
                                 onChange={(e) => {
                                   const date = new Date(e.target.value);
                                   setStockOutItem({
@@ -3752,7 +3850,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Month</label>
                             <input 
                               type="text" 
-                              value={stockOutItem.formData.month}
+                              value={stockOutItem.formData.month || ''}
                               readOnly
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-500 focus:outline-none"
                             />
@@ -3765,7 +3863,7 @@ export default function App() {
                             <input 
                               type="text" 
                               placeholder="SREEPATHI"
-                              value={stockOutItem.formData.company}
+                              value={stockOutItem.formData.company || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, company: e.target.value.toUpperCase() }
@@ -3777,7 +3875,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Quantity (Out)</label>
                             <input 
                               type="number" 
-                              value={stockOutItem.formData.quantity}
+                              value={stockOutItem.formData.quantity || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, quantity: e.target.value }
@@ -3793,7 +3891,7 @@ export default function App() {
                             <input 
                               type="text" 
                               placeholder="ENTER CODE TO AUTO-FILL"
-                              value={stockOutItem.formData.itemCode}
+                              value={stockOutItem.formData.itemCode || ''}
                               onChange={(e) => {
                                 const newCode = e.target.value.toUpperCase();
                                 const lastLog = stockOutLogs.find(log => log.itemCode === newCode);
@@ -3826,7 +3924,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Work Name</label>
                             <input 
                               type="text" 
-                              value={stockOutItem.formData.workName}
+                              value={stockOutItem.formData.workName || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, workName: e.target.value }
@@ -3840,7 +3938,7 @@ export default function App() {
                           <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-slate-600">Unit</label>
                             <select 
-                              value={stockOutItem.formData.unit}
+                              value={stockOutItem.formData.unit || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, unit: e.target.value }
@@ -3856,7 +3954,7 @@ export default function App() {
                             <label className="text-sm font-semibold text-slate-600">Cutting Size</label>
                             <input 
                               type="text" 
-                              value={stockOutItem.formData.cuttingSize}
+                              value={stockOutItem.formData.cuttingSize || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, cuttingSize: e.target.value }
@@ -3871,7 +3969,7 @@ export default function App() {
                             <input 
                               type="text" 
                               placeholder="Enter sheets..."
-                              value={stockOutItem.formData.sheets}
+                              value={stockOutItem.formData.sheets || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, sheets: e.target.value }
@@ -3885,7 +3983,7 @@ export default function App() {
                           <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-slate-600">Status</label>
                             <select 
-                              value={stockOutItem.formData.status}
+                              value={stockOutItem.formData.status || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, status: e.target.value }
@@ -3900,7 +3998,7 @@ export default function App() {
                           <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-slate-600">Priority</label>
                             <select 
-                              value={stockOutItem.formData.priority}
+                              value={stockOutItem.formData.priority || ''}
                               onChange={(e) => setStockOutItem({
                                 ...stockOutItem,
                                 formData: { ...stockOutItem.formData, priority: e.target.value }
@@ -3919,7 +4017,7 @@ export default function App() {
                           <label className="text-sm font-semibold text-slate-600">Remarks</label>
                           <textarea 
                             rows={2}
-                            value={stockOutItem.formData.remarks}
+                            value={stockOutItem.formData.remarks || ''}
                             onChange={(e) => setStockOutItem({
                               ...stockOutItem,
                               formData: { ...stockOutItem.formData, remarks: e.target.value }
@@ -3983,6 +4081,50 @@ export default function App() {
                             className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all"
                           >
                             No, Keep it
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Negative Stock Warning Modal */}
+              <AnimatePresence>
+                {negativeStockWarning && (
+                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+                    >
+                      <div className="p-8 text-center space-y-6">
+                        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
+                          <AlertTriangle size={40} className="text-amber-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold text-slate-900">Negative Stock Warning</h3>
+                          <p className="text-slate-500 text-sm leading-relaxed">
+                            This action will result in negative stock. Are you sure you want to proceed?
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-3 pt-2">
+                          <button 
+                            onClick={async () => {
+                              await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.delta, true);
+                              await negativeStockWarning.onConfirm();
+                              setNegativeStockWarning(null);
+                            }}
+                            className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
+                          >
+                            Yes, Proceed
+                          </button>
+                          <button 
+                            onClick={() => setNegativeStockWarning(null)}
+                            className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all"
+                          >
+                            Cancel
                           </button>
                         </div>
                       </div>
@@ -4126,7 +4268,8 @@ export default function App() {
                             if (!currentSelectedEntry || !quickTrackerQty) return;
                             const qty = parseInt(quickTrackerQty) || 0;
                             const delta = quickTrackerMode === 'IN' ? qty : -qty;
-                            updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
+                            const success = await updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
+                            if (!success) return;
                             
                             const newEntry = {
                               size: currentSelectedEntry.item.size,
@@ -4591,7 +4734,7 @@ export default function App() {
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</label>
                             <input 
                               type="date" 
-                              value={editingLog.date}
+                              value={editingLog.date || ''}
                               onChange={(e) => setEditingLog({ ...editingLog, date: e.target.value })}
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                             />
@@ -5427,7 +5570,6 @@ export default function App() {
                                       });
                                       if (success) {
                                         toast.success(`"${work.workName}" delivered successfully!`);
-                                        setActiveTab('Stock Out Logs');
                                       }
                                       setIsDelivering(false);
                                     }}
@@ -5626,7 +5768,6 @@ export default function App() {
                               if (success) {
                                 toast.success(`"${deliveringWork.workName}" delivered successfully!`);
                                 setDeliveringWork(null);
-                                setActiveTab('Stock Out Logs');
                                 setDeliveryFormData({ 
                                   vehicleNumber: 'KL65S7466', 
                                   deliveryLocation: 'AKP',
@@ -7323,8 +7464,9 @@ export default function App() {
                                           .value { padding: 12px; font-weight: bold; }
                                           .sign-area { min-height: 50px; }
                                           @media print {
-                                            body { padding: 0; }
-                                            .card { width: 100%; border-width: 2px; }
+                                            @page { size: A4 portrait; margin: 10mm; }
+                                            body { padding: 0; margin: 0; }
+                                            .card { width: 190mm; border: 2px solid black; margin: 0 auto; page-break-after: always; }
                                           }
                                         </style>
                                       </head>
