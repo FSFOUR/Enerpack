@@ -1262,14 +1262,16 @@ export default function App() {
       subSection.items.push(item);
     });
     
-    // Remove duplicates within subsections
+    // Remove duplicates globally across all sections and subsections
+    const seenGlobalItems = new Set();
     sections.forEach(s => {
       s.subSections.forEach((ss: any) => {
-        const seenItems = new Set();
         ss.items = ss.items.filter((item: any) => {
-          const key = `${item.size}-${item.gsm}`;
-          if (seenItems.has(key)) return false;
-          seenItems.add(key);
+          const size = String(item.size || '').trim().toLowerCase();
+          const gsm = String(item.gsm || '').trim().toLowerCase();
+          const key = `${size}-${gsm}`;
+          if (seenGlobalItems.has(key)) return false;
+          seenGlobalItems.add(key);
           return true;
         });
       });
@@ -1313,6 +1315,29 @@ export default function App() {
                 });
               }
             }
+          }
+        } else {
+          // Deduplicate existing inventory in Firestore
+          const seenGlobalItems = new Set();
+          const deletePromises: Promise<void>[] = [];
+          
+          for (const docSnap of snapshot.docs) {
+            const data = docSnap.data();
+            const size = String(data.size || '').trim().toLowerCase();
+            const gsm = String(data.gsm || '').trim().toLowerCase();
+            const key = `${size}-${gsm}`;
+            
+            if (seenGlobalItems.has(key)) {
+              console.log(`Deleting duplicate doc: ${docSnap.id}`);
+              deletePromises.push(deleteDoc(docSnap.ref));
+            } else {
+              seenGlobalItems.add(key);
+            }
+          }
+          
+          if (deletePromises.length > 0) {
+            console.log(`Cleaning up ${deletePromises.length} duplicate entries from database...`);
+            await Promise.all(deletePromises);
           }
         }
       } catch (error) {
@@ -1915,18 +1940,47 @@ export default function App() {
 
   const handleConfirmDelete = async () => {
     if (!deletingItem) return;
-    const { id } = deletingItem;
+    const { sectionTitle, subTitle, size, gsm, id } = deletingItem;
 
-    if (!id) {
-      toast.error("This is a mock inventory item and cannot be deleted from the database.");
-      setDeletingItem(null);
-      return;
-    }
-    
     try {
-      await deleteDoc(doc(db, 'inventory', id));
-      logAction(`Deleted inventory item: ${deletingItem.size} (${deletingItem.gsm} GSM)`);
-      toast.success(`SKU ${deletingItem.size} deleted successfully`);
+      if (id) {
+        await deleteDoc(doc(db, 'inventory', id));
+      } else {
+        const q = query(
+          collection(db, 'inventory'),
+          where('sectionTitle', '==', sectionTitle),
+          where('subSectionTitle', '==', subTitle),
+          where('size', '==', size),
+          where('gsm', '==', gsm)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+          await Promise.all(deletePromises);
+        }
+      }
+
+      // Optimistically update local state for immediate feedback
+      setInventory(prev => prev.map(section => {
+        if (section.title === sectionTitle) {
+          return {
+            ...section,
+            subSections: section.subSections.map((sub: any) => {
+              if (sub.title === subTitle) {
+                return {
+                  ...sub,
+                  items: sub.items.filter((item: any) => item.size !== size || item.gsm !== gsm)
+                };
+              }
+              return sub;
+            })
+          };
+        }
+        return section;
+      }));
+
+      logAction(`Deleted inventory item: ${size} (${gsm} GSM)`);
+      toast.success(`SKU ${size} deleted successfully`);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'inventory');
     } finally {
@@ -1973,6 +2027,29 @@ export default function App() {
 
   const handleAddSku = async () => {
     if (!newSkuSize) return;
+
+    // Prevent duplicate entries
+    const searchSize = String(newSkuSize).trim().toLowerCase();
+    const searchGsm = String(newSkuGsm).trim().toLowerCase();
+    
+    let isDuplicate = false;
+    for (const section of inventory) {
+      for (const sub of section.subSections) {
+        if (sub.items.some((item: any) => 
+          String(item.size).trim().toLowerCase() === searchSize && 
+          String(item.gsm).trim().toLowerCase() === searchGsm
+        )) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      if (isDuplicate) break;
+    }
+
+    if (isDuplicate) {
+      toast.error(`SKU ${newSkuSize} (${newSkuGsm} GSM) already exists in inventory.`);
+      return;
+    }
     
     const newItem = {
       size: newSkuSize,
