@@ -149,22 +149,20 @@ const inventoryData = [
       {
         title: "ALL SIZES",
         items: [
-          { size: "54", gsm: "280", stock: 1279, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "56", gsm: "280", stock: 243, isLow: true, minQuantity: 100, remarks: "" },
-          { size: "58", gsm: "280", stock: 1604, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "59", gsm: "280", stock: 442, isLow: true, minQuantity: 100, remarks: "" },
-          { size: "60", gsm: "280", stock: 1351, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "63", gsm: "280", stock: 568, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "65", gsm: "280", stock: 1453, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "68", gsm: "280", stock: 984, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "70", gsm: "280", stock: 714, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "73", gsm: "280", stock: 941, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "76", gsm: "280", stock: 926, isLow: false, minQuantity: 100, remarks: "" },
-          { size: "78", gsm: "280", stock: 0, isLow: true, minQuantity: 100, remarks: "" },
-          { size: "80", gsm: "280", stock: 2029, isLow: false, minQuantity: 100, remarks: "" },
+          { size: "54", gsm: "280", stock: 1279, isLow: false },
+          { size: "56", gsm: "280", stock: 243, isLow: true },
+          { size: "58", gsm: "280", stock: 1604, isLow: false },
+          { size: "59", gsm: "280", stock: 442, isLow: true },
+          { size: "60", gsm: "280", stock: 1351, isLow: false },
+          { size: "63", gsm: "280", stock: 568, isLow: false },
+          { size: "65", gsm: "280", stock: 1453, isLow: false },
+          { size: "68", gsm: "280", stock: 984, isLow: false },
+          { size: "70", gsm: "280", stock: 714, isLow: false },
+          { size: "73", gsm: "280", stock: 941, isLow: false },
+          { size: "76", gsm: "280", stock: 926, isLow: false },
+          { size: "78", gsm: "280", stock: 0, isLow: true },
+          { size: "80", gsm: "280", stock: 2029, isLow: false },
           { size: "83", gsm: "280", stock: 1337, isLow: false },
-          { size: "86", gsm: "280", stock: 298, isLow: true },
-          { size: "88", gsm: "280", stock: 1953, isLow: false },
           { size: "90", gsm: "280", stock: 3384, isLow: false },
           { size: "93", gsm: "280", stock: 1262, isLow: false },
           { size: "96", gsm: "280", stock: 1315, isLow: false },
@@ -320,15 +318,6 @@ const inventoryData = [
       {
         title: "130",
         items: [
-          { size: "54", gsm: "130", stock: 76, isLow: true },
-          { size: "56", gsm: "130", stock: 0, isLow: true },
-          { size: "58", gsm: "130", stock: 190, isLow: true },
-          { size: "59", gsm: "130", stock: 44, isLow: true },
-          { size: "61", gsm: "130", stock: 175, isLow: true },
-          { size: "63", gsm: "130", stock: 0, isLow: true },
-          { size: "68", gsm: "130", stock: 0, isLow: true },
-          { size: "75", gsm: "130", stock: 55, isLow: true },
-          { size: "86", gsm: "130", stock: 0, isLow: true },
           { size: "90", gsm: "130", stock: 99, isLow: true },
           { size: "100", gsm: "130", stock: 0, isLow: true },
           { size: "102", gsm: "130", stock: 0, isLow: true },
@@ -399,7 +388,7 @@ const InventoryRow = ({
     )}>{item.gsm}</td>
     <td className={cn(
       "px-4 py-2 border-r border-slate-400 text-center text-[10px] lg:text-sm font-bold whitespace-nowrap",
-      item.isLow ? "text-rose-500 bg-rose-50/50" : "text-blue-700"
+      item.isLow ? "text-rose-500 bg-rose-50/50" : "text-slate-900"
     )}>
       <div className="flex items-center justify-center gap-1">
         {item.stock} {item.isLow && <AlertCircle size={10} />}
@@ -969,6 +958,7 @@ export default function App() {
   const [newSkuGsm, setNewSkuGsm] = useState('280');
   const [newSkuStock, setNewSkuStock] = useState('0');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLowStockOnly, setIsLowStockOnly] = useState(false);
   
   const [editingItem, setEditingItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
   const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string, gsm: string, id: string } | null>(null);
@@ -1275,10 +1265,11 @@ export default function App() {
     // Remove duplicates within subsections
     sections.forEach(s => {
       s.subSections.forEach((ss: any) => {
-        const seenSizes = new Set();
+        const seenItems = new Set();
         ss.items = ss.items.filter((item: any) => {
-          if (seenSizes.has(item.size)) return false;
-          seenSizes.add(item.size);
+          const key = `${item.size}-${item.gsm}`;
+          if (seenItems.has(key)) return false;
+          seenItems.add(key);
           return true;
         });
       });
@@ -1925,6 +1916,12 @@ export default function App() {
   const handleConfirmDelete = async () => {
     if (!deletingItem) return;
     const { id } = deletingItem;
+
+    if (!id) {
+      toast.error("This is a mock inventory item and cannot be deleted from the database.");
+      setDeletingItem(null);
+      return;
+    }
     
     try {
       await deleteDoc(doc(db, 'inventory', id));
@@ -3436,6 +3433,15 @@ export default function App() {
                   
                   <div className="flex items-center gap-2">
                     <button 
+                      onClick={() => setIsLowStockOnly(!isLowStockOnly)}
+                      className={cn(
+                        "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors",
+                        isLowStockOnly ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      )}
+                    >
+                      <AlertCircle size={14} /> {isLowStockOnly ? "LOW STOCK ONLY" : "ALL STOCK"}
+                    </button>
+                    <button 
                       onClick={() => handleInitiateExport('xlsx')}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
                     >
@@ -3521,8 +3527,9 @@ export default function App() {
                   const filteredSubSections = section.subSections.map(sub => ({
                     ...sub,
                     items: sub.items.filter(item => 
-                      item.size.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      item.gsm.toLowerCase().includes(searchQuery.toLowerCase())
+                      (item.size.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      item.gsm.toLowerCase().includes(searchQuery.toLowerCase())) &&
+                      (!isLowStockOnly || item.isLow)
                     )
                   })).filter(sub => sub.items.length > 0);
 

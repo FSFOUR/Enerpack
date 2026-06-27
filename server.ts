@@ -20,10 +20,10 @@ async function startServer() {
       const { GoogleGenAI, Type } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite-preview",
+        model: "gemini-1.5-flash",
         contents: `Parse the following WhatsApp order and extract job card details. 
-        Return an array of objects with these fields: date (YYYY-MM-DD), workName, size, gsm, totalGross, deliveryLoc, loadingDate (YYYY-MM-DD).
-        If multiple items are in the order, return multiple objects.
+        Extract: workName, size, gsm, totalGross (if available in quantity).
+        Return an array of objects.
         Order: ${whatsappOrder}`,
         config: {
           responseMimeType: "application/json",
@@ -32,13 +32,10 @@ async function startServer() {
             items: {
               type: Type.OBJECT,
               properties: {
-                date: { type: Type.STRING },
                 workName: { type: Type.STRING },
                 size: { type: Type.STRING },
                 gsm: { type: Type.STRING },
                 totalGross: { type: Type.STRING },
-                deliveryLoc: { type: Type.STRING },
-                loadingDate: { type: Type.STRING },
               },
               required: ["workName", "size", "gsm"]
             }
@@ -50,10 +47,22 @@ async function startServer() {
         throw new Error('AI returned an empty response.');
       }
 
-      res.json(JSON.parse(response.text));
+      console.log("Raw AI Response:", response.text);
+
+      // Clean markdown code blocks if any
+      const cleanedText = response.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+      res.json(JSON.parse(cleanedText));
     } catch (error) {
       console.error("AI Generation Error:", error);
-      res.status(500).json({ error: "Failed to generate job cards" });
+      let errorMessage = "Failed to generate job cards";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (errorMessage.includes("API key not valid")) {
+          errorMessage = "The configured Gemini API key is invalid. Please check your settings.";
+        }
+      }
+      res.status(500).json({ error: errorMessage });
     }
   });
 
