@@ -69,6 +69,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -129,6 +130,7 @@ function cn(...inputs: ClassValue[]) {
 
 const sortSizes = (a: string, b: string) => {
   const parseSize = (s: string) => {
+    if (typeof s !== 'string') return [0, 0];
     if (s.includes('*')) {
       return s.split('*').map(v => parseFloat(v) || 0);
     }
@@ -142,73 +144,382 @@ const sortSizes = (a: string, b: string) => {
 
 // --- Mock Data ---
 
-const inventoryData = [
+const inventoryData: { title: string, subSections: { title: string, items: any[] }[] }[] = [
   {
     title: "280 GSM SECTION",
     subSections: [
       {
         title: "ALL SIZES",
         items: [
-          { size: "54", gsm: "280", stock: 1279, isLow: false },
-          { size: "56", gsm: "280", stock: 243, isLow: true },
-          { size: "58", gsm: "280", stock: 1604, isLow: false },
-          { size: "59", gsm: "280", stock: 442, isLow: true },
-          { size: "60", gsm: "280", stock: 1351, isLow: false },
-          { size: "63", gsm: "280", stock: 568, isLow: false },
-          { size: "65", gsm: "280", stock: 1453, isLow: false },
-          { size: "68", gsm: "280", stock: 984, isLow: false },
-          { size: "70", gsm: "280", stock: 714, isLow: false },
-          { size: "73", gsm: "280", stock: 941, isLow: false },
-          { size: "76", gsm: "280", stock: 926, isLow: false },
-          { size: "78", gsm: "280", stock: 0, isLow: true },
-          { size: "80", gsm: "280", stock: 2029, isLow: false },
-          { size: "83", gsm: "280", stock: 1337, isLow: false },
-          { size: "90", gsm: "280", stock: 3384, isLow: false },
-          { size: "93", gsm: "280", stock: 1262, isLow: false },
-          { size: "96", gsm: "280", stock: 1315, isLow: false },
-          { size: "98", gsm: "280", stock: 1330, isLow: false },
-          { size: "100", gsm: "280", stock: 1999, isLow: false },
-          { size: "104", gsm: "280", stock: 955, isLow: false },
-          { size: "108", gsm: "280", stock: 1568, isLow: false },
-          { size: "47*64", gsm: "280", stock: 59, isLow: true },
-          { size: "54*73.5", gsm: "280", stock: 55, isLow: true },
-          { size: "54*86", gsm: "280", stock: 157, isLow: true },
-          { size: "55*80", gsm: "280", stock: 0, isLow: true },
-          { size: "55*82", gsm: "280", stock: 0, isLow: true },
-          { size: "56*68.5", gsm: "280", stock: 33, isLow: true },
-          { size: "56*75", gsm: "280", stock: 39, isLow: true },
-          { size: "56*86", gsm: "280", stock: 323, isLow: true },
-          { size: "57*68.5", gsm: "280", stock: 125, isLow: true },
-          { size: "57.5*76", gsm: "280", stock: 71, isLow: true },
-          { size: "58*78", gsm: "280", stock: 346, isLow: true },
-          { size: "59*78", gsm: "280", stock: 71, isLow: true },
-          { size: "59*87.5", gsm: "280", stock: 24, isLow: true },
-          { size: "59*95", gsm: "280", stock: 142, isLow: true },
-          { size: "60*77.5", gsm: "280", stock: 44, isLow: true },
-          { size: "61*83", gsm: "280", stock: 75, isLow: true },
-          { size: "62*68", gsm: "280", stock: 135, isLow: true },
-          { size: "63*75", gsm: "280", stock: 161, isLow: true },
-          { size: "64*67", gsm: "280", stock: 44, isLow: true },
-          { size: "65*88.5", gsm: "280", stock: 66, isLow: true },
-          { size: "67*75", gsm: "280", stock: 101, isLow: true },
-          { size: "68*69", gsm: "280", stock: 132, isLow: true },
-          { size: "68*91.5", gsm: "280", stock: 4, isLow: true },
-          { size: "70*72", gsm: "280", stock: 13, isLow: true },
-          { size: "70*76", gsm: "280", stock: 119, isLow: true },
-          { size: "70*79", gsm: "280", stock: 80, isLow: true },
-          { size: "72*91.5", gsm: "280", stock: 65, isLow: true },
-          { size: "73*81", gsm: "280", stock: 144, isLow: true },
-          { size: "75*108.5", gsm: "280", stock: 16, isLow: true },
-          { size: "76*72", gsm: "280", stock: 240, isLow: true },
-          { size: "76*111", gsm: "280", stock: 123, isLow: true },
-          { size: "78*70.5", gsm: "280", stock: 94, isLow: true },
-          { size: "78*107", gsm: "280", stock: 19, isLow: true },
-          { size: "82*111", gsm: "280", stock: 40, isLow: true },
-          { size: "88*63", gsm: "280", stock: 72, isLow: true },
-          { size: "90*66", gsm: "280", stock: 108, isLow: true },
-          { size: "94.5*80.3", gsm: "280", stock: 32, isLow: true },
-          { size: "100*74", gsm: "280", stock: 20, isLow: true },
-          { size: "108*76", gsm: "280", stock: 103, isLow: true }
+          {
+            size: "47*64",
+            gsm: "280",
+            stock: 59,
+            isLow: true
+          },
+          {
+            size: "54",
+            gsm: "280",
+            stock: 1279,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "54*73.5",
+            gsm: "280",
+            stock: 55,
+            isLow: true
+          },
+          {
+            size: "54*86",
+            gsm: "280",
+            stock: 157,
+            isLow: true
+          },
+          {
+            size: "55*80",
+            gsm: "280",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "55*82",
+            gsm: "280",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "56",
+            gsm: "280",
+            stock: 243,
+            isLow: true,
+            minQuantity: 500
+          },
+          {
+            size: "56*68.5",
+            gsm: "280",
+            stock: 33,
+            isLow: true
+          },
+          {
+            size: "56*75",
+            gsm: "280",
+            stock: 39,
+            isLow: true
+          },
+          {
+            size: "56*86",
+            gsm: "280",
+            stock: 323,
+            isLow: true
+          },
+          {
+            size: "57*68.5",
+            gsm: "280",
+            stock: 125,
+            isLow: true
+          },
+          {
+            size: "57.5*76",
+            gsm: "280",
+            stock: 71,
+            isLow: true
+          },
+          {
+            size: "58",
+            gsm: "280",
+            stock: 1604,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "58*78",
+            gsm: "280",
+            stock: 346,
+            isLow: true
+          },
+          {
+            size: "59",
+            gsm: "280",
+            stock: 442,
+            isLow: true,
+            minQuantity: 500
+          },
+          {
+            size: "59*78",
+            gsm: "280",
+            stock: 71,
+            isLow: true
+          },
+          {
+            size: "59*87.5",
+            gsm: "280",
+            stock: 24,
+            isLow: true
+          },
+          {
+            size: "59*95",
+            gsm: "280",
+            stock: 142,
+            isLow: true
+          },
+          {
+            size: "60",
+            gsm: "280",
+            stock: 1351,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "60*77.5",
+            gsm: "280",
+            stock: 44,
+            isLow: true
+          },
+          {
+            size: "61*83",
+            gsm: "280",
+            stock: 75,
+            isLow: true
+          },
+          {
+            size: "62*68",
+            gsm: "280",
+            stock: 135,
+            isLow: true
+          },
+          {
+            size: "63",
+            gsm: "280",
+            stock: 568,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "63*75",
+            gsm: "280",
+            stock: 161,
+            isLow: true
+          },
+          {
+            size: "64*67",
+            gsm: "280",
+            stock: 44,
+            isLow: true
+          },
+          {
+            size: "65",
+            gsm: "280",
+            stock: 1453,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "65*88.5",
+            gsm: "280",
+            stock: 66,
+            isLow: true
+          },
+          {
+            size: "67*75",
+            gsm: "280",
+            stock: 101,
+            isLow: true
+          },
+          {
+            size: "68",
+            gsm: "280",
+            stock: 984,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "68*69",
+            gsm: "280",
+            stock: 132,
+            isLow: true
+          },
+          {
+            size: "68*91.5",
+            gsm: "280",
+            stock: 4,
+            isLow: true
+          },
+          {
+            size: "70",
+            gsm: "280",
+            stock: 714,
+            isLow: false,
+            minQuantity: 500
+          },
+          {
+            size: "70*72",
+            gsm: "280",
+            stock: 13,
+            isLow: true
+          },
+          {
+            size: "70*76",
+            gsm: "280",
+            stock: 119,
+            isLow: true
+          },
+          {
+            size: "70*79",
+            gsm: "280",
+            stock: 80,
+            isLow: true
+          },
+          {
+            size: "72*91.5",
+            gsm: "280",
+            stock: 65,
+            isLow: true
+          },
+          {
+            size: "73",
+            gsm: "280",
+            stock: 941,
+            isLow: false
+          },
+          {
+            size: "73*81",
+            gsm: "280",
+            stock: 144,
+            isLow: true
+          },
+          {
+            size: "75*108.5",
+            gsm: "280",
+            stock: 16,
+            isLow: true
+          },
+          {
+            size: "76",
+            gsm: "280",
+            stock: 926,
+            isLow: false
+          },
+          {
+            size: "76*72",
+            gsm: "280",
+            stock: 240,
+            isLow: true
+          },
+          {
+            size: "76*111",
+            gsm: "280",
+            stock: 123,
+            isLow: true
+          },
+          {
+            size: "78",
+            gsm: "280",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "78*70.5",
+            gsm: "280",
+            stock: 94,
+            isLow: true
+          },
+          {
+            size: "78*107",
+            gsm: "280",
+            stock: 19,
+            isLow: true
+          },
+          {
+            size: "80",
+            gsm: "280",
+            stock: 2029,
+            isLow: false
+          },
+          {
+            size: "82*111",
+            gsm: "280",
+            stock: 40,
+            isLow: true
+          },
+          {
+            size: "83",
+            gsm: "280",
+            stock: 1337,
+            isLow: false
+          },
+          {
+            size: "88*63",
+            gsm: "280",
+            stock: 72,
+            isLow: true
+          },
+          {
+            size: "90",
+            gsm: "280",
+            stock: 3384,
+            isLow: false
+          },
+          {
+            size: "90*66",
+            gsm: "280",
+            stock: 108,
+            isLow: true
+          },
+          {
+            size: "93",
+            gsm: "280",
+            stock: 1262,
+            isLow: false
+          },
+          {
+            size: "94.5*80.3",
+            gsm: "280",
+            stock: 32,
+            isLow: true
+          },
+          {
+            size: "96",
+            gsm: "280",
+            stock: 1315,
+            isLow: false
+          },
+          {
+            size: "98",
+            gsm: "280",
+            stock: 1330,
+            isLow: false
+          },
+          {
+            size: "100",
+            gsm: "280",
+            stock: 1999,
+            isLow: false
+          },
+          {
+            size: "100*74",
+            gsm: "280",
+            stock: 20,
+            isLow: true
+          },
+          {
+            size: "104",
+            gsm: "280",
+            stock: 955,
+            isLow: false
+          },
+          {
+            size: "108",
+            gsm: "280",
+            stock: 1568,
+            isLow: false
+          },
+          {
+            size: "108*76",
+            gsm: "280",
+            stock: 103,
+            isLow: true
+          }
         ]
       }
     ]
@@ -219,19 +530,59 @@ const inventoryData = [
       {
         title: "250 DOUBLE",
         items: [
-          { size: "50*64.5", gsm: "250", stock: 255, isLow: true },
+          {
+            size: "50*64.5",
+            gsm: "250",
+            stock: 255,
+            isLow: true
+          }
         ]
       },
       {
         title: "230 DOUBLE",
         items: [
-          { size: "54*78", gsm: "230", stock: 55, isLow: true },
-          { size: "55*80", gsm: "230", stock: 0, isLow: true },
-          { size: "55*82", gsm: "230", stock: 0, isLow: true },
-          { size: "59*91", gsm: "230", stock: 42, isLow: true },
-          { size: "82*98", gsm: "230", stock: 42, isLow: true },
-          { size: "86*110", gsm: "230", stock: 56, isLow: true },
-          { size: "100*67", gsm: "230", stock: 42, isLow: true },
+          {
+            size: "54*78",
+            gsm: "230",
+            stock: 55,
+            isLow: true
+          },
+          {
+            size: "55*80",
+            gsm: "230",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "55*82",
+            gsm: "230",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "59*91",
+            gsm: "230",
+            stock: 42,
+            isLow: true
+          },
+          {
+            size: "82*98",
+            gsm: "230",
+            stock: 42,
+            isLow: true
+          },
+          {
+            size: "86*110",
+            gsm: "230",
+            stock: 56,
+            isLow: true
+          },
+          {
+            size: "100*67",
+            gsm: "230",
+            stock: 42,
+            isLow: true
+          }
         ]
       }
     ]
@@ -242,51 +593,251 @@ const inventoryData = [
       {
         title: "SINGLE SIZE",
         items: [
-          { size: "65", gsm: "200", stock: 0, isLow: true },
-          { size: "68", gsm: "200", stock: 1082, isLow: false },
-          { size: "70", gsm: "200", stock: 0, isLow: true },
-          { size: "73", gsm: "200", stock: 0, isLow: true },
-          { size: "75", gsm: "200", stock: 0, isLow: true },
-          { size: "80", gsm: "200", stock: 277, isLow: true },
-          { size: "90", gsm: "200", stock: 45, isLow: true },
+          {
+            size: "65",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "68",
+            gsm: "200",
+            stock: 1082,
+            isLow: false
+          },
+          {
+            size: "70",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "73",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "75",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "80",
+            gsm: "200",
+            stock: 277,
+            isLow: true
+          },
+          {
+            size: "90",
+            gsm: "200",
+            stock: 45,
+            isLow: true
+          }
         ]
       },
       {
         title: "DOUBLE SIZE",
         items: [
-          { size: "41*83", gsm: "200", stock: 0, isLow: true },
-          { size: "42.5*57.5", gsm: "200", stock: 215, isLow: true },
-          { size: "43*73", gsm: "200", stock: 283, isLow: true },
-          { size: "44.5*64", gsm: "200", stock: 114, isLow: true },
-          { size: "45*76.5", gsm: "200", stock: 62, isLow: true },
-          { size: "46.5*90", gsm: "200", stock: 54, isLow: true },
-          { size: "47*70.5", gsm: "200", stock: 0, isLow: true },
-          { size: "50*72", gsm: "200", stock: 0, isLow: true },
-          { size: "50*79", gsm: "200", stock: 976, isLow: false },
-          { size: "50*81", gsm: "200", stock: 337, isLow: true },
-          { size: "50*83", gsm: "200", stock: 48, isLow: true },
-          { size: "50*89", gsm: "200", stock: 239, isLow: true },
-          { size: "51*80", gsm: "200", stock: 174, isLow: true },
-          { size: "52*68.5", gsm: "200", stock: 75, isLow: true },
-          { size: "52*76.5", gsm: "200", stock: 145, isLow: true },
-          { size: "53*83", gsm: "200", stock: 601, isLow: false },
-          { size: "54*86", gsm: "200", stock: 524, isLow: false },
-          { size: "55*80", gsm: "200", stock: 0, isLow: true },
-          { size: "55*82", gsm: "200", stock: 0, isLow: true },
-          { size: "56*82", gsm: "200", stock: 377, isLow: true },
-          { size: "56*86", gsm: "200", stock: 671, isLow: false },
-          { size: "57*85.5", gsm: "200", stock: 52, isLow: true },
-          { size: "57*89", gsm: "200", stock: 7, isLow: true },
-          { size: "57*90", gsm: "200", stock: 311, isLow: true },
-          { size: "59*91", gsm: "200", stock: 657, isLow: false },
-          { size: "59.5*93", gsm: "200", stock: 270, isLow: true },
-          { size: "62.5*95", gsm: "200", stock: 276, isLow: true },
-          { size: "63*64", gsm: "200", stock: 326, isLow: true },
-          { size: "63.5*99", gsm: "200", stock: 436, isLow: true },
-          { size: "65*101", gsm: "200", stock: 0, isLow: true },
-          { size: "68*69", gsm: "200", stock: 133, isLow: true },
-          { size: "72*48", gsm: "200", stock: 79, isLow: true },
-          { size: "73*74", gsm: "200", stock: 50, isLow: true },
+          {
+            size: "41*83",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "42.5*57.5",
+            gsm: "200",
+            stock: 215,
+            isLow: true
+          },
+          {
+            size: "43*73",
+            gsm: "200",
+            stock: 283,
+            isLow: true
+          },
+          {
+            size: "44.5*64",
+            gsm: "200",
+            stock: 114,
+            isLow: true
+          },
+          {
+            size: "45*76.5",
+            gsm: "200",
+            stock: 62,
+            isLow: true
+          },
+          {
+            size: "46.5*90",
+            gsm: "200",
+            stock: 54,
+            isLow: true
+          },
+          {
+            size: "47*70.5",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "50*72",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "50*79",
+            gsm: "200",
+            stock: 976,
+            isLow: false
+          },
+          {
+            size: "50*81",
+            gsm: "200",
+            stock: 337,
+            isLow: true
+          },
+          {
+            size: "50*83",
+            gsm: "200",
+            stock: 48,
+            isLow: true
+          },
+          {
+            size: "50*89",
+            gsm: "200",
+            stock: 239,
+            isLow: true
+          },
+          {
+            size: "51*80",
+            gsm: "200",
+            stock: 174,
+            isLow: true
+          },
+          {
+            size: "52*68.5",
+            gsm: "200",
+            stock: 75,
+            isLow: true
+          },
+          {
+            size: "52*76.5",
+            gsm: "200",
+            stock: 145,
+            isLow: true
+          },
+          {
+            size: "53*83",
+            gsm: "200",
+            stock: 601,
+            isLow: false
+          },
+          {
+            size: "54*86",
+            gsm: "200",
+            stock: 524,
+            isLow: false
+          },
+          {
+            size: "55*80",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "55*82",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "56*82",
+            gsm: "200",
+            stock: 377,
+            isLow: true
+          },
+          {
+            size: "56*86",
+            gsm: "200",
+            stock: 671,
+            isLow: false
+          },
+          {
+            size: "57*85.5",
+            gsm: "200",
+            stock: 52,
+            isLow: true
+          },
+          {
+            size: "57*89",
+            gsm: "200",
+            stock: 7,
+            isLow: true
+          },
+          {
+            size: "57*90",
+            gsm: "200",
+            stock: 311,
+            isLow: true
+          },
+          {
+            size: "59*91",
+            gsm: "200",
+            stock: 657,
+            isLow: false
+          },
+          {
+            size: "59.5*93",
+            gsm: "200",
+            stock: 270,
+            isLow: true
+          },
+          {
+            size: "62.5*95",
+            gsm: "200",
+            stock: 276,
+            isLow: true
+          },
+          {
+            size: "63*64",
+            gsm: "200",
+            stock: 326,
+            isLow: true
+          },
+          {
+            size: "63.5*99",
+            gsm: "200",
+            stock: 436,
+            isLow: true
+          },
+          {
+            size: "65*101",
+            gsm: "200",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "68*69",
+            gsm: "200",
+            stock: 133,
+            isLow: true
+          },
+          {
+            size: "72*48",
+            gsm: "200",
+            stock: 79,
+            isLow: true
+          },
+          {
+            size: "73*74",
+            gsm: "200",
+            stock: 50,
+            isLow: true
+          }
         ]
       }
     ]
@@ -297,32 +848,137 @@ const inventoryData = [
       {
         title: "140 GYT",
         items: [
-          { size: "53", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "57", gsm: "140GYT", stock: 792, isLow: false },
-          { size: "60", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "65", gsm: "140GYT", stock: 173, isLow: true },
-          { size: "70", gsm: "140GYT", stock: 1016, isLow: false },
-          { size: "73", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "77", gsm: "140GYT", stock: 1805, isLow: false },
-          { size: "80", gsm: "140GYT", stock: 0, isLow: false },
-          { size: "82", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "85", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "88", gsm: "140GYT", stock: 0, isLow: true },
-          { size: "90", gsm: "140GYT", stock: 956, isLow: false },
-          { size: "95", gsm: "140GYT", stock: 991, isLow: false },
-          { size: "100", gsm: "140GYT", stock: 942, isLow: false },
-          { size: "104", gsm: "140GYT", stock: 271, isLow: true },
-          { size: "108", gsm: "140GYT", stock: 0, isLow: true },
+          {
+            size: "53",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "57",
+            gsm: "140GYT",
+            stock: 792,
+            isLow: false
+          },
+          {
+            size: "60",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "65",
+            gsm: "140GYT",
+            stock: 173,
+            isLow: true
+          },
+          {
+            size: "70",
+            gsm: "140GYT",
+            stock: 1016,
+            isLow: false
+          },
+          {
+            size: "73",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "77",
+            gsm: "140GYT",
+            stock: 1805,
+            isLow: false
+          },
+          {
+            size: "80",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: false
+          },
+          {
+            size: "82",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "85",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "88",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "90",
+            gsm: "140GYT",
+            stock: 956,
+            isLow: false
+          },
+          {
+            size: "95",
+            gsm: "140GYT",
+            stock: 991,
+            isLow: false
+          },
+          {
+            size: "100",
+            gsm: "140GYT",
+            stock: 942,
+            isLow: false
+          },
+          {
+            size: "104",
+            gsm: "140GYT",
+            stock: 271,
+            isLow: true
+          },
+          {
+            size: "108",
+            gsm: "140GYT",
+            stock: 0,
+            isLow: true
+          }
         ]
       },
       {
         title: "130",
         items: [
-          { size: "90", gsm: "130", stock: 99, isLow: true },
-          { size: "100", gsm: "130", stock: 0, isLow: true },
-          { size: "102", gsm: "130", stock: 0, isLow: true },
-          { size: "106", gsm: "130", stock: 35, isLow: true },
-          { size: "108", gsm: "130", stock: 0, isLow: true },
+          {
+            size: "90",
+            gsm: "130",
+            stock: 99,
+            isLow: true
+          },
+          {
+            size: "100",
+            gsm: "130",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "102",
+            gsm: "130",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "106",
+            gsm: "130",
+            stock: 35,
+            isLow: true
+          },
+          {
+            size: "108",
+            gsm: "130",
+            stock: 0,
+            isLow: true
+          }
         ]
       }
     ]
@@ -333,23 +989,83 @@ const inventoryData = [
       {
         title: "150",
         items: [
-          { size: "68", gsm: "150", stock: 387, isLow: true },
-          { size: "84", gsm: "150", stock: 0, isLow: true },
-          { size: "92", gsm: "150", stock: 140, isLow: true },
-          { size: "104", gsm: "150", stock: 67, isLow: true },
-          { size: "108", gsm: "150", stock: 85, isLow: true },
+          {
+            size: "68",
+            gsm: "150",
+            stock: 387,
+            isLow: true
+          },
+          {
+            size: "84",
+            gsm: "150",
+            stock: 0,
+            isLow: true
+          },
+          {
+            size: "92",
+            gsm: "150",
+            stock: 140,
+            isLow: true
+          },
+          {
+            size: "104",
+            gsm: "150",
+            stock: 67,
+            isLow: true
+          },
+          {
+            size: "108",
+            gsm: "150",
+            stock: 85,
+            isLow: true
+          }
         ]
       },
       {
         title: "100",
         items: [
-          { size: "60", gsm: "100", stock: 150, isLow: true },
-          { size: "65", gsm: "100", stock: 100, isLow: false },
-          { size: "66", gsm: "100", stock: 116, isLow: true },
-          { size: "92", gsm: "100", stock: 396, isLow: true },
-          { size: "100", gsm: "100", stock: 416, isLow: true },
-          { size: "106", gsm: "100", stock: 227, isLow: true },
-          { size: "108", gsm: "100", stock: 167, isLow: true },
+          {
+            size: "60",
+            gsm: "100",
+            stock: 150,
+            isLow: true
+          },
+          {
+            size: "65",
+            gsm: "100",
+            stock: 100,
+            isLow: false
+          },
+          {
+            size: "66",
+            gsm: "100",
+            stock: 116,
+            isLow: true
+          },
+          {
+            size: "92",
+            gsm: "100",
+            stock: 396,
+            isLow: true
+          },
+          {
+            size: "100",
+            gsm: "100",
+            stock: 416,
+            isLow: true
+          },
+          {
+            size: "106",
+            gsm: "100",
+            stock: 227,
+            isLow: true
+          },
+          {
+            size: "108",
+            gsm: "100",
+            stock: 167,
+            isLow: true
+          }
         ]
       }
     ]
@@ -459,8 +1175,8 @@ const InventoryTableSection = ({
       sub.items.forEach((item: any) => allItems.push({ ...item, subTitle: sub.title }));
     });
     
-    const singleItems = allItems.filter(item => !item.size.includes('*'));
-    const doubleItems = allItems.filter(item => item.size.includes('*'));
+    const singleItems = allItems.filter(item => typeof item.size === 'string' && !item.size.includes('*')).sort((a, b) => sortSizes(a.size, b.size));
+    const doubleItems = allItems.filter(item => typeof item.size === 'string' && item.size.includes('*')).sort((a, b) => sortSizes(a.size, b.size));
     
     const allExpandedItems = [
       { isHeader: true, title: 'SINGLE SIZES' },
@@ -1016,6 +1732,12 @@ export default function App() {
   const [reorderHistory, setReorderHistory] = useState<any[]>([]);
   const [searchReorderHistoryQuery, setSearchReorderHistoryQuery] = useState('');
   const [searchForecastQuery, setSearchForecastQuery] = useState('');
+  const [velocityMonth, setVelocityMonth] = useState('August');
+  const [velocityYear, setVelocityYear] = useState('2026');
+  const [forecastMonth, setForecastMonth] = useState('August');
+  const [forecastYear, setForecastYear] = useState('2026');
+  const [forecastHorizon, setForecastHorizon] = useState<'30' | '60' | '90' | 'all'>('30');
+  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
 
   const volumeMTD = useMemo(() => {
     const now = new Date();
@@ -1058,6 +1780,96 @@ export default function App() {
     });
   }, [stockInLogs, stockOutLogs]);
 
+  const topItemsStockData = useMemo(() => {
+    const dates = [...Array(30)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (29 - i));
+      return d.toISOString().split('T')[0];
+    });
+    
+    const thirtyDaysAgoStr = dates[0];
+    const volumeMap = new Map<string, number>();
+    
+    const addItemVolume = (size: string, gsm: string, vol: number) => {
+      if (!size || !gsm) return;
+      const key = `${size}-${gsm}`;
+      volumeMap.set(key, (volumeMap.get(key) || 0) + vol);
+    };
+
+    stockInLogs.forEach(log => {
+      if (log.date >= thirtyDaysAgoStr) {
+        addItemVolume(log.size, log.gsm, log.quantity || 0);
+      }
+    });
+
+    stockOutLogs.forEach(log => {
+      if (log.date >= thirtyDaysAgoStr) {
+        addItemVolume(log.size, log.gsm, log.out || 0);
+      }
+    });
+
+    const topItems = Array.from(volumeMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(entry => entry[0]);
+
+    if (topItems.length === 0) return { chartData: [], topItems: [] };
+
+    const currentStockMap = new Map<string, number>();
+    inventory.forEach(section => {
+      section.subSections.forEach((sub: any) => {
+        sub.items.forEach((item: any) => {
+          const key = `${item.size}-${item.gsm}`;
+          if (topItems.includes(key)) {
+            currentStockMap.set(key, item.stock || 0);
+          }
+        });
+      });
+    });
+    
+    const dailyNetChanges = new Map<string, Map<string, number>>(); 
+    dates.forEach(d => dailyNetChanges.set(d, new Map()));
+
+    stockInLogs.forEach(log => {
+      if (log.date >= dates[0]) {
+        const key = `${log.size}-${log.gsm}`;
+        if (topItems.includes(key) && dailyNetChanges.has(log.date)) {
+          const dayMap = dailyNetChanges.get(log.date)!;
+          dayMap.set(key, (dayMap.get(key) || 0) + (log.quantity || 0));
+        }
+      }
+    });
+
+    stockOutLogs.forEach(log => {
+      if (log.date >= dates[0]) {
+        const key = `${log.size}-${log.gsm}`;
+        if (topItems.includes(key) && dailyNetChanges.has(log.date)) {
+          const dayMap = dailyNetChanges.get(log.date)!;
+          dayMap.set(key, (dayMap.get(key) || 0) - (log.out || 0));
+        }
+      }
+    });
+
+    const chartData = [];
+    const runningStock = new Map(currentStockMap);
+    const reversedDates = [...dates].reverse();
+    
+    for (const date of reversedDates) {
+      const dataPoint: any = { date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) };
+      const dayNet = dailyNetChanges.get(date)!;
+      
+      topItems.forEach(itemKey => {
+        dataPoint[itemKey] = runningStock.get(itemKey) || 0;
+        const netChangeToday = dayNet.get(itemKey) || 0;
+        runningStock.set(itemKey, (runningStock.get(itemKey) || 0) - netChangeToday);
+      });
+      
+      chartData.push(dataPoint);
+    }
+
+    return { chartData: chartData.reverse(), topItems };
+  }, [stockInLogs, stockOutLogs, inventory]);
+
   const dashboardDistributionData = useMemo(() => {
     const sections = inventory.map(section => {
       const totalSectionStock = section.subSections.reduce((acc, sub) => 
@@ -1082,21 +1894,59 @@ export default function App() {
       }));
   }, [inventory]);
 
-  const dashboardHighVelocityData = useMemo(() => {
-    const itemMap = new Map();
+    const { velocity280Single, velocity280Double, velocity200Double } = useMemo(() => {
+    const map280Single = new Map();
+    const map280Double = new Map();
+    const map200Double = new Map();
+
     stockOutLogs.forEach(log => {
-      const key = log.itemCode || `${log.size}x${log.gsm}`;
-      itemMap.set(key, (itemMap.get(key) || 0) + (log.out || 0));
+      if (!log.date) return;
+      const d = new Date(log.date);
+      if (isNaN(d.getTime())) return;
+
+      const logYear = d.getFullYear().toString();
+      const logMonth = d.toLocaleString('default', { month: 'long' });
+
+      if (velocityMonth !== 'All' && logMonth.toLowerCase() !== velocityMonth.toLowerCase()) {
+        return;
+      }
+      if (velocityYear !== 'All' && logYear !== velocityYear) {
+        return;
+      }
+
+      const gsm = String(log.gsm || '').trim();
+      const size = String(log.size || '').trim();
+      const out = log.out || 0;
+      if (!size) return;
+
+      if (gsm === '280') {
+        if (!size.includes('*')) {
+          map280Single.set(size, (map280Single.get(size) || 0) + out);
+        } else {
+          map280Double.set(size, (map280Double.get(size) || 0) + out);
+        }
+      } else if (gsm === '200') {
+        if (size.includes('*')) {
+          map200Double.set(size, (map200Double.get(size) || 0) + out);
+        }
+      }
     });
 
-    const sorted = Array.from(itemMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+    const processMap = (m) => {
+      const sorted = Array.from(m.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+      const max = sorted.length > 0 ? sorted[0].value : 100;
+      return sorted.map(item => ({ ...item, max }));
+    };
 
-    const max = sorted.length > 0 ? sorted[0].value : 100;
-    return sorted.map(item => ({ ...item, max }));
-  }, [stockOutLogs]);
+    return {
+      velocity280Single: processMap(map280Single),
+      velocity280Double: processMap(map280Double),
+      velocity200Double: processMap(map200Double),
+    };
+  }, [stockOutLogs, velocityMonth, velocityYear]);
   const [calcInputs, setCalcInputs] = useState({
     gsm: '280',
     width: '60',
@@ -1113,6 +1963,7 @@ export default function App() {
     sectionTitle: string,
     subTitle: string,
     size: string,
+    gsm: string,
     delta: number,
     onConfirm: () => Promise<void>
   } | null>(null);
@@ -1249,9 +2100,19 @@ export default function App() {
   const reconstructInventory = (flatList: any[]) => {
     const sections: any[] = [];
     flatList.forEach(item => {
-      let section = sections.find(s => s.title === item.sectionTitle);
+      const cleanGsm = String(item.gsm || '').toUpperCase().replace('GSM', '').trim();
+      let computedSectionTitle = item.sectionTitle || `${cleanGsm} GSM SECTION`;
+      
+      const titlePartsStr = computedSectionTitle.toUpperCase().replace('GSM', '').replace('SECTION', '').replace(/\s+/g, '');
+      const cleanGsmNoSpace = cleanGsm.replace(/\s+/g, '');
+      
+      if (!titlePartsStr.includes(cleanGsmNoSpace)) {
+        computedSectionTitle = `${cleanGsm} GSM SECTION`;
+      }
+
+      let section = sections.find(s => s.title === computedSectionTitle);
       if (!section) {
-        section = { title: item.sectionTitle, subSections: [] };
+        section = { title: computedSectionTitle, subSections: [] };
         sections.push(section);
       }
       let subSection = section.subSections.find((ss: any) => ss.title === item.subSectionTitle);
@@ -1279,18 +2140,32 @@ export default function App() {
     
     // Sort items within subsections
     sections.forEach(s => {
+      s.subSections.sort((a: any, b: any) => {
+        if (a.title === "SINGLE SIZE") return -1;
+        if (b.title === "SINGLE SIZE") return 1;
+        if (a.title === "DOUBLE SIZE") return -1;
+        if (b.title === "DOUBLE SIZE") return 1;
+        return a.title.localeCompare(b.title);
+      });
       s.subSections.forEach((ss: any) => {
         ss.items.sort((a: any, b: any) => sortSizes(a.size, b.size));
       });
     });
 
-    // Sort sections: 280 GSM SECTION first, then 250 & 230 GSM SECTION, then others
+    // Sort sections by GSM descending
     sections.sort((a, b) => {
-      if (a.title === "280 GSM SECTION") return -1;
-      if (b.title === "280 GSM SECTION") return 1;
-      if (a.title === "250 & 230 GSM SECTION") return -1;
-      if (b.title === "250 & 230 GSM SECTION") return 1;
-      return 0;
+      const getGsm = (title: string) => {
+        const match = title.match(/(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      };
+      
+      const gsmA = getGsm(a.title);
+      const gsmB = getGsm(b.title);
+      
+      if (gsmA !== gsmB) {
+        return gsmB - gsmA;
+      }
+      return a.title.localeCompare(b.title);
     });
 
     return sections;
@@ -1829,7 +2704,7 @@ export default function App() {
       }
     };
     
-    const success = await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, quantity, false, followUp);
+    const success = await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, stockInItem.item.gsm, quantity, false, followUp);
     
     if (success) {
       await followUp();
@@ -1895,20 +2770,19 @@ export default function App() {
       }
     };
     
-    const success = await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, -quantity, false, followUp);
+    const success = await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, stockOutItem.item.gsm, -quantity, false, followUp);
     
     if (success) {
       await followUp();
     }
   };
 
-  const updateStock = async (sectionTitle: string, subTitle: string, size: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>): Promise<boolean> => {
+  const updateStock = async (sectionTitle: string, subTitle: string, size: string, gsm: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>): Promise<boolean> => {
     try {
       const q = query(
         collection(db, 'inventory'), 
-        where('sectionTitle', '==', sectionTitle),
-        where('subSectionTitle', '==', subTitle),
-        where('size', '==', size)
+        where('size', '==', size),
+        where('gsm', '==', gsm)
       );
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
@@ -1917,7 +2791,7 @@ export default function App() {
         const newStock = (currentData.stock || 0) + delta;
 
         if (newStock < 0 && !force) {
-          setNegativeStockWarning({ sectionTitle, subTitle, size, delta, onConfirm: onConfirm || (async () => {}) });
+          setNegativeStockWarning({ sectionTitle, subTitle, size, gsm, delta, onConfirm: onConfirm || (async () => {}) });
           return false;
         }
 
@@ -1930,6 +2804,31 @@ export default function App() {
       return false;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'inventory');
+      return false;
+    }
+  };
+
+  const updateStockByGlobal = async (size: string, gsm: string, delta: number): Promise<boolean> => {
+    try {
+      const q = query(
+        collection(db, 'inventory'),
+        where('size', '==', size),
+        where('gsm', '==', gsm)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const docRef = snapshot.docs[0].ref;
+        const currentData = snapshot.docs[0].data();
+        const newStock = (currentData.stock || 0) + delta;
+        await updateDoc(docRef, {
+          stock: newStock,
+          isLow: newStock < (currentData.minQuantity || 100)
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to update stock globally:", error);
       return false;
     }
   };
@@ -1948,8 +2847,6 @@ export default function App() {
       } else {
         const q = query(
           collection(db, 'inventory'),
-          where('sectionTitle', '==', sectionTitle),
-          where('subSectionTitle', '==', subTitle),
           where('size', '==', size),
           where('gsm', '==', gsm)
         );
@@ -2062,7 +2959,10 @@ export default function App() {
 
     // Find section from dynamic inventory state
     const cleanGsm = newSkuGsm.toUpperCase().replace('GSM', '').trim();
-    const section = inventory.find(s => s.title.toUpperCase().replace('GSM', '').trim().includes(cleanGsm));
+    const section = inventory.find(s => {
+      const titleParts = s.title.toUpperCase().replace('GSM', '').replace('SECTION', '').trim().split(/[\s&]+/);
+      return titleParts.includes(cleanGsm);
+    });
     const targetSection = section ? section.title : `${newSkuGsm.toUpperCase().includes('GSM') ? newSkuGsm.toUpperCase() : newSkuGsm.toUpperCase() + ' GSM'} SECTION`;
 
     // Find appropriate subsection Title
@@ -3346,17 +4246,123 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Bottom Section */}
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-400">
-                <div className="flex items-center gap-2 mb-8">
-                  <TrendingUp className="text-blue-500" size={18} />
-                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">High Velocity Inventory</h3>
+              {/* Top Moving Items 30-Day Trend */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Top Moving Items (30 Days)</h3>
+                  <div className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Stock Trend
+                  </div>
                 </div>
-                <div className="space-y-8">
-                  {dashboardHighVelocityData.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400 text-xs font-bold uppercase tracking-widest">No movement data yet</div>
+                <div className="h-[350px] w-full">
+                  {topItemsStockData.topItems.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-slate-400 text-xs font-bold uppercase tracking-widest">
+                      No Data Available
+                    </div>
                   ) : (
-                    dashboardHighVelocityData.map((item) => (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={topItemsStockData.chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="date" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }}
+                          dy={10}
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fontWeight: 600, fill: '#94a3b8' }}
+                          dx={-10}
+                        />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 600 }} />
+                        {topItemsStockData.topItems.map((item, idx) => {
+                          const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                          const color = colors[idx % colors.length];
+                          return (
+                            <Line 
+                              key={item}
+                              type="monotone" 
+                              dataKey={item} 
+                              name={item.toUpperCase()}
+                              stroke={color} 
+                              strokeWidth={3} 
+                              dot={false}
+                              activeDot={{ r: 6, strokeWidth: 0, fill: color }}
+                            />
+                          );
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Section - High Velocity */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="text-blue-500" size={18} />
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">High Velocity Inventory (Top Moving Sizes)</h3>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Month:</span>
+                      <select 
+                        value={velocityMonth} 
+                        onChange={(e) => setVelocityMonth(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="All">All Months</option>
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Year:</span>
+                      <select 
+                        value={velocityYear} 
+                        onChange={(e) => setVelocityYear(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="All">All Years</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 280 Single */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                  <div className="flex items-center gap-2 mb-6">
+                    <TrendingUp className="text-blue-500" size={16} />
+                    <h3 className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">Top 5 - 280 Single</h3>
+                  </div>
+
+                <div className="space-y-6">
+                  {velocity280Single.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-[10px] font-bold uppercase tracking-widest">No 280 Single Data</div>
+                  ) : (
+                    velocity280Single.map((item) => (
                       <div key={item.name}>
                         <div className="flex justify-between mb-2">
                           <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
@@ -3374,6 +4380,71 @@ export default function App() {
                     ))
                   )}
                 </div>
+                </div>
+
+                {/* 280 Double */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                  <div className="flex items-center gap-2 mb-6">
+                    <TrendingUp className="text-blue-500" size={16} />
+                    <h3 className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">Top 5 - 280 Double</h3>
+                  </div>
+
+                <div className="space-y-6">
+                  {velocity280Double.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-[10px] font-bold uppercase tracking-widest">No 280 Double Data</div>
+                  ) : (
+                    velocity280Double.map((item) => (
+                      <div key={item.name}>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{item.value} Units</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(item.value / item.max) * 100}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className="h-full bg-blue-600"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                </div>
+
+                {/* 200 Double */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-400">
+                  <div className="flex items-center gap-2 mb-6">
+                    <TrendingUp className="text-blue-500" size={16} />
+                    <h3 className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">Top 5 - 200 Double</h3>
+                  </div>
+
+                <div className="space-y-6">
+                  {velocity200Double.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 text-[10px] font-bold uppercase tracking-widest">No 200 Double Data</div>
+                  ) : (
+                    velocity200Double.map((item) => (
+                      <div key={item.name}>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-[10px] font-bold text-slate-800 uppercase tracking-widest">{item.name}</span>
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{item.value} Units</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(item.value / item.max) * 100}%` }}
+                            transition={{ duration: 1, ease: "easeOut" }}
+                            className="h-full bg-blue-600"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                </div>
+
+              </div>
               </div>
             </motion.div>
           )}
@@ -3381,10 +4452,9 @@ export default function App() {
           {activeTab === 'Calculator' && (
             <motion.div
               key="calculator"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="max-w-5xl mx-auto mt-2 lg:mt-12"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
             >
               {/* Header */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 lg:gap-4 mb-2 lg:mb-8">
@@ -3905,18 +4975,53 @@ export default function App() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 relative">
                             <label className="text-sm font-semibold text-slate-600">Company (CAPS)</label>
                             <input 
                               type="text" 
                               placeholder="SREEPATHI"
                               value={stockOutItem.formData.company || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, company: e.target.value.toUpperCase() }
-                              })}
+                              onFocus={() => setShowCompanySuggestions(true)}
+                              onChange={(e) => {
+                                const val = e.target.value.toUpperCase();
+                                setStockOutItem({
+                                  ...stockOutItem,
+                                  formData: { ...stockOutItem.formData, company: val }
+                                });
+                                setShowCompanySuggestions(true);
+                              }}
                               className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
                             />
+                            {showCompanySuggestions && (
+                              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                                {(() => {
+                                  const set = new Set<string>();
+                                  stockOutLogs.forEach(l => { if (l.company) set.add(l.company.toUpperCase()); });
+                                  pendingWorks.forEach(w => { if (w.company) set.add(w.company.toUpperCase()); });
+                                  const suggestions: string[] = Array.from(set).sort();
+                                  const queryText = (stockOutItem.formData.company || '').toUpperCase();
+                                  const filtered = suggestions.filter(c => c.includes(queryText) || c.startsWith(queryText));
+                                  if (filtered.length === 0) {
+                                    return <div className="px-4 py-2 text-xs text-slate-400 italic">Type to save/add new company</div>;
+                                  }
+                                  return filtered.map((comp: string, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      onClick={() => {
+                                        setStockOutItem({
+                                          ...stockOutItem,
+                                          formData: { ...stockOutItem.formData, company: comp }
+                                        });
+                                        setShowCompanySuggestions(false);
+                                      }}
+                                      className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0"
+                                    >
+                                      {comp}
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-slate-600">Quantity (Out)</label>
@@ -4159,7 +5264,7 @@ export default function App() {
                         <div className="flex flex-col gap-3 pt-2">
                           <button 
                             onClick={async () => {
-                              await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.delta, true);
+                              await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.gsm, negativeStockWarning.delta, true);
                               await negativeStockWarning.onConfirm();
                               setNegativeStockWarning(null);
                             }}
@@ -4315,7 +5420,7 @@ export default function App() {
                             if (!currentSelectedEntry || !quickTrackerQty) return;
                             const qty = parseInt(quickTrackerQty) || 0;
                             const delta = quickTrackerMode === 'IN' ? qty : -qty;
-                            const success = await updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, delta);
+                            const success = await updateStock(currentSelectedEntry.sectionTitle, currentSelectedEntry.subTitle, currentSelectedEntry.item.size, currentSelectedEntry.item.gsm, delta);
                             if (!success) return;
                             
                             const newEntry = {
@@ -5564,6 +6669,11 @@ export default function App() {
                                       setDeliveringWork(work);
                                     } else {
                                       try {
+                                        if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
+                                          await updateStockByGlobal(work.size, work.gsm, work.qty);
+                                        } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
+                                          await updateStockByGlobal(work.size, work.gsm, -work.qty);
+                                        }
                                         await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
                                         logAction(`Updated status for work ${work.workName} to ${newStatus}`);
                                       } catch (error) {
@@ -5710,6 +6820,11 @@ export default function App() {
                                     setDeliveringWork(work);
                                   } else {
                                     try {
+                                      if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
+                                        await updateStockByGlobal(work.size, work.gsm, work.qty);
+                                      } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
+                                        await updateStockByGlobal(work.size, work.gsm, -work.qty);
+                                      }
                                       await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
                                     } catch (error) {
                                       handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
@@ -6453,7 +7568,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'Demand Forecast' && (
+                    {activeTab === 'Demand Forecast' && (
             <motion.div
               key="demand-forecast"
               initial={{ opacity: 0, x: 20 }}
@@ -6462,7 +7577,7 @@ export default function App() {
               className="space-y-6"
             >
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                 <div className="flex items-center gap-4">
                   <button 
                     onClick={() => setActiveTab('Dashboard')}
@@ -6475,26 +7590,55 @@ export default function App() {
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ANALYTICS & REQUIREMENTS</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex bg-slate-100 rounded-full p-1">
-                    <button className="px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-white shadow-sm text-indigo-900">Historical</button>
-                    <button className="px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">Predictive</button>
-                  </div>
-                  <div className="flex bg-slate-100 rounded-full p-1">
-                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">30 Days</button>
-                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-white shadow-sm text-indigo-900">90 Days</button>
-                    <button className="px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest text-slate-500">All</button>
+                <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-between lg:justify-end">
+                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Month:</span>
+                      <select 
+                        value={forecastMonth} 
+                        onChange={(e) => setForecastMonth(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="All">All Months</option>
+                        <option value="January">January</option>
+                        <option value="February">February</option>
+                        <option value="March">March</option>
+                        <option value="April">April</option>
+                        <option value="May">May</option>
+                        <option value="June">June</option>
+                        <option value="July">July</option>
+                        <option value="August">August</option>
+                        <option value="September">September</option>
+                        <option value="October">October</option>
+                        <option value="November">November</option>
+                        <option value="December">December</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Year:</span>
+                      <select 
+                        value={forecastYear} 
+                        onChange={(e) => setForecastYear(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs font-bold text-slate-700 outline-none"
+                      >
+                        <option value="All">All Years</option>
+                        <option value="2024">2024</option>
+                        <option value="2025">2025</option>
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => handleInitiateExport('pdf', 'demandForecast')}
-                      className="flex items-center gap-2 bg-rose-600 text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md"
+                      className="flex items-center gap-2 bg-rose-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md"
                     >
                       <FileText size={16} /> PDF
                     </button>
                     <button 
                       onClick={() => handleInitiateExport('xlsx', 'demandForecast')}
-                      className="flex items-center gap-2 bg-[#0ea5e9] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#0284c7] transition-all shadow-md"
+                      className="flex items-center gap-2 bg-[#0ea5e9] text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#0284c7] transition-all shadow-md"
                     >
                       <FileSpreadsheet size={16} /> EXCEL
                     </button>
@@ -6509,7 +7653,7 @@ export default function App() {
                     <ArrowUp size={32} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Outbound Flow</p>
+                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Outbound Flow ({forecastMonth} {forecastYear})</p>
                     <h2 className="text-3xl font-black text-slate-900 tracking-tight">Consumption</h2>
                   </div>
                 </div>
@@ -6518,53 +7662,135 @@ export default function App() {
                     <ArrowDown size={32} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inbound Flow</p>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Restock</h2>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inbound Requirement ({forecastMonth} {forecastYear})</p>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Forecast</h2>
                   </div>
                 </div>
               </div>
 
-              {/* Bottom Cards */}
+              {/* Bottom Cards / Sections */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-8">
+                {/* Consumption by Top Moving Sizes */}
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <BarChart2 className="text-slate-400" size={24} />
-                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Demand Forecast</h3>
+                      <BarChart2 className="text-rose-500" size={24} />
+                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Consumption (Top Moving Sizes)</h3>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                          <th className="pb-4 text-left">Item Code</th>
-                          <th className="pb-4 text-left">Size</th>
+                          <th className="pb-4 text-left">SIZE</th>
                           <th className="pb-4 text-left">GSM</th>
-                          <th className="pb-4 text-right">Avg Monthly</th>
+                          <th className="pb-4 text-right">TOTAL OUT</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(() => {
-                          const consumption: Record<string, { total: number, months: Set<string> }> = {};
+                          const sizeMap: Record<string, { size: string, gsm: string, total: number }> = {};
                           stockOutLogs.forEach(log => {
-                            const key = `${log.itemCode}|${log.size}|${log.gsm}`;
-                            const month = log.date.substring(0, 7); // YYYY-MM
-                            if (!consumption[key]) consumption[key] = { total: 0, months: new Set() };
-                            consumption[key].total += log.out;
-                            consumption[key].months.add(month);
+                            if (!log.date) return;
+                            const d = new Date(log.date);
+                            if (isNaN(d.getTime())) return;
+                            const logYear = d.getFullYear().toString();
+                            const logMonth = d.toLocaleString('default', { month: 'long' });
+
+                            if (forecastMonth !== 'All' && logMonth.toLowerCase() !== forecastMonth.toLowerCase()) return;
+                            if (forecastYear !== 'All' && logYear !== forecastYear) return;
+
+                            const key = `${log.size}|${log.gsm}`;
+                            if (!sizeMap[key]) sizeMap[key] = { size: log.size, gsm: log.gsm, total: 0 };
+                            sizeMap[key].total += (log.out || 0);
                           });
-                          return Object.entries(consumption).map(([key, data]) => {
-                            const [itemCode, size, gsm] = key.split('|');
-                            const avg = data.total / data.months.size;
+
+                          const sorted = Object.values(sizeMap).sort((a, b) => b.total - a.total);
+                          if (sorted.length === 0) {
                             return (
-                              <tr key={key} className="border-b border-slate-50 text-xs font-bold text-slate-700">
-                                <td className="py-4">{itemCode}</td>
-                                <td className="py-4">{size}</td>
-                                <td className="py-4">{gsm}</td>
-                                <td className="py-4 text-right">{avg.toFixed(2)}</td>
+                              <tr>
+                                <td colSpan={3} className="py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No consumption records found for {forecastMonth} {forecastYear}</td>
                               </tr>
                             );
+                          }
+                          return sorted.map((item, idx) => (
+                            <tr key={idx} className="border-b border-slate-50 text-xs font-bold text-slate-700">
+                              <td className="py-4 font-black text-slate-900">{item.size}</td>
+                              <td className="py-4">{item.gsm}</td>
+                              <td className="py-4 text-right font-black text-rose-600">{item.total} Units</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Restock Forecast / Requirement Sizes */}
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <TrendingUp className="text-blue-500" size={24} />
+                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Restock Forecast Requirements ({forecastHorizon === 'all' ? 'All Time' : `Next ${forecastHorizon} Days`})</h3>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
+                          <th className="pb-4 text-left">SIZE</th>
+                          <th className="pb-4 text-left">GSM</th>
+                          <th className="pb-4 text-right">REQUIRED REFILL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const reqMap: Record<string, { size: string, gsm: string, required: number }> = {};
+                          
+                          let relevantLogs = stockOutLogs.filter(log => {
+                            if (!log.date) return false;
+                            const d = new Date(log.date);
+                            if (isNaN(d.getTime())) return false;
+                            const logYear = d.getFullYear().toString();
+                            const logMonth = d.toLocaleString('default', { month: 'long' });
+
+                            if (forecastMonth !== 'All' && logMonth.toLowerCase() !== forecastMonth.toLowerCase()) return false;
+                            if (forecastYear !== 'All' && logYear !== forecastYear) return false;
+                            return true;
                           });
+
+                          if (relevantLogs.length === 0) {
+                            relevantLogs = stockOutLogs;
+                          }
+
+                          relevantLogs.forEach(log => {
+                            const key = `${log.size}|${log.gsm}`;
+                            if (!reqMap[key]) reqMap[key] = { size: log.size, gsm: log.gsm, required: 0 };
+                            
+                            const outVal = log.out || 0;
+                            let multiplier = 1.25;
+                            if (forecastHorizon === '30') multiplier = 1.0;
+                            else if (forecastHorizon === '60') multiplier = 2.0;
+                            else if (forecastHorizon === '90') multiplier = 3.0;
+
+                            reqMap[key].required += Math.ceil(outVal * multiplier);
+                          });
+
+                          const sorted = Object.values(reqMap).sort((a, b) => b.required - a.required).slice(0, 5);
+                          if (sorted.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan={3} className="py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No consumption records available for forecasting</td>
+                              </tr>
+                            );
+                          }
+                          return sorted.map((item, idx) => (
+                            <tr key={idx} className="border-b border-slate-50 text-xs font-bold text-slate-700">
+                              <td className="py-4 font-black text-slate-900">{item.size}</td>
+                              <td className="py-4">{item.gsm}</td>
+                              <td className="py-4 text-right font-black text-blue-600">{item.required} Units</td>
+                            </tr>
+                          ));
                         })()}
                       </tbody>
                     </table>
