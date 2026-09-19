@@ -1,5 +1,6 @@
 {
   "name": "enerpack",
-  "description": "Advanced inventory transaction and management system with real-time tracking and analytics.",
-  "requestFramePermissions": []
+  "description": "Advanced paper packaging inventory management, 2D guillotine cutting optimizer, and master stock combiner.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

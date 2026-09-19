@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { LoginPage } from './components/LoginPage';
+import { MasterStockCombiner } from './components/CuttingOptimizer/MasterStockCombiner';
 import { Toaster, toast } from 'sonner';
 import { 
   LayoutDashboard, 
@@ -1682,6 +1683,7 @@ export default function App() {
   const [stockOutItem, setStockOutItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
 
   // Quick Tracker State
+  const [quickTrackerViewMode, setQuickTrackerViewMode] = useState<'combiner' | 'inout'>('combiner');
   const [quickTrackerSearch, setQuickTrackerSearch] = useState('');
   const [selectedQuickTrackerItem, setSelectedQuickTrackerItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
   const [quickTrackerMode, setQuickTrackerMode] = useState<'IN' | 'OUT'>('OUT');
@@ -2810,12 +2812,35 @@ export default function App() {
 
   const updateStockByGlobal = async (size: string, gsm: string, delta: number): Promise<boolean> => {
     try {
+      const cleanSize = String(size || '').trim();
+      const cleanGsm = String(gsm || '').toUpperCase().replace('GSM', '').trim();
+      const normSize = cleanSize.replace(/["\s]/g, '').toLowerCase();
+      const normGsm = cleanGsm.replace(/["\s]/g, '').toLowerCase();
+
+      // Immediate local state update for instant UI feedback on Full Inventory & Dashboard
+      setInventory(prev => prev.map(section => ({
+        ...section,
+        subSections: section.subSections.map((sub: any) => ({
+          ...sub,
+          items: sub.items.map((it: any) => {
+            const itSize = String(it.size || '').trim().replace(/["\s]/g, '').toLowerCase();
+            const itGsm = String(it.gsm || '').toUpperCase().replace('GSM', '').trim().replace(/["\s]/g, '').toLowerCase();
+            if (itSize === normSize && itGsm === normGsm) {
+              const newStk = (it.stock || 0) + delta;
+              return { ...it, stock: newStk, isLow: newStk < (it.minQuantity || 100) };
+            }
+            return it;
+          })
+        }))
+      })));
+
+      // 1. Exact query match
       const q = query(
         collection(db, 'inventory'),
-        where('size', '==', size),
-        where('gsm', '==', gsm)
+        where('size', '==', cleanSize),
+        where('gsm', '==', cleanGsm)
       );
-      const snapshot = await getDocs(q);
+      let snapshot = await getDocs(q);
       if (!snapshot.empty) {
         const docRef = snapshot.docs[0].ref;
         const currentData = snapshot.docs[0].data();
@@ -2826,11 +2851,78 @@ export default function App() {
         });
         return true;
       }
+
+      // 2. Query with raw input
+      const qRaw = query(
+        collection(db, 'inventory'),
+        where('size', '==', size),
+        where('gsm', '==', gsm)
+      );
+      const snapRaw = await getDocs(qRaw);
+      if (!snapRaw.empty) {
+        const docRef = snapRaw.docs[0].ref;
+        const currentData = snapRaw.docs[0].data();
+        const newStock = (currentData.stock || 0) + delta;
+        await updateDoc(docRef, {
+          stock: newStock,
+          isLow: newStock < (currentData.minQuantity || 100)
+        });
+        return true;
+      }
+
+      // 3. Fallback normalized scan across all inventory documents
+      const allSnap = await getDocs(collection(db, 'inventory'));
+      const matchedDoc = allSnap.docs.find(d => {
+        const data = d.data();
+        const dSize = String(data.size || '').replace(/["\s]/g, '').toLowerCase();
+        const dGsm = String(data.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+        return dSize === normSize && dGsm === normGsm;
+      });
+
+      if (matchedDoc) {
+        const docRef = matchedDoc.ref;
+        const currentData = matchedDoc.data();
+        const newStock = (currentData.stock || 0) + delta;
+        await updateDoc(docRef, {
+          stock: newStock,
+          isLow: newStock < (currentData.minQuantity || 100)
+        });
+        return true;
+      }
+
+      console.warn(`Could not find inventory item matching size: "${size}" and gsm: "${gsm}" to adjust stock by ${delta}`);
       return false;
     } catch (error) {
       console.error("Failed to update stock globally:", error);
       return false;
     }
+  };
+
+  const handleDeletePendingWork = async (work: any) => {
+    if (!work) return;
+    const qtyToRestore = Number(work.qty) || 0;
+    const willRestore = work.status !== 'CANCELLED' && qtyToRestore > 0;
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Pending Work',
+      message: `Are you sure you want to delete pending work "${work.workName}"? ${willRestore ? `This will restore ${qtyToRestore} units of ${work.size} (${work.gsm} GSM) back to the main inventory.` : ''}`,
+      onConfirm: async () => {
+        try {
+          if (willRestore) {
+            await updateStockByGlobal(work.size, work.gsm, qtyToRestore);
+          }
+          await deleteDoc(doc(db, 'pendingWorks', work.id));
+          if (editingPendingWork && editingPendingWork.id === work.id) {
+            setEditingPendingWork(null);
+          }
+          await logAction(`Deleted pending work: ${work.workName} ${willRestore ? `and restored ${qtyToRestore} units to inventory` : ''}`);
+          toast.success(`Deleted "${work.workName}" ${willRestore ? `and restored ${qtyToRestore} units to main inventory` : ''}`);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `pendingWorks/${work.id}`);
+        }
+      }
+    });
   };
 
   const handleDelete = (sectionTitle: string, subTitle: string, size: string, gsm: string, id: string) => {
@@ -5296,20 +5388,68 @@ export default function App() {
               className="h-full flex flex-col"
             >
               {/* Header */}
-              <div className="bg-[#0f2a43] -m-4 md:-m-8 mb-8 p-4 flex items-center gap-4 shadow-lg">
-                <button 
-                  onClick={() => setActiveTab('Dashboard')}
-                  className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
-                >
-                  <ChevronRight className="rotate-180" size={24} />
-                </button>
+              <div className="bg-[#0f2a43] -m-4 md:-m-8 mb-8 p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 shadow-lg">
                 <div className="flex items-center gap-3">
-                  <Box className="text-blue-400" size={24} />
-                  <h2 className="text-sm md:text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
+                  <button 
+                    onClick={() => setActiveTab('Dashboard')}
+                    className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
+                  >
+                    <ChevronRight className="rotate-180" size={24} />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <Box className="text-blue-400" size={24} />
+                    <div>
+                      <h2 className="text-sm md:text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
+                      <p className="text-[10px] text-blue-200 uppercase font-semibold">Master Stock Combiner & 2D Guillotine Optimizer</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-view Switcher */}
+                <div className="flex items-center p-1 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
+                  <button
+                    onClick={() => setQuickTrackerViewMode('combiner')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                      quickTrackerViewMode === 'combiner' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                    )}
+                  >
+                    <Zap size={14} />
+                    ⚡ Master Stock Combiner
+                  </button>
+                  <button
+                    onClick={() => setQuickTrackerViewMode('inout')}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                      quickTrackerViewMode === 'inout' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                    )}
+                  >
+                    <Clock size={14} />
+                    Quick IN/OUT Tracker
+                  </button>
                 </div>
               </div>
 
-              <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 flex-1 min-h-0">
+              {quickTrackerViewMode === 'combiner' ? (
+                <MasterStockCombiner 
+                  inventory={inventory} 
+                  isAdmin={isAdmin}
+                  onReserveStock={async (stockId, size, gsm, sheets) => {
+                    try {
+                      const ok = await updateStockByGlobal(size, gsm, -sheets);
+                      if (ok) {
+                        await logAction(`Reserved ${sheets} sheets of ${size} (${gsm} GSM) for cutting plan (${stockId})`);
+                        return true;
+                      }
+                      return false;
+                    } catch (e) {
+                      console.error(e);
+                      return false;
+                    }
+                  }}
+                />
+              ) : (
+                <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 flex-1 min-h-0">
                 {/* Left Column: Search & Selection */}
                 <div className="lg:col-span-4 flex flex-col gap-6 min-h-0">
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-0">
@@ -5557,6 +5697,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              )}
             </motion.div>
           )}
 
@@ -6419,6 +6560,15 @@ export default function App() {
                             <button 
                               onClick={async () => {
                                 try {
+                                  const originalLog = stockOutLogs.find(l => l.id === editingStockOutLog.id);
+                                  if (originalLog) {
+                                    const origQty = Number(originalLog.out) || 0;
+                                    const newQty = Number(editingStockOutLog.out) || 0;
+                                    const delta = origQty - newQty;
+                                    if (delta !== 0) {
+                                      await updateStockByGlobal(editingStockOutLog.size, editingStockOutLog.gsm, delta);
+                                    }
+                                  }
                                   await updateDoc(doc(db, 'stockOutLogs', editingStockOutLog.id), editingStockOutLog);
                                   logAction(`Updated stock out log: ${editingStockOutLog.workName}`);
                                   setEditingStockOutLog(null);
@@ -6623,8 +6773,15 @@ export default function App() {
                             <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[90px]">{formatDate(work.date)}</td>
                             <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[70px]">{work.size}</td>
                             <td className="px-1 py-1 text-[11px] font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap w-[50px]">{work.gsm}</td>
-                            <td className="px-1 py-1 text-[11px] font-bold border-r border-slate-100 whitespace-nowrap w-[50px]">
-                              <span className="text-rose-500">{work.qty}</span>
+                            <td 
+                              onClick={() => canEdit && setEditingPendingWork({ ...work })}
+                              className={cn(
+                                "px-1 py-1 text-[11px] font-bold border-r border-slate-100 whitespace-nowrap w-[50px]",
+                                canEdit ? "cursor-pointer hover:bg-blue-50/80 transition-colors" : ""
+                              )}
+                              title={canEdit ? "Click to adjust quantity & restore/update inventory" : undefined}
+                            >
+                              <span className="text-rose-500 font-bold">{work.qty}</span>
                               <span className="text-[9px] text-slate-400 ml-1 uppercase">{work.unit}</span>
                             </td>
                             <td className="px-1 py-1 text-[10px] font-black text-slate-900 uppercase border-r border-slate-100 w-[90px]">{work.company}</td>
@@ -6671,8 +6828,10 @@ export default function App() {
                                       try {
                                         if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
                                           await updateStockByGlobal(work.size, work.gsm, work.qty);
+                                          toast.success(`Restored ${work.qty} units to Main Inventory`);
                                         } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
                                           await updateStockByGlobal(work.size, work.gsm, -work.qty);
+                                          toast.info(`Deducted ${work.qty} units from Main Inventory`);
                                         }
                                         await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
                                         logAction(`Updated status for work ${work.workName} to ${newStatus}`);
@@ -6708,6 +6867,13 @@ export default function App() {
                                     title="Edit"
                                   >
                                     <Edit2 size={12} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeletePendingWork(work)}
+                                    className="p-1 text-rose-500 hover:bg-rose-50 rounded transition-colors border border-rose-200"
+                                    title="Delete & Restore Stock to Main Inventory"
+                                  >
+                                    <Trash2 size={12} />
                                   </button>
                                   <button 
                                     onClick={() => setDeliveringWork(work)}
@@ -6856,14 +7022,23 @@ export default function App() {
                           </div>
                         )}
 
-                        <div className="flex justify-end pt-2">
+                        <div className="flex items-center justify-end gap-2 pt-2">
                           {canEdit ? (
-                            <button 
-                              onClick={() => setEditingPendingWork({ ...work })}
-                              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 text-[10px] font-bold uppercase tracking-widest"
-                            >
-                              <Edit2 size={14} /> EDIT WORK
-                            </button>
+                            <>
+                              <button 
+                                onClick={() => handleDeletePendingWork(work)}
+                                className="flex items-center gap-1 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-rose-200 text-[10px] font-bold uppercase tracking-widest"
+                                title="Delete & Restore Stock"
+                              >
+                                <Trash2 size={14} /> DELETE & RESTORE
+                              </button>
+                              <button 
+                                onClick={() => setEditingPendingWork({ ...work })}
+                                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 text-[10px] font-bold uppercase tracking-widest"
+                              >
+                                <Edit2 size={14} /> EDIT WORK
+                              </button>
+                            </>
                           ) : (
                             <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">READ ONLY</span>
                           )}
@@ -7038,6 +7213,49 @@ export default function App() {
                               onChange={(e) => setEditingPendingWork({ ...editingPendingWork, qty: parseInt(e.target.value) || 0 })}
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             />
+                            {(() => {
+                              const orig = pendingWorks.find(w => w.id === editingPendingWork.id);
+                              if (!orig) return null;
+                              const origQty = Number(orig.qty) || 0;
+                              const curQty = Number(editingPendingWork.qty) || 0;
+                              const diff = origQty - curQty;
+                              if (diff > 0) {
+                                return (
+                                  <p className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 mt-1">
+                                    ↑ Restores +{diff} units to Main Inventory
+                                  </p>
+                                );
+                              } else if (diff < 0) {
+                                return (
+                                  <p className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/60 mt-1">
+                                    ↓ Deducts {Math.abs(diff)} units from Main Inventory
+                                  </p>
+                                );
+                              }
+                              return (
+                                <p className="text-[10px] font-medium text-slate-400 mt-1">
+                                  Current stock matches main inventory
+                                </p>
+                              );
+                            })()}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</label>
+                            <select 
+                              value={editingPendingWork.status || 'PENDING'}
+                              onChange={(e) => setEditingPendingWork({ ...editingPendingWork, status: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            >
+                              <option value="CUTTING">Cutting</option>
+                              <option value="CUTTING FINISHED">Cutting Finished</option>
+                              <option value="OUT OF STOCK">Out of Stock</option>
+                              <option value="ORDER PLACED">Order Placed</option>
+                              <option value="WAITING FOR REEL">Waiting for Reel</option>
+                              <option value="PENDING">Pending</option>
+                              <option value="DELIVERED">Delivered</option>
+                              <option value="CANCELLED">Cancelled</option>
+                              <option value="OTHER">Other</option>
+                            </select>
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit</label>
@@ -7091,27 +7309,86 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100">
                           <button 
-                            onClick={async () => {
-                              try {
-                                await updateDoc(doc(db, 'pendingWorks', editingPendingWork.id), editingPendingWork);
-                                logAction(`Updated pending work: ${editingPendingWork.workName}`);
-                                setEditingPendingWork(null);
-                              } catch (error) {
-                                handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${editingPendingWork.id}`);
-                              }
-                            }}
-                            className="bg-[#0f2a43] text-white px-12 py-4 rounded-2xl font-bold text-sm uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-blue-900/20"
+                            type="button"
+                            onClick={() => handleDeletePendingWork(editingPendingWork)}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-xs font-bold uppercase tracking-wider text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all border border-rose-200"
+                            title="Delete and restore stock to main inventory"
                           >
-                            Update Record
+                            <Trash2 size={16} />
+                            Delete & Restore Stock
                           </button>
-                          <button 
-                            onClick={() => setEditingPendingWork(null)}
-                            className="text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:text-slate-600 transition-colors"
-                          >
-                            Cancel
-                          </button>
+
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                            <button 
+                              onClick={() => setEditingPendingWork(null)}
+                              className="text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors px-4 py-2"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  const originalWork = pendingWorks.find(w => w.id === editingPendingWork.id);
+                                  const origQty = originalWork ? (Number(originalWork.qty) || 0) : 0;
+                                  const newQty = Number(editingPendingWork.qty) || 0;
+                                  const origStatus = originalWork?.status || 'PENDING';
+                                  const newStatus = editingPendingWork.status || origStatus;
+
+                                  if (origStatus === 'CANCELLED' && newStatus !== 'CANCELLED') {
+                                    // Reactivated: deduct newQty from inventory
+                                    if (newQty > 0) {
+                                      await updateStockByGlobal(editingPendingWork.size, editingPendingWork.gsm, -newQty);
+                                      toast.info(`Deducted ${newQty} units from Main Inventory (Work Reactivated)`);
+                                    }
+                                  } else if (origStatus !== 'CANCELLED' && newStatus === 'CANCELLED') {
+                                    // Cancelled: restore origQty back to inventory
+                                    if (origQty > 0) {
+                                      await updateStockByGlobal(originalWork.size, originalWork.gsm, origQty);
+                                      toast.success(`Restored ${origQty} units to Main Inventory (Work Cancelled)`);
+                                    }
+                                  } else if (newStatus !== 'CANCELLED') {
+                                    // Both active: check SKU and qty
+                                    const sameSku = originalWork && 
+                                      String(originalWork.size || '').trim() === String(editingPendingWork.size || '').trim() && 
+                                      String(originalWork.gsm || '').toUpperCase().trim() === String(editingPendingWork.gsm || '').toUpperCase().trim();
+
+                                    if (sameSku) {
+                                      const delta = origQty - newQty;
+                                      if (delta !== 0) {
+                                        await updateStockByGlobal(editingPendingWork.size, editingPendingWork.gsm, delta);
+                                        if (delta > 0) {
+                                          toast.success(`Restored +${delta} units to Main Inventory`);
+                                        } else {
+                                          toast.info(`Deducted ${Math.abs(delta)} units from Main Inventory`);
+                                        }
+                                      }
+                                    } else if (originalWork) {
+                                      // SKU changed: restore old SKU inventory, deduct new SKU inventory
+                                      if (origQty > 0) {
+                                        await updateStockByGlobal(originalWork.size, originalWork.gsm, origQty);
+                                      }
+                                      if (newQty > 0) {
+                                        await updateStockByGlobal(editingPendingWork.size, editingPendingWork.gsm, -newQty);
+                                      }
+                                      toast.success(`Updated stock in Main Inventory for modified Size/GSM`);
+                                    }
+                                  }
+
+                                  await updateDoc(doc(db, 'pendingWorks', editingPendingWork.id), editingPendingWork);
+                                  await logAction(`Updated pending work: ${editingPendingWork.workName} (Qty: ${newQty})`);
+                                  toast.success(`Pending work updated successfully`);
+                                  setEditingPendingWork(null);
+                                } catch (error) {
+                                  handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${editingPendingWork.id}`);
+                                }
+                              }}
+                              className="bg-[#0f2a43] text-white px-10 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-blue-900/20"
+                            >
+                              Update Record
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
