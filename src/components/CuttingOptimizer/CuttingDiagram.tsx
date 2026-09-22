@@ -5,9 +5,22 @@ import { Maximize2, ZoomIn, ZoomOut, RotateCcw, Info, Layers } from 'lucide-reac
 interface CuttingDiagramProps {
   solution: SingleSheetSolution;
   displayUnit?: DimensionUnit;
+  embedded?: boolean;
+  compact?: boolean;
+  hideHeader?: boolean;
+  hideLegend?: boolean;
+  maxDisplayHeight?: number;
 }
 
-export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({ solution, displayUnit = 'mm' }) => {
+export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({ 
+  solution, 
+  displayUnit = 'mm',
+  embedded = false,
+  compact = false,
+  hideHeader = false,
+  hideLegend = false,
+  maxDisplayHeight = 440
+}) => {
   const [zoom, setZoom] = useState(1);
   const [showCutLines, setShowCutLines] = useState(true);
   const [showDimensions, setShowDimensions] = useState(true);
@@ -37,68 +50,70 @@ export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({ solution, displa
   const viewBoxHeight = stockL + margin * 2;
 
   // Aspect ratio scaling for container
-  const maxDisplayHeight = 460;
+  const effectiveMaxHeight = maxDisplayHeight || (compact ? 360 : 460);
   const maxDisplayWidth = 720;
-  const scaleRatio = Math.min(maxDisplayWidth / viewBoxWidth, maxDisplayHeight / viewBoxHeight);
+  const scaleRatio = Math.min(maxDisplayWidth / viewBoxWidth, effectiveMaxHeight / viewBoxHeight);
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+    <div className={embedded ? "w-full flex flex-col gap-3" : "bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4"}>
       {/* Controls header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <Layers className="text-blue-600" size={18} />
-          <div>
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              2D Guillotine Cutting Layout — {solution.gridLayout}
-            </h4>
-            <p className="text-[10px] text-slate-400 font-medium">
-              Sheet: {formatDimension(stockW, displayUnit)} × {formatDimension(stockL, displayUnit)} • {solution.yieldPerSheet} Finished Pieces
-            </p>
+      {!hideHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Layers className="text-blue-600" size={16} />
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                2D Guillotine Cutting Layout — {solution.gridLayout}
+              </h4>
+              <p className="text-[10px] text-slate-400 font-medium">
+                Sheet: {formatDimension(stockW, displayUnit)} × {formatDimension(stockL, displayUnit)} • {solution.yieldPerSheet} Finished Pieces
+              </p>
+            </div>
+          </div>
+
+          {/* View toggles */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowCutLines(!showCutLines)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                showCutLines ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              Cut Lines
+            </button>
+            <button
+              onClick={() => setShowDimensions(!showDimensions)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                showDimensions ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              Dimensions
+            </button>
+            <div className="h-3.5 w-px bg-slate-200 mx-0.5"></div>
+            <button
+              onClick={() => setZoom(prev => Math.min(2.0, prev + 0.15))}
+              className="p-1 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="Zoom In"
+            >
+              <ZoomIn size={13} />
+            </button>
+            <button
+              onClick={() => setZoom(prev => Math.max(0.6, prev - 0.15))}
+              className="p-1 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="Zoom Out"
+            >
+              <ZoomOut size={13} />
+            </button>
+            <button
+              onClick={() => setZoom(1)}
+              className="p-1 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors cursor-pointer"
+              title="Reset Zoom"
+            >
+              <RotateCcw size={13} />
+            </button>
           </div>
         </div>
-
-        {/* View toggles */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCutLines(!showCutLines)}
-            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold uppercase transition-all ${
-              showCutLines ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            Cut Lines
-          </button>
-          <button
-            onClick={() => setShowDimensions(!showDimensions)}
-            className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold uppercase transition-all ${
-              showDimensions ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-100 text-slate-500'
-            }`}
-          >
-            Dimensions
-          </button>
-          <div className="h-4 w-px bg-slate-200 mx-1"></div>
-          <button
-            onClick={() => setZoom(prev => Math.min(2.0, prev + 0.15))}
-            className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
-            title="Zoom In"
-          >
-            <ZoomIn size={14} />
-          </button>
-          <button
-            onClick={() => setZoom(prev => Math.max(0.6, prev - 0.15))}
-            className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut size={14} />
-          </button>
-          <button
-            onClick={() => setZoom(1)}
-            className="p-1.5 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
-            title="Reset Zoom"
-          >
-            <RotateCcw size={14} />
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* SVG Canvas Container */}
       <div className="relative w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl overflow-hidden flex items-center justify-center p-4 min-h-[360px]">
@@ -368,34 +383,36 @@ export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({ solution, displa
       </div>
 
       {/* Legend & Summary Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-3 text-xs border-t border-slate-100">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded bg-blue-600"></span>
-            <span className="text-slate-600 font-medium">Finished Product ({solution.yieldPerSheet} pcs)</span>
-          </div>
-          {solution.kerfMm > 0 && (
+      {!hideLegend && (
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 text-xs border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded border border-rose-300 bg-rose-50"></span>
-              <span className="text-slate-600 font-medium">Blade Kerf ({formatDimension(solution.kerfMm, displayUnit)})</span>
+              <span className="w-3.5 h-3.5 rounded bg-blue-600"></span>
+              <span className="text-slate-600 font-medium">Finished Product ({solution.yieldPerSheet} pcs)</span>
             </div>
-          )}
-          {solution.reusableOffcutAreaMm2 > 0 && (
+            {solution.kerfMm > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded border border-rose-300 bg-rose-50"></span>
+                <span className="text-slate-600 font-medium">Blade Kerf ({formatDimension(solution.kerfMm, displayUnit)})</span>
+              </div>
+            )}
+            {solution.reusableOffcutAreaMm2 > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 rounded border border-emerald-400 bg-emerald-50"></span>
+                <span className="text-emerald-700 font-medium">Reusable Offcut Strip</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-3.5 rounded border border-emerald-400 bg-emerald-50"></span>
-              <span className="text-emerald-700 font-medium">Reusable Offcut Strip</span>
+              <span className="w-3.5 h-3.5 rounded border border-slate-300 bg-slate-100"></span>
+              <span className="text-slate-500 font-medium">Process Waste / Trim</span>
             </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded border border-slate-300 bg-slate-100"></span>
-            <span className="text-slate-500 font-medium">Process Waste / Trim</span>
           </div>
-        </div>
 
-        <div className="text-slate-500 font-medium">
-          Orientation: <span className="font-bold text-slate-800">{solution.orientation}</span>
+          <div className="text-slate-500 font-medium">
+            Orientation: <span className="font-bold text-slate-800">{solution.orientation}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

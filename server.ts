@@ -1,9 +1,10 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 
 async function startServer() {
   const app = express();
+  // In development sandbox behind nginx proxy, listen on port 3000.
+  // In Cloud Run production deployment, listen on PORT env variable provided by Cloud Run (default 8080).
   const PORT = 3000;
 
   // API routes go here
@@ -17,34 +18,55 @@ async function startServer() {
     }
 
     try {
+      const modelsToTry = [
+        process.env.GEMINI_MODEL,
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite"
+      ].filter(Boolean) as string[];
+
+      let response: any = null;
+      let lastError: any = null;
+
       const { GoogleGenAI, Type } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: `Parse the following WhatsApp order and extract job card details. 
-        Extract: workName, size, gsm, totalGross (if available in quantity).
-        Return an array of objects.
-        Order: ${whatsappOrder}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                workName: { type: Type.STRING },
-                size: { type: Type.STRING },
-                gsm: { type: Type.STRING },
-                totalGross: { type: Type.STRING },
-              },
-              required: ["workName", "size", "gsm"]
-            }
-          }
-        }
-      });
 
-      if (!response.text) {
-        throw new Error('AI returned an empty response.');
+      for (const modelName of modelsToTry) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: `Parse the following WhatsApp order and extract job card details. 
+            Extract: workName, size, gsm, totalGross. Preserve exact values, units, numbers and strings as written in the order without modifying them or adding extra words.
+            Return an array of objects.
+            Order: ${whatsappOrder}`,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    workName: { type: Type.STRING },
+                    size: { type: Type.STRING },
+                    gsm: { type: Type.STRING },
+                    totalGross: { type: Type.STRING },
+                  },
+                  required: ["workName", "size", "gsm"]
+                }
+              }
+            }
+          });
+          if (response && response.text) {
+            break; // success
+          }
+        } catch (err: any) {
+          console.warn(`Model ${modelName} failed:`, err?.message || err);
+          lastError = err;
+        }
+      }
+
+      if (!response || !response.text) {
+        throw lastError || new Error('AI returned an empty response across all models.');
       }
 
       console.log("Raw AI Response:", response.text);
@@ -60,6 +82,8 @@ async function startServer() {
         errorMessage = error.message;
         if (errorMessage.includes("API key not valid")) {
           errorMessage = "The configured Gemini API key is invalid. Please check your settings.";
+        } else if (errorMessage.includes("not found") || errorMessage.includes("404")) {
+          errorMessage = "AI model currently unavailable.";
         }
       }
       res.status(500).json({ error: errorMessage });
@@ -72,13 +96,14 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -86,7 +111,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

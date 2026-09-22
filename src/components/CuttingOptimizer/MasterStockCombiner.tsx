@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   DimensionUnit, 
   OptimizationGoal, 
@@ -41,10 +41,14 @@ import {
   TrendingUp, 
   Package, 
   RefreshCw,
-  Sliders,
   Check,
   Building2,
-  Calendar
+  Calendar,
+  Star,
+  Award,
+  Search,
+  ArrowDownUp,
+  Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -65,11 +69,11 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
   isAdmin = false
 }) => {
   // --- Inputs State ---
-  const [itemWidth, setItemWidth] = useState<string>('40');
-  const [itemHeight, setItemHeight] = useState<string>('55');
+  const [itemWidth, setItemWidth] = useState<string>('45');
+  const [itemHeight, setItemHeight] = useState<string>('65');
   const [itemUnit, setItemUnit] = useState<DimensionUnit>('cm');
   const [requiredQty, setRequiredQty] = useState<string>('1000');
-  const [kerf, setKerf] = useState<string>('0.5');
+  const [kerf, setKerf] = useState<string>('0');
   const [kerfUnit, setKerfUnit] = useState<DimensionUnit>('cm');
   const [edgeTrim, setEdgeTrim] = useState<string>('0');
   const [edgeTrimUnit, setEdgeTrimUnit] = useState<DimensionUnit>('mm');
@@ -79,17 +83,26 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
   const [goal, setGoal] = useState<OptimizationGoal>('balanced');
   const [allowRotation, setAllowRotation] = useState<boolean>(true);
   const [allowMixed, setAllowMixed] = useState<boolean>(true);
-  const [includeKerf, setIncludeKerf] = useState<boolean>(true);
-  const [includeEdgeTrim, setIncludeEdgeTrim] = useState<boolean>(true);
+  const [includeKerf, setIncludeKerf] = useState<boolean>(false);
+  const [includeEdgeTrim, setIncludeEdgeTrim] = useState<boolean>(false);
   const [generateTargets, setGenerateTargets] = useState<boolean>(true);
+
+  // Target GSM for optimization (e.g. '280', '250', or 'all')
+  const [targetGsm, setTargetGsm] = useState<string>('280');
+  const [strictGsmFilter, setStrictGsmFilter] = useState<boolean>(false);
+
+  // Stock View mode: 'top6' (default - top 6 best matching sizes ranked higher to low) vs 'all' (all sheets table)
+  const [stockViewMode, setStockViewMode] = useState<'top6' | 'top5' | 'all'>('top6');
+  const [queryGsmFilter, setQueryGsmFilter] = useState<string>('all');
+  const [querySearchText, setQuerySearchText] = useState<string>('');
 
   // Available Stock Sheets list
   const [stockList, setStockList] = useState<StockInputItem[]>([
-    { id: 'STK-001', name: 'Standard Board 80×110', width: 80, length: 110, unit: 'cm', qtyAvailable: 50, gsm: '250', sectionTitle: '250 GSM', isInventoryItem: false },
-    { id: 'STK-002', name: 'Master Sheet 100×120', width: 100, length: 120, unit: 'cm', qtyAvailable: 30, gsm: '280', sectionTitle: '280 GSM', isInventoryItem: false },
-    { id: 'STK-003', name: 'Sheet 90×120', width: 90, length: 120, unit: 'cm', qtyAvailable: 45, gsm: '300', sectionTitle: '300 GSM', isInventoryItem: false },
-    { id: 'STK-004', name: 'Sheet 100×140', width: 100, length: 140, unit: 'cm', qtyAvailable: 25, gsm: '280', sectionTitle: '280 GSM', isInventoryItem: false },
-    { id: 'STK-005', name: 'Jumbo Sheet 120×150', width: 120, length: 150, unit: 'cm', qtyAvailable: 15, gsm: '350', sectionTitle: '350 GSM', isInventoryItem: false },
+    { id: 'STK-001', name: '90*66 (280 GSM)', width: 66, length: 90, unit: 'cm', qtyAvailable: 98, gsm: '280', sectionTitle: '280 GSM SECTION', isInventoryItem: true },
+    { id: 'STK-002', name: '92*66 (280 GSM)', width: 66, length: 92, unit: 'cm', qtyAvailable: 93, gsm: '280', sectionTitle: '280 GSM SECTION', isInventoryItem: true },
+    { id: 'STK-003', name: 'Standard Board 80×110', width: 80, length: 110, unit: 'cm', qtyAvailable: 50, gsm: '250', sectionTitle: '250 GSM', isInventoryItem: false },
+    { id: 'STK-004', name: 'Master Sheet 100×120', width: 100, length: 120, unit: 'cm', qtyAvailable: 30, gsm: '280', sectionTitle: '280 GSM', isInventoryItem: false },
+    { id: 'STK-005', name: 'Sheet 90×120', width: 90, length: 120, unit: 'cm', qtyAvailable: 45, gsm: '300', sectionTitle: '300 GSM', isInventoryItem: false },
   ]);
 
   // Optimization Execution State
@@ -100,6 +113,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
   const [multiStockResult, setMultiStockResult] = useState<MultiStockCombinationResult | null>(null);
   const [zeroWasteTargets, setZeroWasteTargets] = useState<ZeroWasteTarget[]>([]);
   const [expandedDetailsId, setExpandedDetailsId] = useState<string | null>(null);
+  const [resultDetailLevel, setResultDetailLevel] = useState<'minimal' | 'detailed'>('minimal');
   const [activeTabSection, setActiveTabSection] = useState<'summary' | 'grid' | 'plan' | 'targets' | 'combiner'>('summary');
 
   // Modal / Action states
@@ -112,24 +126,32 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
 
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Auto-import real inventory stock sheets from Enerpack DB
-  const handleLoadFromInventory = () => {
+  // Helper to extract real inventory stock sheets from Enerpack DB
+  const extractStockFromInventory = useCallback((inv: typeof inventory): StockInputItem[] => {
     const extracted: StockInputItem[] = [];
     let counter = 1;
 
-    inventory.forEach(sec => {
-      sec.subSections.forEach(sub => {
-        sub.items.forEach(item => {
-          const parsed = parseSizeString(item.size, 'cm');
-          if (parsed && item.stock > 0) {
+    if (!inv || !Array.isArray(inv)) return extracted;
+
+    inv.forEach(sec => {
+      sec.subSections?.forEach(sub => {
+        sub.items?.forEach(item => {
+          if (!item.size) return;
+          // Paper warehouse stock dimensions are in centimeters (cm) unless specified with " or mm
+          const isInch = item.size.includes('"') || item.size.toLowerCase().includes('inch');
+          const isMm = item.size.toLowerCase().includes('mm');
+          const defaultUnit: DimensionUnit = isInch ? 'inch' : (isMm ? 'mm' : 'cm');
+
+          const parsed = parseSizeString(item.size, defaultUnit);
+          if (parsed) {
             extracted.push({
               id: `INV-${String(counter++).padStart(3, '0')}`,
-              name: `${item.size} (${item.gsm} GSM)`,
+              name: `${item.size} (${item.gsm || '280'} GSM)`,
               width: parsed.width,
               length: parsed.length,
               unit: parsed.unit,
-              qtyAvailable: item.stock,
-              gsm: item.gsm,
+              qtyAvailable: Number(item.stock) || 0,
+              gsm: String(item.gsm || '').trim(),
               sectionTitle: sec.title,
               subTitle: sub.title,
               isInventoryItem: true
@@ -139,14 +161,20 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
       });
     });
 
+    return extracted;
+  }, []);
+
+  // Auto-import real inventory stock sheets from Enerpack DB
+  const handleLoadFromInventory = () => {
+    const extracted = extractStockFromInventory(inventory);
     if (extracted.length === 0) {
-      toast.info('No valid in-stock items found in current inventory database.');
+      toast.info('No valid items found in current inventory database.');
       return;
     }
 
-    // Replace or merge with current stock list
     setStockList(extracted);
-    toast.success(`Imported ${extracted.length} real stock sheet items from Enerpack inventory!`);
+    handleOptimize(extracted);
+    toast.success(`Imported & evaluated ${extracted.length} real stock sheet items from Enerpack inventory!`);
   };
 
   const handleAddCustomStock = () => {
@@ -178,29 +206,51 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     });
   };
 
-  // Main Optimization Procedure
-  const handleOptimize = () => {
+  // Main Optimization Procedure with 8-Point Priority Hierarchy and Target GSM filtering
+  const handleOptimize = (stocksToUse?: StockInputItem[], gsmParam?: string) => {
+    const activeStocks = stocksToUse && stocksToUse.length > 0 ? stocksToUse : stockList;
     const wi = parseFloat(itemWidth);
     const hi = parseFloat(itemHeight);
     const k = includeKerf ? (parseFloat(kerf) || 0) : 0;
     const et = includeEdgeTrim ? (parseFloat(edgeTrim) || 0) : 0;
     const reqQ = parseInt(requiredQty) || 0;
 
+    const currentGsm = gsmParam !== undefined ? gsmParam : targetGsm;
+    const cleanTargetGsm = currentGsm !== 'all' ? currentGsm.replace(/[^0-9]/g, '').trim() : '';
+
     if (isNaN(wi) || wi <= 0 || isNaN(hi) || hi <= 0) {
       toast.error('Please enter a valid positive item width and height.');
       return;
     }
 
-    if (stockList.length === 0) {
-      toast.error('Please add at least one available stock sheet size.');
+    if (activeStocks.length === 0) {
+      toast.error('Please add or import at least one available stock sheet size.');
       return;
     }
 
     setIsOptimizing(true);
-    setOptimizationProgress('Normalizing dimensions...');
+    setOptimizationProgress(
+      cleanTargetGsm 
+        ? `Evaluating stock sheets for ${cleanTargetGsm} GSM against target piece...`
+        : 'Evaluating stock sheets against query dimensions...'
+    );
 
     setTimeout(() => {
-      // 1. Normalize all inputs to mm
+      // 1. Filter stocks if strict GSM filtering is enabled
+      let candidateStocks = activeStocks;
+      if (cleanTargetGsm && strictGsmFilter) {
+        const gsmMatched = activeStocks.filter(stk => {
+          const stkGsm = String(stk.gsm || '').replace(/[^0-9]/g, '').trim();
+          return stkGsm === cleanTargetGsm;
+        });
+        if (gsmMatched.length > 0) {
+          candidateStocks = gsmMatched;
+        } else {
+          toast.info(`No sheets found matching strictly ${cleanTargetGsm} GSM. Evaluating all available stock sheets.`);
+        }
+      }
+
+      // 2. Normalize all inputs to mm
       const itemWMm = convertToMm(wi, itemUnit);
       const itemHMm = convertToMm(hi, itemUnit);
       const kerfMm = convertToMm(k, kerfUnit);
@@ -208,7 +258,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
 
       setOptimizationProgress('Analyzing stock sizes & testing orientations...');
 
-      const normalizedStocks: NormalizedStock[] = stockList.map(stk => ({
+      const normalizedStocks: NormalizedStock[] = candidateStocks.map(stk => ({
         id: stk.id,
         name: stk.name || `${stk.width}×${stk.length} ${stk.unit}`,
         originalWidth: stk.width,
@@ -217,13 +267,13 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         widthMm: convertToMm(stk.width, stk.unit),
         lengthMm: convertToMm(stk.length, stk.unit),
         qtyAvailable: stk.qtyAvailable || 0,
-        gsm: stk.gsm,
+        gsm: stk.gsm || (cleanTargetGsm ? cleanTargetGsm : undefined),
         sectionTitle: stk.sectionTitle,
         subTitle: stk.subTitle,
         isInventoryItem: stk.isInventoryItem
       }));
 
-      // 2. Evaluate each stock sheet
+      // 3. Evaluate each stock sheet
       const evaluatedSolutions = normalizedStocks.map(stock => {
         return evaluateStockSheet(
           stock,
@@ -240,17 +290,116 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         );
       });
 
-      // Sort solutions according to optimization goal
+      // Rank solutions using the 8-Point Priority Hierarchy:
+      // 1. Feasibility (feasible first)
+      // 2. Target GSM Match (matching target GSM first)
+      // 3. Point 1: Zero-Waste Match (totalWastePct <= 0.05% or TRUE ZERO-WASTE)
+      // 4. Point 2: Dimensional Match / Near Zero-Waste (totalWastePct <= 2.0% or NEAR ZERO-WASTE)
+      // 5. Point 3 & 4: Waste % ascending (lowest waste first)
+      // 6. Point 5: Yield per Sheet descending (higher pcs/sheet first)
+      // 7. Point 6: Product Efficiency % descending
+      // 8. Point 7: Inventory Availability (available in stock preferred, but shortage never hidden)
+      // 9. Point 8: Sheets Required ascending
+      // 10. Composite Score fallback
       const rankedSolutions = [...evaluatedSolutions].sort((a, b) => {
         if (a.isFeasible !== b.isFeasible) {
           return a.isFeasible ? -1 : 1;
         }
         if (!a.isFeasible && !b.isFeasible) return 0;
+
+        // Target GSM Match
+        if (cleanTargetGsm) {
+          const aGsm = String(a.stockGsm || '').replace(/[^0-9]/g, '').trim();
+          const bGsm = String(b.stockGsm || '').replace(/[^0-9]/g, '').trim();
+          const aMatch = aGsm === cleanTargetGsm;
+          const bMatch = bGsm === cleanTargetGsm;
+          if (aMatch !== bMatch) {
+            return aMatch ? -1 : 1;
+          }
+        }
+
+        // 1. Zero Waste Matches First (<= 0.05% or TRUE ZERO-WASTE)
+        const aIsZero = a.totalWastePct <= 0.05 || a.classification === 'TRUE ZERO-WASTE';
+        const bIsZero = b.totalWastePct <= 0.05 || b.classification === 'TRUE ZERO-WASTE';
+        if (aIsZero !== bIsZero) {
+          return aIsZero ? -1 : 1;
+        }
+        if (aIsZero && bIsZero) {
+          if (b.yieldPerSheet !== a.yieldPerSheet) return b.yieldPerSheet - a.yieldPerSheet;
+          if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+            return b.productEfficiencyPct - a.productEfficiencyPct;
+          }
+        }
+
+        // 2. Dimensional Match / Near Zero-Waste (<= 2.0% or NEAR ZERO-WASTE)
+        const aIsNearZero = a.totalWastePct <= 2.0 || a.classification === 'NEAR ZERO-WASTE';
+        const bIsNearZero = b.totalWastePct <= 2.0 || b.classification === 'NEAR ZERO-WASTE';
+        if (aIsNearZero !== bIsNearZero) {
+          return aIsNearZero ? -1 : 1;
+        }
+
+        // 3. Lowest Total Waste % first (ascending)
+        if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.001) {
+          return a.totalWastePct - b.totalWastePct;
+        }
+
+        // 4. Higher Yield per Sheet (descending)
+        if (b.yieldPerSheet !== a.yieldPerSheet) {
+          return b.yieldPerSheet - a.yieldPerSheet;
+        }
+
+        // 5. Higher Product Efficiency % (descending)
+        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+          return b.productEfficiencyPct - a.productEfficiencyPct;
+        }
+
+        // 6. Inventory Availability (in-stock sheets preferred when waste & yield are equal)
+        const aHasStock = a.qtyAvailable > 0 ? 1 : 0;
+        const bHasStock = b.qtyAvailable > 0 ? 1 : 0;
+        if (aHasStock !== bHasStock) {
+          return bHasStock - aHasStock;
+        }
+
+        // 7. Sheets Required (fewer is better)
+        if (a.sheetsRequired !== b.sheetsRequired) {
+          return a.sheetsRequired - b.sheetsRequired;
+        }
+
         return b.compositeScore - a.compositeScore;
       });
 
+      // Log Debug Trace for Verification
+      console.log('[OPTIMIZER QUERY]', { 
+        itemWidth: wi, 
+        itemHeight: hi, 
+        itemUnit, 
+        targetGsm: cleanTargetGsm || 'all', 
+        requiredQty: reqQ 
+      });
+      console.log('[RECORDS LOADED]', activeStocks.length);
+      console.log('[CANDIDATES EVALUATED]', evaluatedSolutions.length);
+      console.log('[TOP RANKED MATCHES]', rankedSolutions.slice(0, 6).map((s, idx) => ({
+        rank: `#${idx + 1}`,
+        name: s.stockName,
+        size: `${s.originalStockWidth}×${s.originalStockLength} ${s.originalStockUnit}`,
+        gsm: s.stockGsm,
+        waste: `${s.totalWastePct.toFixed(2)}%`,
+        yield: `${s.yieldPerSheet} pcs`,
+        classification: s.classification,
+        inStock: s.qtyAvailable,
+        sheetsReq: s.sheetsRequired,
+        shortage: s.shortageSheets
+      })));
+
       setSolutions(rankedSolutions);
       setSelectedSolutionIndex(0);
+
+      // Sync the right column GSM filter
+      if (cleanTargetGsm) {
+        setQueryGsmFilter(cleanTargetGsm);
+      } else {
+        setQueryGsmFilter('all');
+      }
 
       // 3. Calculate Zero-Waste Target Sizes
       if (generateTargets) {
@@ -291,18 +440,119 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     }, 250);
   };
 
-  // Run initial optimization once on mount
+  // Auto-import real inventory on mount or when inventory prop changes
   useEffect(() => {
+    if (inventory && inventory.length > 0) {
+      const extracted = extractStockFromInventory(inventory);
+      if (extracted.length > 0) {
+        setStockList(extracted);
+        handleOptimize(extracted);
+        return;
+      }
+    }
     handleOptimize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [inventory, extractStockFromInventory]);
 
   const activeSolution = solutions[selectedSolutionIndex] || solutions[0];
 
-  // Top 5 solutions
+  // Available GSM categories from main inventory
+  const availableGsms = useMemo(() => {
+    const gsms = new Set<string>();
+    if (inventory && Array.isArray(inventory)) {
+      inventory.forEach(sec => {
+        sec.subSections?.forEach(sub => {
+          sub.items?.forEach(item => {
+            if (item.gsm) gsms.add(String(item.gsm).trim());
+          });
+        });
+      });
+    }
+    return Array.from(gsms).sort();
+  }, [inventory]);
+
+  // Top 6 solutions strictly ranked Higher to Low (fills 3-column grid perfectly)
   const topSolutions = useMemo(() => {
-    return solutions.filter(s => s.isFeasible).slice(0, 5);
+    return solutions.filter(s => s.isFeasible).slice(0, 6);
   }, [solutions]);
+
+  // Top 10 solutions for Section 3 table (strictly top 10 feasible matches ranked higher to low out of main results)
+  const top10SectionSolutions = useMemo(() => {
+    const feasible = solutions.filter(s => s.isFeasible);
+    if (feasible.length >= 10) {
+      return feasible.slice(0, 10);
+    }
+    return solutions.slice(0, 10);
+  }, [solutions]);
+
+  // Top 6 Best Matching Sizes from Main Inventory: Zero Wastages first, followed by Low Wastages
+  const top6MatchingSizes = useMemo(() => {
+    let list = solutions.filter(s => s.isFeasible);
+    if (queryGsmFilter !== 'all') {
+      list = list.filter(s => String(s.stockGsm || '').trim() === queryGsmFilter.trim());
+    }
+    if (querySearchText.trim()) {
+      const q = querySearchText.toLowerCase();
+      list = list.filter(s => 
+        s.stockName.toLowerCase().includes(q) || 
+        String(s.stockGsm || '').toLowerCase().includes(q) ||
+        s.stockId.toLowerCase().includes(q) ||
+        (s.sectionTitle && s.sectionTitle.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort: 8-Point Priority Hierarchy (Zero-Waste, Dimensional Match, lowest waste %, higher yield, efficiency, in-stock)
+    list = [...list].sort((a, b) => {
+      // 1. Zero Waste Matches First (<= 0.05% or TRUE ZERO-WASTE)
+      const aIsZero = a.totalWastePct <= 0.05 || a.classification === 'TRUE ZERO-WASTE';
+      const bIsZero = b.totalWastePct <= 0.05 || b.classification === 'TRUE ZERO-WASTE';
+      if (aIsZero !== bIsZero) return aIsZero ? -1 : 1;
+      if (aIsZero && bIsZero) {
+        if (b.yieldPerSheet !== a.yieldPerSheet) return b.yieldPerSheet - a.yieldPerSheet;
+        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+          return b.productEfficiencyPct - a.productEfficiencyPct;
+        }
+      }
+
+      // 2. Dimensional Match / Near Zero-Waste (<= 2.0% or NEAR ZERO-WASTE)
+      const aIsNearZero = a.totalWastePct <= 2.0 || a.classification === 'NEAR ZERO-WASTE';
+      const bIsNearZero = b.totalWastePct <= 2.0 || b.classification === 'NEAR ZERO-WASTE';
+      if (aIsNearZero !== bIsNearZero) {
+        return aIsNearZero ? -1 : 1;
+      }
+
+      // 3. Lowest Total Waste % first (ascending)
+      if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.001) {
+        return a.totalWastePct - b.totalWastePct;
+      }
+
+      // 4. Higher Yield per Sheet (descending)
+      if (b.yieldPerSheet !== a.yieldPerSheet) {
+        return b.yieldPerSheet - a.yieldPerSheet;
+      }
+
+      // 5. Higher Product Efficiency % (descending)
+      if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+        return b.productEfficiencyPct - a.productEfficiencyPct;
+      }
+
+      // 6. Inventory Availability
+      const aHasStock = a.qtyAvailable > 0 ? 1 : 0;
+      const bHasStock = b.qtyAvailable > 0 ? 1 : 0;
+      if (aHasStock !== bHasStock) {
+        return bHasStock - aHasStock;
+      }
+
+      // 7. Sheets Required (fewer is better)
+      if (a.sheetsRequired !== b.sheetsRequired) {
+        return a.sheetsRequired - b.sheetsRequired;
+      }
+
+      return b.compositeScore - a.compositeScore;
+    });
+
+    return list.slice(0, 6);
+  }, [solutions, queryGsmFilter, querySearchText]);
 
   // Export functions
   const handleExportExcel = () => {
@@ -483,6 +733,17 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     }
   };
 
+  // Live calculated metrics for Target GSM
+  const itemWMmForCalc = convertToMm(parseFloat(itemWidth) || 0, itemUnit);
+  const itemHMmForCalc = convertToMm(parseFloat(itemHeight) || 0, itemUnit);
+  const activeGsmNumber = parseFloat(targetGsm.replace(/[^0-9.]/g, '')) || 0;
+  const livePieceWeightG = (itemWMmForCalc > 0 && itemHMmForCalc > 0 && activeGsmNumber > 0)
+    ? ((itemWMmForCalc * itemHMmForCalc) / 1_000_000) * activeGsmNumber
+    : null;
+  const liveOrderWeightKg = (livePieceWeightG && parseInt(requiredQty) > 0)
+    ? (livePieceWeightG * parseInt(requiredQty)) / 1000
+    : null;
+
   return (
     <div className="space-y-8 pb-16">
       {/* Header Banner */}
@@ -515,7 +776,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
               Load Real Inventory
             </button>
             <button
-              onClick={handleOptimize}
+              onClick={() => handleOptimize()}
               disabled={isOptimizing}
               className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-black tracking-wider uppercase shadow-lg shadow-blue-500/25 transition-all active:scale-95"
             >
@@ -526,377 +787,677 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Inputs (Left) & Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* Main Grid: Inputs (Left) & Controls (Right) - Equally Aligned */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left Column: Input Form (5 Cols) */}
-        <div className="lg:col-span-5 space-y-6">
+        <div className="lg:col-span-5 flex flex-col">
           {/* Card A: Finished Item / Product */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Target className="text-blue-600" size={18} />
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  1. Required Item / Finished Piece
-                </h3>
-              </div>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                Target Product
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Item Width (Wi)
-                </label>
-                <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
-                  <input
-                    type="number"
-                    step="any"
-                    value={itemWidth}
-                    onChange={(e) => setItemWidth(e.target.value)}
-                    placeholder="e.g. 40"
-                    className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
-                  />
-                  <select
-                    value={itemUnit}
-                    onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
-                    className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
-                  >
-                    <option value="mm">mm</option>
-                    <option value="cm">cm</option>
-                    <option value="inch">inch</option>
-                    <option value="m">m</option>
-                  </select>
+          <div id="card-required-item-finished-piece" className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between h-full space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Target className="text-blue-600" size={18} />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    1. Required Item / Finished Piece
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {targetGsm && targetGsm !== 'all' ? (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                      {targetGsm} GSM
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                      All GSMs
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Item Height (Hi)
-                </label>
-                <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
-                  <input
-                    type="number"
-                    step="any"
-                    value={itemHeight}
-                    onChange={(e) => setItemHeight(e.target.value)}
-                    placeholder="e.g. 55"
-                    className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
-                  />
-                  <select
-                    value={itemUnit}
-                    onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
-                    className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
-                  >
-                    <option value="mm">mm</option>
-                    <option value="cm">cm</option>
-                    <option value="inch">inch</option>
-                    <option value="m">m</option>
-                  </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Item Width (Wi)
+                  </label>
+                  <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+                    <input
+                      id="input-item-width"
+                      type="number"
+                      step="any"
+                      value={itemWidth}
+                      onChange={(e) => setItemWidth(e.target.value)}
+                      placeholder="e.g. 40"
+                      className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
+                    />
+                    <select
+                      id="select-item-width-unit"
+                      value={itemUnit}
+                      onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
+                      className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
+                    >
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="inch">inch</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Required Production Quantity (pcs)
-              </label>
-              <input
-                type="number"
-                value={requiredQty}
-                onChange={(e) => setRequiredQty(e.target.value)}
-                placeholder="e.g. 1000"
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-          </div>
-
-          {/* Card B: Cutting & Blade Allowance */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Scissors className="text-rose-500" size={18} />
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  2. Cutting Allowance & Kerf
-                </h3>
-              </div>
-              <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                Guillotine Blade
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Blade Kerf / Spacing (t)
-                </label>
-                <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
-                  <input
-                    type="number"
-                    step="any"
-                    value={kerf}
-                    onChange={(e) => setKerf(e.target.value)}
-                    placeholder="e.g. 0.5"
-                    className="w-full px-3 py-2 text-sm font-bold bg-transparent outline-none"
-                  />
-                  <select
-                    value={kerfUnit}
-                    onChange={(e) => setKerfUnit(e.target.value as DimensionUnit)}
-                    className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
-                  >
-                    <option value="mm">mm</option>
-                    <option value="cm">cm</option>
-                    <option value="inch">inch</option>
-                  </select>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Item Height (Hi)
+                  </label>
+                  <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+                    <input
+                      id="input-item-height"
+                      type="number"
+                      step="any"
+                      value={itemHeight}
+                      onChange={(e) => setItemHeight(e.target.value)}
+                      placeholder="e.g. 55"
+                      className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
+                    />
+                    <select
+                      id="select-item-height-unit"
+                      value={itemUnit}
+                      onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
+                      className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
+                    >
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="inch">inch</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Edge Trim Allowance
-                </label>
-                <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+              {/* Required Qty & Target GSM in 2 Columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Required Production (pcs)
+                  </label>
                   <input
+                    id="input-required-production-qty"
                     type="number"
-                    step="any"
-                    value={edgeTrim}
-                    onChange={(e) => setEdgeTrim(e.target.value)}
-                    placeholder="e.g. 0"
-                    className="w-full px-3 py-2 text-sm font-bold bg-transparent outline-none"
+                    value={requiredQty}
+                    onChange={(e) => setRequiredQty(e.target.value)}
+                    placeholder="e.g. 1000"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   />
-                  <select
-                    value={edgeTrimUnit}
-                    onChange={(e) => setEdgeTrimUnit(e.target.value as DimensionUnit)}
-                    className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
-                  >
-                    <option value="mm">mm</option>
-                    <option value="cm">cm</option>
-                    <option value="inch">inch</option>
-                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Target Board GSM
+                    </label>
+                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded">
+                      Weight
+                    </span>
+                  </div>
+                  <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
+                    <input
+                      id="input-target-gsm"
+                      type="text"
+                      value={targetGsm === 'all' ? '' : targetGsm}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTargetGsm(val === '' ? 'all' : val);
+                      }}
+                      placeholder="All GSMs"
+                      className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
+                    />
+                    <select
+                      id="select-target-gsm-inventory"
+                      value={targetGsm}
+                      onChange={(e) => setTargetGsm(e.target.value)}
+                      className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer max-w-[105px] text-slate-700"
+                      title="Select GSM from inventory"
+                    >
+                      <option value="all">All GSMs</option>
+                      {availableGsms.map(gsm => (
+                        <option key={gsm} value={gsm}>{gsm} GSM</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <p className="text-[10px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed">
-              <strong>Normalized Model:</strong> Blade kerf is applied between pieces: <code>Width = m×Wi + (m-1)×t</code>. Edge trim is applied to sheet perimeters.
-            </p>
-          </div>
+              {/* Quick GSM Presets & Strict Mode */}
+              <div className="space-y-2 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    GSM Presets:
+                  </span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold text-slate-600 hover:text-slate-900 select-none">
+                    <input
+                      id="checkbox-strict-gsm-match"
+                      type="checkbox"
+                      checked={strictGsmFilter}
+                      onChange={(e) => setStrictGsmFilter(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500/30 cursor-pointer"
+                    />
+                    <span>Strict GSM only</span>
+                  </label>
+                </div>
 
-          {/* Card C: Optimization Settings */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <Sliders className="text-indigo-600" size={18} />
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  3. Optimization Goal & Rules
-                </h3>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setTargetGsm('all')}
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                      targetGsm === 'all' || !targetGsm
+                        ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-600'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    All GSMs
+                  </button>
+                  {availableGsms.length > 0 ? (
+                    availableGsms.map(gsm => {
+                      const cleanG = gsm.replace(/[^0-9]/g, '');
+                      const isSelected = targetGsm.replace(/[^0-9]/g, '') === cleanG && targetGsm !== 'all';
+                      return (
+                        <button
+                          key={gsm}
+                          type="button"
+                          onClick={() => setTargetGsm(gsm)}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-600'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {gsm} GSM
+                        </button>
+                      );
+                    })
+                  ) : (
+                    ['230', '250', '280', '300', '350', '400'].map(gsm => {
+                      const isSelected = targetGsm.replace(/[^0-9]/g, '') === gsm && targetGsm !== 'all';
+                      return (
+                        <button
+                          key={gsm}
+                          type="button"
+                          onClick={() => setTargetGsm(gsm)}
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-600'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {gsm} GSM
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Live Weight Calculation Banner if GSM is active */}
+                {livePieceWeightG && (
+                  <div className="flex items-center justify-between text-[11px] bg-blue-50/70 border border-blue-100 rounded-xl px-3 py-1.5 text-blue-900 mt-1">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      Est. Piece Weight: <strong>{livePieceWeightG.toFixed(2)} g</strong>
+                    </span>
+                    {liveOrderWeightKg && (
+                      <span className="font-semibold text-blue-800">
+                        Job Paper: <strong>{liveOrderWeightKg >= 1000 ? `${(liveOrderWeightKg / 1000).toFixed(3)} tonnes` : `${liveOrderWeightKg.toFixed(2)} kg`}</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Optimization Goal
-                </label>
-                <select
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value as OptimizationGoal)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="balanced">Balanced (Waste + Cuts + Stock)</option>
-                  <option value="min_waste">Minimum Waste</option>
-                  <option value="max_yield">Maximum Yield (Pcs / Sheet)</option>
-                  <option value="min_sheets">Minimum Sheets</option>
-                  <option value="inventory_first">Inventory First (Use In-Stock)</option>
-                </select>
-              </div>
+            {/* Optimize & Check Matching Stock Button */}
+            <div className="pt-3 border-t border-slate-100 space-y-2.5">
+              <button
+                id="btn-optimize-check-matching-stock"
+                type="button"
+                onClick={() => handleOptimize()}
+                disabled={isOptimizing}
+                className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white py-3.5 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+                title="Calculate 2D guillotine cutting plan and find best matching stock sheets"
+              >
+                <Zap size={16} className={isOptimizing ? "animate-spin text-amber-300" : "text-amber-300"} />
+                {isOptimizing 
+                  ? "Evaluating Stock Sheets..." 
+                  : `⚡ Optimize for ${targetGsm !== 'all' && targetGsm.trim() ? targetGsm.replace(/[^0-9]/g, '') + ' GSM' : 'All Stock Sheets'}`}
+              </button>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  Max Acceptable Waste (%)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={maxWastePct}
-                  onChange={(e) => setMaxWastePct(parseFloat(e.target.value) || 3.0)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowRotation}
-                  onChange={(e) => setAllowRotation(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                Allow 90° Rotation
-              </label>
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowMixed}
-                  onChange={(e) => setAllowMixed(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                Allow Mixed Orientation
-              </label>
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeKerf}
-                  onChange={(e) => setIncludeKerf(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                Include Kerf in Layout
-              </label>
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={generateTargets}
-                  onChange={(e) => setGenerateTargets(e.target.checked)}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                Generate Target Sizes
-              </label>
+              {solutions.length > 0 && (
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200/70">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                    <span><strong>{solutions.filter(s => s.isFeasible).length}</strong> matching stock sheets</span>
+                  </span>
+                  {activeSolution && activeSolution.isFeasible && (
+                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                      Yield: {activeSolution.yieldPerSheet} pcs ({activeSolution.productEfficiencyPct.toFixed(1)}%)
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Column: Available Stock Sizes Manager (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4">
+        {/* Right Column: Live Result Visualization & Best Matching Engine (7 Cols) */}
+        <div className="lg:col-span-7 flex flex-col">
+          <div id="card-result-visualization" className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between h-full space-y-3">
+            {/* Header with Active Match Badge & Mode Switcher */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <Package className="text-emerald-600" size={18} />
+                  <Layers className="text-blue-600" size={18} />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    Available Stock Sheets ({stockList.length})
+                    2D Cutting Result & Visual Layout
                   </h3>
+                  {activeSolution && activeSolution.isFeasible && (
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                      activeSolution.totalWastePct <= 0.05 || activeSolution.classification === 'TRUE ZERO-WASTE'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : activeSolution.totalWastePct <= 2.0 || activeSolution.classification === 'NEAR ZERO-WASTE'
+                        ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                        : activeSolution.totalWastePct <= 5.0
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
+                    }`}>
+                      {activeSolution.totalWastePct <= 0.05
+                        ? '0% Waste (True Zero-Waste)'
+                        : `${activeSolution.totalWastePct.toFixed(1)}% Waste (${activeSolution.classification})`}
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Real Enerpack inventory sheets or custom supplier sizes to evaluate
+                  {activeSolution && activeSolution.isFeasible
+                    ? `Optimal Sheet: ${activeSolution.stockName} (${activeSolution.originalStockWidth} × ${activeSolution.originalStockLength} ${activeSolution.originalStockUnit}) • ${activeSolution.yieldPerSheet} pcs/sheet (${activeSolution.productEfficiencyPct.toFixed(1)}% Eff)`
+                    : `Evaluated against inventory for query ${itemWidth} × ${itemHeight} ${itemUnit}`}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* View Switcher: 2D Diagram | Top Matches | All Sheets */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={() => setStockViewMode('top6')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      stockViewMode === 'top6' || stockViewMode === 'top5'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    2D Visual Diagram
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockViewMode('list' as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      (stockViewMode as string) === 'list'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Match List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockViewMode('all')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      stockViewMode === 'all'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    All Sheets ({stockList.length})
+                  </button>
+                </div>
+
                 <button
                   onClick={handleLoadFromInventory}
-                  className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200 transition-colors"
+                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                  title="Re-sync with latest Enerpack inventory database"
                 >
-                  <RefreshCw size={13} />
-                  Import Live DB
-                </button>
-                <button
-                  onClick={handleAddCustomStock}
-                  className="flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-colors"
-                >
-                  <Plus size={13} />
-                  Add Stock Size
+                  <RefreshCw size={11} />
+                  <span>Sync DB</span>
                 </button>
               </div>
             </div>
 
-            {/* Stock List Table */}
-            <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[380px] custom-scrollbar border border-slate-100 rounded-2xl">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 sticky top-0 z-10">
-                  <tr>
-                    <th className="py-2.5 px-3">Stock ID</th>
-                    <th className="py-2.5 px-3">Width</th>
-                    <th className="py-2.5 px-3">Length</th>
-                    <th className="py-2.5 px-2">Unit</th>
-                    <th className="py-2.5 px-3 text-right">In Stock</th>
-                    <th className="py-2.5 px-3">GSM</th>
-                    <th className="py-2.5 px-2 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {stockList.map((stk, idx) => (
-                    <tr key={stk.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-2 px-3 font-bold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          {stk.isInventoryItem ? (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Live Inventory Item" />
-                          ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Custom Stock" />
-                          )}
-                          <span>{stk.id}</span>
+            {/* Quick Top Matches Horizontal Selector Strip */}
+            {top6MatchingSizes.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 pt-0.5">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider shrink-0 mr-0.5">
+                  Matches:
+                </span>
+                {top6MatchingSizes.map((sol, idx) => {
+                  const isSelected = activeSolution?.stockId === sol.stockId;
+                  const rank = idx + 1;
+                  const isZeroWaste = sol.totalWastePct <= 0.05 || sol.classification === 'TRUE ZERO-WASTE';
+
+                  return (
+                    <button
+                      key={sol.stockId}
+                      type="button"
+                      onClick={() => {
+                        const targetIdx = solutions.findIndex(s => s.stockId === sol.stockId);
+                        if (targetIdx >= 0) setSelectedSolutionIndex(targetIdx);
+                        if ((stockViewMode as string) === 'all') setStockViewMode('top6');
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer border ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/25'
+                          : isZeroWaste
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${
+                        isSelected ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {rank}
+                      </span>
+                      <span>{sol.originalStockWidth}×{sol.originalStockLength} {sol.originalStockUnit}</span>
+                      {sol.stockGsm && (
+                        <span className={`text-[9px] px-1 rounded ${isSelected ? 'bg-blue-700 text-blue-100' : 'bg-slate-200/70 text-slate-600'}`}>
+                          {sol.stockGsm}
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-extrabold ${
+                        isSelected ? 'text-emerald-200' : isZeroWaste ? 'text-emerald-700' : 'text-slate-500'
+                      }`}>
+                        {sol.yieldPerSheet} pcs ({isZeroWaste ? '0% waste' : `${sol.totalWastePct.toFixed(1)}%`})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Main Interactive Visual Canvas & Layout */}
+            <div className="flex-1 flex flex-col justify-between min-h-[320px]">
+              {(stockViewMode === 'top6' || stockViewMode === 'top5') && activeSolution && activeSolution.isFeasible ? (
+                /* LIVE 2D CUTTING DIAGRAM VISUALIZATION */
+                <div className="space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-2 sm:p-3 overflow-hidden flex items-center justify-center flex-1 min-h-[260px] max-h-[330px]">
+                    <CuttingDiagram 
+                      solution={activeSolution} 
+                      displayUnit={itemUnit} 
+                      embedded={true} 
+                      compact={true} 
+                      hideHeader={false}
+                      hideLegend={true}
+                      maxDisplayHeight={250}
+                    />
+                  </div>
+
+                  {/* 4-Column Key Metrics Bento (Zero wasted space) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Yield & Layout
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-black text-emerald-600">{activeSolution.yieldPerSheet}</span>
+                        <span className="text-[10px] font-semibold text-slate-600">pcs/sheet</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 block truncate">
+                        {activeSolution.gridLayout} • {activeSolution.orientation}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Efficiency & Waste
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-black text-slate-900">{activeSolution.productEfficiencyPct.toFixed(1)}%</span>
+                        <span className="text-[10px] font-semibold text-emerald-600">Eff</span>
+                      </div>
+                      <span className={`text-[9px] font-bold block truncate ${
+                        activeSolution.totalWastePct <= 0.05 ? 'text-emerald-700 font-extrabold' : 'text-amber-600'
+                      }`}>
+                        {activeSolution.totalWastePct.toFixed(1)}% Trim Waste
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Sheets Required
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-black text-slate-900">{activeSolution.sheetsRequired}</span>
+                        <span className="text-[10px] font-semibold text-slate-600">sheets</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-500 block truncate">
+                        For {requiredQty || 1000} pcs target
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Inventory Balance
+                      </span>
+                      <div className="flex items-baseline gap-1 mt-0.5">
+                        <span className="text-base font-black text-slate-900">{activeSolution.qtyAvailable}</span>
+                        <span className="text-[10px] font-semibold text-slate-600">in stock</span>
+                      </div>
+                      <span className={`text-[9px] font-bold block truncate ${
+                        activeSolution.shortageSheets > 0 ? 'text-rose-600' : 'text-emerald-600'
+                      }`}>
+                        {activeSolution.shortageSheets > 0 ? `⚠️ ${activeSolution.shortageSheets} short` : '✅ Fully Covered'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Material Utilization Progress Bar */}
+                  <div className="bg-slate-50/80 p-2 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-1">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded bg-emerald-500" />
+                        <span>Product Area: <strong>{activeSolution.productEfficiencyPct.toFixed(1)}%</strong></span>
+                      </span>
+                      {activeSolution.kerfConsumptionPct > 0 && (
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="w-2 h-2 rounded bg-rose-400" />
+                          <span>Kerf: <strong>{activeSolution.kerfConsumptionPct.toFixed(1)}%</strong></span>
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <span className="w-2 h-2 rounded bg-amber-400" />
+                        <span>Offcut Scrap: <strong>{activeSolution.totalWastePct.toFixed(1)}%</strong></span>
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
+                      <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, activeSolution.productEfficiencyPct)}%` }} />
+                      {activeSolution.kerfConsumptionPct > 0 && (
+                        <div className="bg-rose-400 h-full" style={{ width: `${Math.min(100, activeSolution.kerfConsumptionPct)}%` }} />
+                      )}
+                      {activeSolution.totalWastePct > 0 && (
+                        <div className="bg-amber-400 h-full" style={{ width: `${Math.min(100, activeSolution.totalWastePct)}%` }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (stockViewMode as string) === 'list' ? (
+                /* MATCH LIST VIEW */
+                <div className="space-y-2 overflow-y-auto max-h-[360px] custom-scrollbar p-1">
+                  {top6MatchingSizes.map((sol, idx) => {
+                    const isSelected = activeSolution?.stockId === sol.stockId;
+                    const rank = idx + 1;
+                    const isZeroWaste = sol.totalWastePct <= 0.05 || sol.classification === 'TRUE ZERO-WASTE';
+
+                    return (
+                      <div
+                        key={sol.stockId}
+                        onClick={() => {
+                          const targetIdx = solutions.findIndex(s => s.stockId === sol.stockId);
+                          if (targetIdx >= 0) setSelectedSolutionIndex(targetIdx);
+                        }}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-500 shadow-2xs ring-1 ring-blue-500/30'
+                            : isZeroWaste
+                            ? 'bg-emerald-50/30 border-emerald-200 hover:border-emerald-300'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                            isZeroWaste ? 'bg-emerald-600 text-white' : rank === 1 ? 'bg-blue-600 text-white' : 'bg-slate-700 text-white'
+                          }`}>
+                            #{rank}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-black text-slate-900">
+                                {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
+                              </span>
+                              {sol.stockGsm && (
+                                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                  {sol.stockGsm} GSM
+                                </span>
+                              )}
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded ${
+                                isZeroWaste ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'
+                              }`}>
+                                {isZeroWaste ? '0% Waste' : `${sol.totalWastePct.toFixed(1)}% Waste`}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {sol.qtyAvailable} in stock • {sol.sheetsRequired} sheets req. • Layout: {sol.gridLayout} ({sol.orientation})
+                            </div>
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          step="any"
-                          value={stk.width}
-                          onChange={(e) => handleUpdateStockField(idx, 'width', parseFloat(e.target.value) || 0)}
-                          className="w-16 bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="number"
-                          step="any"
-                          value={stk.length}
-                          onChange={(e) => handleUpdateStockField(idx, 'length', parseFloat(e.target.value) || 0)}
-                          className="w-16 bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-2">
-                        <select
-                          value={stk.unit}
-                          onChange={(e) => handleUpdateStockField(idx, 'unit', e.target.value as DimensionUnit)}
-                          className="bg-transparent font-semibold text-[11px] cursor-pointer"
-                        >
-                          <option value="cm">cm</option>
-                          <option value="mm">mm</option>
-                          <option value="inch">in</option>
-                          <option value="m">m</option>
-                        </select>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <input
-                          type="number"
-                          value={stk.qtyAvailable}
-                          onChange={(e) => handleUpdateStockField(idx, 'qtyAvailable', parseInt(e.target.value) || 0)}
-                          className="w-14 text-right bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={stk.gsm || ''}
-                          onChange={(e) => handleUpdateStockField(idx, 'gsm', e.target.value)}
-                          placeholder="280"
-                          className="w-14 bg-slate-100/80 px-2 py-1 rounded-lg font-medium border border-slate-200 text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <button
-                          onClick={() => handleRemoveStock(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                          title="Remove Stock Sheet"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <div className="text-base font-black text-emerald-600">{sol.yieldPerSheet} pcs</div>
+                            <div className="text-[10px] font-bold text-slate-400">{sol.productEfficiencyPct.toFixed(1)}% Eff</div>
+                          </div>
+                          {isSelected ? (
+                            <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-lg">Active</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const targetIdx = solutions.findIndex(s => s.stockId === sol.stockId);
+                                if (targetIdx >= 0) setSelectedSolutionIndex(targetIdx);
+                              }}
+                              className="text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Select
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : stockViewMode === 'all' ? (
+                /* ALL STOCK SHEETS TABLE */
+                <table className="w-full text-left text-xs bg-white rounded-xl overflow-hidden">
+                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200 sticky top-0 z-10">
+                      <tr>
+                        <th className="py-2.5 px-3">Stock ID</th>
+                        <th className="py-2.5 px-3">Width</th>
+                        <th className="py-2.5 px-3">Length</th>
+                        <th className="py-2.5 px-2">Unit</th>
+                        <th className="py-2.5 px-3 text-right">In Stock</th>
+                        <th className="py-2.5 px-3">GSM</th>
+                        <th className="py-2.5 px-2 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stockList.map((stk, idx) => (
+                        <tr key={stk.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-2 px-3 font-bold text-slate-900">
+                            <div className="flex items-center gap-1.5">
+                              {stk.isInventoryItem ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Live Inventory Item" />
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Custom Stock" />
+                              )}
+                              <span>{stk.id}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="number"
+                              step="any"
+                              value={stk.width}
+                              onChange={(e) => handleUpdateStockField(idx, 'width', parseFloat(e.target.value) || 0)}
+                              className="w-16 bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="number"
+                              step="any"
+                              value={stk.length}
+                              onChange={(e) => handleUpdateStockField(idx, 'length', parseFloat(e.target.value) || 0)}
+                              className="w-16 bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 px-2">
+                            <select
+                              value={stk.unit}
+                              onChange={(e) => handleUpdateStockField(idx, 'unit', e.target.value as DimensionUnit)}
+                              className="bg-transparent font-semibold text-[11px] cursor-pointer"
+                            >
+                              <option value="cm">cm</option>
+                              <option value="mm">mm</option>
+                              <option value="inch">in</option>
+                              <option value="m">m</option>
+                            </select>
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <input
+                              type="number"
+                              value={stk.qtyAvailable}
+                              onChange={(e) => handleUpdateStockField(idx, 'qtyAvailable', parseInt(e.target.value) || 0)}
+                              className="w-14 text-right bg-slate-100/80 px-2 py-1 rounded-lg font-bold border border-slate-200 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              value={stk.gsm || ''}
+                              onChange={(e) => handleUpdateStockField(idx, 'gsm', e.target.value)}
+                              placeholder="280"
+                              className="w-14 bg-slate-100/80 px-2 py-1 rounded-lg font-medium border border-slate-200 text-xs"
+                            />
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            <button
+                              onClick={() => handleRemoveStock(idx)}
+                              className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                              title="Remove Stock Sheet"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
             </div>
 
             {/* Quick Action Bar */}
             <div className="pt-4 mt-auto flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
               <span className="text-[11px] text-slate-500 font-medium">
-                {isOptimizing ? optimizationProgress : `Ready to evaluate ${stockList.length} stock sheets against finish item ${itemWidth}×${itemHeight} ${itemUnit}.`}
+                {isOptimizing
+                  ? optimizationProgress
+                  : `Showing Top 6 best matching sizes ranked from Higher to Low for query item ${itemWidth}×${itemHeight} ${itemUnit}.`}
               </span>
               <button
-                onClick={handleOptimize}
+                onClick={() => handleOptimize()}
                 disabled={isOptimizing}
                 className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0f2a43] hover:bg-slate-800 text-white px-8 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-slate-900/20 transition-all active:scale-95"
               >
@@ -1109,23 +1670,32 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         {/* TAB CONTENT: 1. OVERVIEW & TOP SOLUTIONS */}
         {activeTabSection === 'summary' && (
           <div className="space-y-8">
-            {/* SECTION 4 — TOP 5 SOLUTIONS */}
+            {/* SECTION 4 — TOP 5 BEST MATCHING SIZES (HIGHER TO LOW) */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="text-blue-600" size={18} />
+                  <Award className="text-amber-500" size={18} />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    SECTION 4 — Recommended Stock Combinations (Top {topSolutions.length})
+                    SECTION 4 — Best Matching Stock Sizes (Top {topSolutions.length} Ranked Higher → Low)
                   </h3>
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  Ranked by objective: <strong className="text-slate-700 uppercase">{goal}</strong>
-                </span>
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                  <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Main Inventory Live Evaluated
+                  </span>
+                  <span>
+                    Objective: <strong className="text-slate-800 uppercase">{goal}</strong>
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {topSolutions.map((sol, idx) => {
                   const isSelected = selectedSolutionIndex === idx;
+                  const rank = idx + 1;
+                  const isHighest = rank === 1;
+
                   return (
                     <div
                       key={sol.stockId}
@@ -1133,13 +1703,24 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                       className={`cursor-pointer p-5 rounded-3xl border transition-all duration-200 flex flex-col justify-between ${
                         isSelected 
                           ? 'bg-blue-50/70 border-blue-500 shadow-md ring-2 ring-blue-500/20' 
+                          : isHighest
+                          ? 'bg-emerald-50/20 border-emerald-300 hover:border-emerald-400 hover:shadow-sm'
                           : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
                       }`}
                     >
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-100/70 px-2 py-0.5 rounded-md">
-                            #{idx + 1} Best Match
+                          <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md flex items-center gap-1 ${
+                            isHighest
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : rank === 2
+                              ? 'bg-blue-600 text-white'
+                              : rank === 3
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-slate-700 text-white'
+                          }`}>
+                            {isHighest && <Star size={10} className="fill-amber-300 text-amber-300" />}
+                            #{rank} {isHighest ? 'Best Match (Highest)' : 'Match'}
                           </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             sol.classification === 'TRUE ZERO-WASTE' ? 'bg-emerald-100 text-emerald-800' :
@@ -1152,27 +1733,50 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                         </div>
 
                         <div>
-                          <h4 className="font-bold text-slate-900 text-sm">{sol.stockName}</h4>
-                          <p className="text-xs text-slate-500">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-900 text-sm">{sol.stockName}</h4>
+                            {sol.isInventoryItem && (
+                              <span className="text-[9px] font-extrabold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                Inventory
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
                             {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
                             {sol.stockGsm && ` • ${sol.stockGsm} GSM`}
+                            {sol.sectionTitle && ` • ${sol.sectionTitle}`}
                           </p>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-center">
                           <div>
                             <p className="text-[9px] text-slate-400 font-bold uppercase">Yield</p>
-                            <p className="text-sm font-black text-slate-800">{sol.yieldPerSheet} pcs</p>
+                            <p className="text-base font-black text-emerald-600">{sol.yieldPerSheet} pcs</p>
                           </div>
                           <div>
                             <p className="text-[9px] text-slate-400 font-bold uppercase">Efficiency</p>
-                            <p className="text-sm font-black text-emerald-600">{sol.productEfficiencyPct.toFixed(1)}%</p>
+                            <p className="text-sm font-black text-slate-800">{sol.productEfficiencyPct.toFixed(1)}%</p>
                           </div>
                           <div>
                             <p className="text-[9px] text-slate-400 font-bold uppercase">Waste</p>
                             <p className="text-sm font-black text-rose-500">{sol.totalWastePct.toFixed(1)}%</p>
                           </div>
                         </div>
+
+                        {/* GSM Weight Metrics */}
+                        {sol.pieceWeightGrams !== undefined && sol.pieceWeightGrams > 0 && (
+                          <div className="flex items-center justify-between text-[10px] bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 text-slate-600">
+                            <span>Piece: <strong className="text-slate-900">{sol.pieceWeightGrams.toFixed(1)}g</strong></span>
+                            {sol.sheetWeightKg !== undefined && (
+                              <span>Sheet: <strong className="text-slate-900">{sol.sheetWeightKg.toFixed(2)}kg</strong></span>
+                            )}
+                            {sol.totalWeightKg !== undefined && sol.totalWeightKg > 0 && (
+                              <span className="text-blue-700 font-semibold">
+                                Total: <strong>{sol.totalWeightKg >= 1000 ? `${(sol.totalWeightKg / 1000).toFixed(2)}t` : `${sol.totalWeightKg.toFixed(1)}kg`}</strong>
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         <p className="text-[11px] text-slate-600 leading-snug">
                           {sol.recommendationReason}
@@ -1181,12 +1785,12 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
 
                       <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="text-slate-500 text-[11px]">
-                          Available: <strong className="text-slate-800">{sol.qtyAvailable}</strong>
+                          Available: <strong className="text-slate-800">{sol.qtyAvailable} sheets</strong>
                         </span>
                         <span className={`font-bold text-[11px] flex items-center gap-1 ${
                           isSelected ? 'text-blue-600' : 'text-slate-400'
                         }`}>
-                          {isSelected ? 'Selected' : 'View Plan'}
+                          {isSelected ? 'Active Plan' : 'View Plan'}
                           <ChevronRight size={14} />
                         </span>
                       </div>
@@ -1196,21 +1800,27 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
               </div>
             </div>
 
-            {/* SECTION 3 — STOCK MATCHING & YIELD ANALYSIS TABLE */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            {/* SECTION 3 — STOCK MATCHING & YIELD ANALYSIS TABLE (RESPONSIVE WITH COLLAPSIBLE PANELS) */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="text-blue-600" size={18} />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    SECTION 3 — Stock Matching & Yield Analysis
+                    SECTION 3 — Stock Matching & Yield Analysis (Top 10 Results)
                   </h3>
                 </div>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  {solutions.length} evaluated sheet sizes
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Showing Top {top10SectionSolutions.length} evaluated sheet sizes (out of {solutions.length} total)
+                  </span>
+                  <span className="hidden sm:inline-block text-[10px] text-slate-400 font-medium">
+                    • Tap row for full calculations
+                  </span>
+                </div>
               </div>
 
-              <div className="overflow-x-auto custom-scrollbar">
+              {/* DESKTOP / TABLET VIEW (md and up) */}
+              <div className="hidden md:block overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
                     <tr>
@@ -1225,15 +1835,24 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
-                    {solutions.map((s, idx) => {
+                    {top10SectionSolutions.map((s, idx) => {
                       const isExpanded = expandedDetailsId === s.stockId;
                       return (
                         <React.Fragment key={s.stockId}>
-                          <tr className={`hover:bg-slate-50/80 transition-colors ${!s.isFeasible ? 'opacity-60 bg-rose-50/20' : ''}`}>
+                          <tr 
+                            onClick={() => setExpandedDetailsId(isExpanded ? null : s.stockId)}
+                            className={`cursor-pointer hover:bg-slate-50/80 transition-colors ${
+                              isExpanded ? 'bg-blue-50/40' : ''
+                            } ${!s.isFeasible ? 'opacity-60 bg-rose-50/20' : ''}`}
+                          >
                             <td className="py-3 px-3">
-                              <div className="font-bold text-slate-900">{s.stockName}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
+                                <span className="font-bold text-slate-900">{s.stockName}</span>
+                              </div>
                               <div className="text-[10px] text-slate-400">
                                 {s.originalStockWidth} × {s.originalStockLength} {s.originalStockUnit}
+                                {s.stockGsm && ` • ${s.stockGsm} GSM`}
                               </div>
                             </td>
                             <td className="py-3 px-3">
@@ -1268,57 +1887,111 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                             </td>
                             <td className="py-3 px-3 text-center">
                               <button
-                                onClick={() => setExpandedDetailsId(isExpanded ? null : s.stockId)}
-                                className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg transition-colors"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedDetailsId(isExpanded ? null : s.stockId);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
                                 title="Toggle Comprehensive Calculations"
                               >
-                                <ChevronDown size={16} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <ChevronDown size={16} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : ''}`} />
                               </button>
                             </td>
                           </tr>
 
-                          {/* Expandable Details Drawer */}
+                          {/* Expandable Details Drawer for Desktop */}
                           {isExpanded && (
                             <tr className="bg-slate-50/90">
                               <td colSpan={8} className="p-4 border-b border-slate-200">
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px] bg-white p-4 rounded-2xl border border-slate-200">
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Used Dimensions:</span>
-                                    <span className="font-bold text-slate-800">
-                                      {formatDimension(s.usedWidthMm, itemUnit)} × {formatDimension(s.usedHeightMm, itemUnit)}
-                                    </span>
+                                <div className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-black uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                        Calculation Breakdown
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-800">
+                                        {s.stockName} ({s.originalStockWidth} × {s.originalStockLength} {s.originalStockUnit})
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        const solIndex = solutions.findIndex(item => item.stockId === s.stockId);
+                                        if (solIndex >= 0) setSelectedSolutionIndex(solIndex);
+                                        setActiveTabSection('grid');
+                                      }}
+                                      className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                                    >
+                                      <span>Open in 2D Diagram</span>
+                                      <ArrowRight size={12} />
+                                    </button>
                                   </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Remaining Strips:</span>
-                                    <span className="font-bold text-slate-800">
-                                      {formatDimension(s.remainingWidthMm, itemUnit)} (W) × {formatDimension(s.remainingHeightMm, itemUnit)} (L)
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Total Area Used:</span>
-                                    <span className="font-bold text-emerald-600">{formatArea(s.productAreaMm2)}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Kerf Consumption:</span>
-                                    <span className="font-bold text-rose-500">{s.kerfConsumptionPct.toFixed(2)}% ({formatArea(s.kerfAreaMm2)})</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Reusable Offcut Area:</span>
-                                    <span className="font-bold text-teal-600">{formatArea(s.reusableOffcutAreaMm2)}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Estimated Guillotine Cuts:</span>
-                                    <span className="font-bold text-slate-800">{s.estimatedCuts} straight cuts</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">In-Stock Quantity:</span>
-                                    <span className="font-bold text-slate-800">{s.qtyAvailable} sheets</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-400 block uppercase font-bold text-[9px]">Shortage for {requiredQty} pcs:</span>
-                                    <span className={`font-bold ${s.shortageSheets > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                      {s.shortageSheets > 0 ? `${s.shortageSheets} sheets shortage` : 'Fully in stock'}
-                                    </span>
+
+                                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Used Dimensions</span>
+                                      <span className="font-bold text-slate-800">
+                                        {formatDimension(s.usedWidthMm, itemUnit)} × {formatDimension(s.usedHeightMm, itemUnit)}
+                                      </span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Remaining Strips</span>
+                                      <span className="font-bold text-slate-800">
+                                        {formatDimension(s.remainingWidthMm, itemUnit)} (W) × {formatDimension(s.remainingHeightMm, itemUnit)} (L)
+                                      </span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Total Area Used</span>
+                                      <span className="font-bold text-emerald-600">{formatArea(s.productAreaMm2)}</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Kerf Consumption</span>
+                                      <span className="font-bold text-rose-500">{s.kerfConsumptionPct.toFixed(2)}% ({formatArea(s.kerfAreaMm2)})</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Reusable Offcut Area</span>
+                                      <span className="font-bold text-teal-600">{formatArea(s.reusableOffcutAreaMm2)}</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Estimated Guillotine Cuts</span>
+                                      <span className="font-bold text-slate-800">{s.estimatedCuts} straight cuts</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Calculated GSM Weights</span>
+                                      <span className="font-bold text-slate-800">
+                                        {s.sheetWeightKg !== undefined ? `${s.sheetWeightKg.toFixed(2)} kg/sheet` : '—'}
+                                        {s.pieceWeightGrams !== undefined ? ` • ${s.pieceWeightGrams.toFixed(1)}g/pc` : ''}
+                                      </span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Order Tonnage / Scrap</span>
+                                      <span className="font-bold text-slate-800">
+                                        {s.totalWeightKg !== undefined && s.totalWeightKg > 0 
+                                          ? `${s.totalWeightKg >= 1000 ? (s.totalWeightKg / 1000).toFixed(2) + ' t' : s.totalWeightKg.toFixed(1) + ' kg'}`
+                                          : '—'}
+                                        {s.wasteWeightKg !== undefined && s.wasteWeightKg > 0 ? ` (${s.wasteWeightKg.toFixed(1)}kg scrap)` : ''}
+                                      </span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">In-Stock Quantity</span>
+                                      <span className="font-bold text-slate-800">{s.qtyAvailable} sheets</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Shortage for {requiredQty} pcs</span>
+                                      <span className={`font-bold ${s.shortageSheets > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                        {s.shortageSheets > 0 ? `${s.shortageSheets} sheets shortage` : 'Fully in stock'}
+                                      </span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Sheets Required</span>
+                                      <span className="font-bold text-slate-800">{s.sheetsRequired} sheets for order</span>
+                                    </div>
+                                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                      <span className="text-slate-400 block uppercase font-bold text-[9px]">Total Produced</span>
+                                      <span className="font-bold text-slate-800">
+                                        {s.yieldPerSheet * s.sheetsRequired} pcs ({Math.max(0, (s.yieldPerSheet * s.sheetsRequired) - (parseInt(requiredQty) || 0))} excess)
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -1329,6 +2002,168 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              {/* MOBILE RESPONSIVE ACCORDION VIEW (under md) */}
+              <div className="block md:hidden space-y-3">
+                {top10SectionSolutions.map((s, idx) => {
+                  const isExpanded = expandedDetailsId === s.stockId;
+                  const rank = idx + 1;
+                  const isZeroWaste = s.totalWastePct <= 0.05 || s.classification === 'TRUE ZERO-WASTE';
+
+                  return (
+                    <div
+                      key={`mob-${s.stockId}`}
+                      className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                        isExpanded
+                          ? 'bg-blue-50/30 border-blue-400 shadow-sm ring-1 ring-blue-500/20'
+                          : isZeroWaste
+                          ? 'bg-emerald-50/20 border-emerald-200 hover:border-emerald-300'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {/* Mobile Row Summary Header (Tap to expand/collapse) */}
+                      <div
+                        onClick={() => setExpandedDetailsId(isExpanded ? null : s.stockId)}
+                        className="p-3.5 cursor-pointer flex items-center justify-between gap-3 select-none"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
+                              isZeroWaste
+                                ? 'bg-emerald-600 text-white'
+                                : rank === 1
+                                ? 'bg-blue-600 text-white'
+                                : rank === 2
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-700 text-white'
+                            }`}
+                          >
+                            #{rank}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 truncate">{s.stockName}</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase ${
+                                s.classification === 'TRUE ZERO-WASTE' ? 'bg-emerald-100 text-emerald-800' :
+                                s.classification === 'NEAR ZERO-WASTE' ? 'bg-teal-100 text-teal-800' :
+                                s.classification === 'EXCELLENT' ? 'bg-blue-100 text-blue-800' :
+                                'bg-amber-100 text-amber-800'
+                              }`}>
+                                {s.classification}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span>{s.originalStockWidth} × {s.originalStockLength} {s.originalStockUnit}</span>
+                              {s.stockGsm && <span>• {s.stockGsm} GSM</span>}
+                              <span>• {s.orientation} ({s.gridLayout})</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Key metric pills + Chevron */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <div className="text-xs font-black text-slate-900">{s.yieldPerSheet} pcs</div>
+                            <div className="text-[10px] font-bold text-emerald-600">{s.productEfficiencyPct.toFixed(1)}% eff</div>
+                          </div>
+                          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:text-blue-600 transition-colors">
+                            <ChevronDown size={15} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180 text-blue-600' : ''}`} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mobile Collapsible Panel with Full Calculation Details */}
+                      {isExpanded && (
+                        <div className="p-3.5 bg-white border-t border-slate-100 space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                              Complete Calculation Details
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const solIndex = solutions.findIndex(item => item.stockId === s.stockId);
+                                if (solIndex >= 0) setSelectedSolutionIndex(solIndex);
+                                setActiveTabSection('grid');
+                              }}
+                              className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              <span>2D Diagram</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-[11px]">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Used Area / Eff.</span>
+                              <span className="font-bold text-emerald-600">{s.productEfficiencyPct.toFixed(2)}% ({formatArea(s.productAreaMm2)})</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Waste %</span>
+                              <span className="font-bold text-rose-500">{s.totalWastePct.toFixed(2)}% waste</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Used Dimensions</span>
+                              <span className="font-bold text-slate-800">
+                                {formatDimension(s.usedWidthMm, itemUnit)} × {formatDimension(s.usedHeightMm, itemUnit)}
+                              </span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Remaining Offcut</span>
+                              <span className="font-bold text-slate-800">
+                                {formatDimension(s.remainingWidthMm, itemUnit)} × {formatDimension(s.remainingHeightMm, itemUnit)}
+                              </span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Kerf Consumption</span>
+                              <span className="font-bold text-slate-800">{s.kerfConsumptionPct.toFixed(2)}% ({formatArea(s.kerfAreaMm2)})</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Guillotine Cuts</span>
+                              <span className="font-bold text-slate-800">{s.estimatedCuts} straight cuts</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">GSM Weights</span>
+                              <span className="font-bold text-slate-800">
+                                {s.sheetWeightKg !== undefined ? `${s.sheetWeightKg.toFixed(2)}kg/sheet` : '—'}
+                                {s.pieceWeightGrams !== undefined ? ` • ${s.pieceWeightGrams.toFixed(1)}g/pc` : ''}
+                              </span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Batch Tonnage</span>
+                              <span className="font-bold text-slate-800">
+                                {s.totalWeightKg !== undefined && s.totalWeightKg > 0 
+                                  ? `${s.totalWeightKg >= 1000 ? (s.totalWeightKg / 1000).toFixed(2) + ' t' : s.totalWeightKg.toFixed(1) + ' kg'}`
+                                  : '—'}
+                              </span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">In Stock</span>
+                              <span className="font-bold text-slate-800">{s.qtyAvailable} sheets available</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="text-slate-400 block uppercase font-bold text-[9px]">Required / Balance</span>
+                              <span className={`font-bold ${s.shortageSheets > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {s.sheetsRequired} sheets ({s.shortageSheets > 0 ? `${s.shortageSheets} short` : 'Covered'})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1426,11 +2261,18 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs">
                 <div>
                   <span className="text-slate-400 block text-[9px] uppercase font-bold">STOCK SHEET</span>
-                  <span className="font-bold text-slate-800">{activeSolution.stockName} ({formatDimension(activeSolution.stockWidthMm, itemUnit)} × {formatDimension(activeSolution.stockLengthMm, itemUnit)})</span>
+                  <span className="font-bold text-slate-800">
+                    {activeSolution.stockName} ({formatDimension(activeSolution.stockWidthMm, itemUnit)} × {formatDimension(activeSolution.stockLengthMm, itemUnit)})
+                    {activeSolution.stockGsm && ` • ${activeSolution.stockGsm} GSM`}
+                    {activeSolution.sheetWeightKg !== undefined && ` (~${activeSolution.sheetWeightKg.toFixed(2)} kg)`}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[9px] uppercase font-bold">PRODUCT PIECE</span>
-                  <span className="font-bold text-slate-800">{itemWidth} × {itemHeight} {itemUnit}</span>
+                  <span className="font-bold text-slate-800">
+                    {itemWidth} × {itemHeight} {itemUnit}
+                    {activeSolution.pieceWeightGrams !== undefined && ` (${activeSolution.pieceWeightGrams.toFixed(1)} g/pc)`}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[9px] uppercase font-bold">BLADE KERF</span>
@@ -1440,6 +2282,15 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                   <span className="text-slate-400 block text-[9px] uppercase font-bold">TOTAL FINISHED PIECES</span>
                   <span className="font-bold text-emerald-600">{activeSolution.yieldPerSheet} pcs / sheet</span>
                 </div>
+                {activeSolution.totalWeightKg !== undefined && activeSolution.totalWeightKg > 0 && (
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold">ORDER PAPER WEIGHT</span>
+                    <span className="font-bold text-blue-700">
+                      {activeSolution.totalWeightKg >= 1000 ? `${(activeSolution.totalWeightKg / 1000).toFixed(3)} t` : `${activeSolution.totalWeightKg.toFixed(1)} kg`}
+                      {activeSolution.wasteWeightKg !== undefined && ` (${activeSolution.wasteWeightKg.toFixed(1)} kg scrap)`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 pt-2">

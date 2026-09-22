@@ -124,6 +124,17 @@ export interface SingleSheetSolution {
   reusableOffcutAreaMm2: number;
   processWasteAreaMm2: number;
 
+  // Inventory context
+  sectionTitle?: string;
+  subTitle?: string;
+  isInventoryItem?: boolean;
+
+  // GSM & Weight calculations
+  pieceWeightGrams?: number;
+  sheetWeightKg?: number;
+  totalWeightKg?: number;
+  wasteWeightKg?: number;
+
   // For required quantity:
   requiredQty?: number;
   sheetsRequired: number;
@@ -258,13 +269,13 @@ export function parseSizeString(raw: string, defaultUnit: DimensionUnit = 'cm'):
 // ==========================================
 
 export function classifyWaste(wastePct: number, maxAcceptableWastePct = 3.0): WasteClassification {
-  if (wastePct <= 0.0001) {
+  if (wastePct <= 0.05) {
     return 'TRUE ZERO-WASTE';
-  } else if (wastePct <= 1.0) {
+  } else if (wastePct <= 2.0) {
     return 'NEAR ZERO-WASTE';
-  } else if (wastePct <= 3.0) {
+  } else if (wastePct <= 5.0) {
     return 'EXCELLENT';
-  } else if (wastePct <= maxAcceptableWastePct) {
+  } else if (wastePct <= maxAcceptableWastePct || wastePct <= 10.0) {
     return 'ACCEPTABLE';
   } else {
     return 'HIGH WASTE';
@@ -510,6 +521,9 @@ export function evaluateStockSheet(
       }],
       reusableOffcutAreaMm2: 0,
       processWasteAreaMm2: stockArea,
+      sectionTitle: stock.sectionTitle,
+      subTitle: stock.subTitle,
+      isInventoryItem: stock.isInventoryItem,
       sheetsRequired: 0,
       totalProductionCapacity: 0,
       extraPieces: 0,
@@ -897,21 +911,30 @@ export function evaluateStockSheet(
 
   // Explanation logic
   let reason = '';
-  if (totalWastePct <= 0.0001) {
-    reason = `True zero-waste match: exact fit produces ${yieldPerSheet} pcs with 100.00% material utilization.`;
-  } else if (totalWastePct <= 1.0) {
-    reason = `Near zero-waste: outstanding ${productEfficiencyPct.toFixed(2)}% product yield with only ${totalWastePct.toFixed(2)}% trim waste.`;
-  } else if (bestCandidate.orientation === 'Rotated 90°') {
-    reason = `90° rotated orientation yields ${yieldPerSheet} pcs, maximizing sheet area better than standard alignment.`;
-  } else if (bestCandidate.orientation === 'Mixed') {
-    reason = `Mixed orientation utilizes leftover perimeter strips to produce ${yieldPerSheet} pcs (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+  if (totalWastePct <= 0.05) {
+    reason = `True Zero-Waste Match (Level 1): Exact dimensional multiple yields ${yieldPerSheet} pcs with 100.00% material utilization.`;
+  } else if (totalWastePct <= 2.0) {
+    reason = `Near Zero-Waste / Dimensional Match (Level 2): Tight fit on ${bestCandidate.orientation === 'Rotated 90°' ? '90° rotated' : 'standard'} grid yields ${yieldPerSheet} pcs with only ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+  } else if (totalWastePct <= 5.0) {
+    reason = `Low Waste Match (Level 3): Excellent layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+  } else if (totalWastePct <= 10.0) {
+    reason = `Acceptable Commercial Yield (Level 4): Layout produces ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
   } else {
-    reason = `Standard ${bestCandidate.cols} × ${bestCandidate.rows} grid produces ${yieldPerSheet} pcs with straightforward guillotine cuts (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+    reason = `High Waste (Level 5): Layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% offcut waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
   }
 
   const gridLabel = bestCandidate.orientation === 'Mixed'
     ? `${yieldPerSheet} pcs (Mixed: ${bestCandidate.cols}×${bestCandidate.rows} + Rotated)`
     : `${bestCandidate.cols} × ${bestCandidate.rows}`;
+
+  // GSM Weight computations
+  const gsmVal = parseFloat(String(stock.gsm || '0').replace(/[^0-9.]/g, '')) || 0;
+  const singlePieceAreaM2 = (itemWidthMm * itemHeightMm) / 1_000_000;
+  const singleSheetAreaM2 = stockArea / 1_000_000;
+  const pieceWeightGrams = gsmVal > 0 ? singlePieceAreaM2 * gsmVal : undefined;
+  const sheetWeightKg = gsmVal > 0 ? (singleSheetAreaM2 * gsmVal) / 1000 : undefined;
+  const totalWeightKg = (sheetWeightKg && sheetsReq > 0) ? sheetsReq * sheetWeightKg : undefined;
+  const wasteWeightKg = (gsmVal > 0 && sheetsReq > 0) ? ((rawWasteArea / 1_000_000) * gsmVal / 1000) * sheetsReq : undefined;
 
   return {
     stockId: stock.id,
@@ -952,6 +975,13 @@ export function evaluateStockSheet(
     offcuts,
     reusableOffcutAreaMm2: reusableOffcutArea,
     processWasteAreaMm2: processWasteArea,
+    sectionTitle: stock.sectionTitle,
+    subTitle: stock.subTitle,
+    isInventoryItem: stock.isInventoryItem,
+    pieceWeightGrams,
+    sheetWeightKg,
+    totalWeightKg,
+    wasteWeightKg,
     requiredQty,
     sheetsRequired: sheetsReq,
     totalProductionCapacity: totalCap,

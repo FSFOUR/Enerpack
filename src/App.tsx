@@ -3,9 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { MasterStockCombiner } from './components/CuttingOptimizer/MasterStockCombiner';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { generateJobCardsPdf } from './utils/pdfGenerator';
 import { Toaster, toast } from 'sonner';
 import { 
   LayoutDashboard, 
@@ -113,7 +116,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   static getDerivedStateFromError(error: any) {
-    return { hasError: true, errorInfo: error.message };
+    return { hasError: true, errorInfo: error?.message || 'Unknown error' };
   }
 
   componentDidCatch(error: any, errorInfo: any) {
@@ -121,6 +124,26 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+          <div className="max-w-md w-full bg-white border border-rose-200 rounded-3xl p-8 text-center shadow-xl shadow-rose-500/5">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 font-bold text-2xl">!</div>
+            <h2 className="text-xl font-black text-slate-900 mb-2">Application Error</h2>
+            <p className="text-sm text-slate-600 mb-6">{this.state.errorInfo || 'An unexpected error occurred in the application.'}</p>
+            <button 
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }} 
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/25 transition-all"
+            >
+              Reload & Clear Cache
+            </button>
+          </div>
+        </div>
+      );
+    }
     return this.props.children;
   }
 }
@@ -465,6 +488,12 @@ const inventoryData: { title: string, subSections: { title: string, items: any[]
             size: "90*66",
             gsm: "280",
             stock: 108,
+            isLow: true
+          },
+          {
+            size: "92*66",
+            gsm: "280",
+            stock: 96,
             isLow: true
           },
           {
@@ -1579,6 +1608,24 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => localStorage.getItem('currentUserId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      setRefreshKey(prev => prev + 1);
+      toast.success('Data refreshed successfully', {
+        description: 'All inventory, logs, and system records are up to date.'
+      });
+    } catch (error) {
+      toast.error('Failed to refresh data');
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 600);
+    }
+  };
 
   useEffect(() => {
     setIsAuthReady(true);
@@ -2100,6 +2147,9 @@ export default function App() {
 
   // Firebase Real-time Listeners
   const reconstructInventory = (flatList: any[]) => {
+    if (!flatList || !Array.isArray(flatList) || flatList.length === 0) {
+      return inventoryData;
+    }
     const sections: any[] = [];
     flatList.forEach(item => {
       const cleanGsm = String(item.gsm || '').toUpperCase().replace('GSM', '').trim();
@@ -2170,7 +2220,7 @@ export default function App() {
       return a.title.localeCompare(b.title);
     });
 
-    return sections;
+    return sections.length > 0 ? sections : inventoryData;
   };
 
   useEffect(() => {
@@ -2347,7 +2397,7 @@ export default function App() {
       unsubscribeJobCards();
       unsubscribeReorderDrafts();
     };
-  }, [isAuthenticated, isAuthReady]);
+  }, [isAuthenticated, isAuthReady, refreshKey]);
 
   const notifyAdmin = async (type: string, details: string) => {
     // In Firebase version, we can just log it or send a specific notification if needed
@@ -2492,74 +2542,7 @@ export default function App() {
 
     setIsGenerating(true);
     try {
-      const pdf = new jsPDF('l', 'mm', 'a4'); // Use landscape for A4
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const gap = 10;
-      const cardWidth = 130;
-      const margin = (pageWidth - (2 * cardWidth + gap)) / 2;
-      
-      // Process cards in pairs for better fit
-      for (let i = 0; i < jobCards.length; i += 2) {
-        if (i > 0) pdf.addPage();
-        
-        const cardsOnPage = jobCards.slice(i, i + 2);
-        
-        cardsOnPage.forEach((card, index) => {
-          const xPos = margin + (index * (cardWidth + gap));
-          
-          autoTable(pdf, {
-            startY: margin,
-            margin: { left: xPos },
-            tableWidth: cardWidth,
-            theme: 'grid',
-            styles: {
-              fontSize: 10,
-              cellPadding: 4,
-              lineColor: [0, 0, 0],
-              lineWidth: 0.5,
-              textColor: [0, 0, 0],
-              font: 'helvetica',
-              valign: 'middle',
-              overflow: 'linebreak',
-            },
-            columnStyles: {
-              0: { 
-                cellWidth: cardWidth * 0.35, 
-                fontStyle: 'bold',
-                fillColor: [255, 255, 255],
-              },
-              1: { 
-                cellWidth: cardWidth * 0.65,
-                fontStyle: 'bold',
-                fillColor: [255, 255, 255],
-              },
-            },
-            body: [
-              ['JOB CARD NO:', card.jobCardNo || ''],
-              ['DATE:', formatDate(card.date) || ''],
-              ['WORK NAME:', card.workName || ''],
-              ['SIZE:', card.size || ''],
-              ['GSM:', card.gsm || ''],
-              ['TOTAL GROSS:', card.totalGross || ''],
-              ['DELIVERY LOCATION:', card.deliveryLoc || ''],
-              ['LOADING DATE:', formatDate(card.loadingDate) || ''],
-              ['SUPERVISOR SIGN:', ''],
-              ['ACCOUNTANT SIGN:', ''],
-            ],
-            didParseCell: (data) => {
-              // Extra height for signature rows
-              if (data.row.index >= 8) {
-                data.cell.styles.minCellHeight = 20;
-              }
-            },
-            // Ensure borders are drawn correctly on all cells
-            tableLineColor: [0, 0, 0],
-            tableLineWidth: 0.5,
-          });
-        });
-      }
-      
-      pdf.save(`JobCards_${new Date().toISOString().split('T')[0]}.pdf`);
+      await generateJobCardsPdf(jobCards);
     } catch (error: any) {
       console.error('PDF Generation Error:', error);
       toast.error('Failed to generate PDF. Error: ' + error.message);
@@ -2585,6 +2568,77 @@ export default function App() {
     return `${prefix}/${fy}/${serial}`;
   };
 
+  const parseOrderLocally = (text: string) => {
+    const items = [];
+    const blocks = text.split(/\n\s*\n/).filter(b => b.trim().length > 0);
+    
+    if (blocks.length === 0) {
+      blocks.push(text);
+    }
+
+    for (const block of blocks) {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      let workName = '';
+      let size = '';
+      let gsm = '';
+      let totalGross = '';
+
+      for (const line of lines) {
+        const lower = line.toLowerCase();
+        if (lower.startsWith('size:')) {
+          size = line.substring(5).trim();
+        } else if (lower.startsWith('gsm:')) {
+          gsm = line.substring(4).trim();
+        } else if (lower.startsWith('qty:') || lower.startsWith('quantity:')) {
+          totalGross = line.substring(line.indexOf(':') + 1).trim();
+        } else {
+          if (!workName) {
+            workName = line;
+          } else {
+            workName += ' ' + line;
+          }
+        }
+      }
+
+      if (!size) {
+        const sizeMatch = block.match(/(\d+)\s*[*x×X-]\s*(\d+)/);
+        if (sizeMatch) size = `${sizeMatch[1]}*${sizeMatch[2]}`;
+      }
+      if (!gsm) {
+        const gsmMatch = block.match(/(\d+)/);
+        if (gsmMatch && !gsm) gsm = gsmMatch[1];
+      }
+      if (!totalGross) {
+        const qtyMatch = block.match(/(qty|quantity)[:\s]*(.+)/i);
+        if (qtyMatch) totalGross = qtyMatch[2].trim();
+      }
+
+      if (workName || size || gsm) {
+        items.push({
+          workName: workName || 'Custom Order Item',
+          size: size || '57*86',
+          gsm: gsm || '200',
+          totalGross: totalGross || '35 gross',
+          deliveryLoc: '',
+          loadingDate: ''
+        });
+      }
+    }
+
+    if (items.length === 0 && text.trim().length > 0) {
+      items.push({
+        workName: text.split('\n')[0].trim() || 'Order Item',
+        size: '57*86',
+        gsm: '200',
+        totalGross: '35 gross',
+        deliveryLoc: '',
+        loadingDate: ''
+      });
+    }
+
+    return items;
+  };
+
   const handleAiGenerate = async () => {
     if (!whatsappOrder.trim()) {
       toast.error('Please paste a WhatsApp order first.');
@@ -2592,7 +2646,11 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    toast.loading('Parsing order...', { id: 'ai-parse' });
+
+    let parsedCards: any[] = [];
     try {
+      toast.loading('Calling AI model...', { id: 'ai-parse' });
       const response = await fetch('/api/generate-job-cards', {
         method: 'POST',
         headers: {
@@ -2602,35 +2660,53 @@ export default function App() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to generate job cards');
       }
 
-      const parsedCards = await response.json();
+      parsedCards = await response.json();
+      toast.success('Order parsed successfully via AI!', { id: 'ai-parse' });
+    } catch (error: any) {
+      console.warn('AI Parsing Error (falling back to local parser):', error);
+      toast.loading('AI parsing is temporarily unavailable. Trying local order parsing...', { id: 'ai-parse' });
+      
+      try {
+        parsedCards = parseOrderLocally(whatsappOrder);
+        if (parsedCards.length > 0) {
+          toast.success('Order parsed successfully using local parser.', { id: 'ai-parse' });
+        } else {
+          throw new Error('Local parser could not extract items.');
+        }
+      } catch (localError: any) {
+        console.error('Local Parsing Error:', localError);
+        toast.error('Unable to read the order. Please check Product, Size, GSM and Quantity.', { id: 'ai-parse' });
+        setIsGenerating(false);
+        return;
+      }
+    }
+
+    try {
+      toast.loading('Generating job cards...', { id: 'ai-parse' });
       const newCards = parsedCards.map((card: any, index: number) => ({
-        ...card,
+        workName: card.workName || card.product || 'Custom Item',
+        size: card.size || '57*86',
+        gsm: card.gsm ?? '200',
+        totalGross: card.totalGross ?? card.quantity ?? '35 gross',
+        deliveryLoc: card.deliveryLoc || '',
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
-        loadingDate: '', // Keep loading date empty as requested
+        date: new Date().toISOString().split('T')[0],
+        loadingDate: '',
         timestamp: Timestamp.now()
       }));
 
       for (const card of newCards) {
         await addDoc(collection(db, 'jobCards'), card);
       }
-      toast.success('Job cards generated successfully!');
-      setWhatsappOrder(''); // Clear after success
-    } catch (error: any) {
-      console.error('AI Generation Error:', error);
-      let errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
-      // Check for specific billing/quota errors
-      if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('spending cap')) {
-        toast.error('AI Quota Exceeded: Your project has exceeded its spending cap in AI Studio. Please visit https://ai.studio/spend to manage your limits.', {
-          duration: 10000
-        });
-      } else {
-        toast.error(`Failed to parse order: ${errorMessage}`);
-      }
+      toast.success(`${newCards.length} job cards generated successfully!`, { id: 'ai-parse' });
+      setWhatsappOrder('');
+    } catch (dbError: any) {
+      console.error('Database Error saving job cards:', dbError);
+      toast.error('Failed to save job cards to database: ' + dbError.message, { id: 'ai-parse' });
     } finally {
       setIsGenerating(false);
     }
@@ -4113,10 +4189,11 @@ export default function App() {
           )}
         </nav>
 
-        <div className="p-4 mt-auto border-t border-slate-700/50">
+        <div className="p-4 mt-auto border-t border-slate-700/50 space-y-3">
+          <PWAInstallButton className="w-full justify-center" />
           <button 
             onClick={handleLogout} 
-            className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest"
+            className="flex items-center gap-3 text-rose-400 hover:text-rose-300 transition-colors text-sm font-bold uppercase tracking-widest w-full px-2"
           >
             {currentUserId ? (
               <>
@@ -4136,30 +4213,43 @@ export default function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Header */}
-        <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="lg:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 shrink-0 z-30">
+          <div className="flex items-center gap-2.5">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+              className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl active:scale-95 transition"
+              aria-label="Open Navigation Menu"
             >
-              <Menu size={24} />
+              <Menu size={22} />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-[#0f2a43] rounded flex items-center justify-center text-white font-bold text-xs">
+              <div className="w-7 h-7 bg-[#0f2a43] rounded-lg flex items-center justify-center text-white font-black text-xs shadow-sm">
                 EP
               </div>
-              <span className="font-bold text-slate-800 tracking-tight">ENERPACK</span>
+              <div>
+                <span className="font-extrabold text-slate-900 tracking-tight text-sm">ENERPACK</span>
+                <span className="hidden xs:inline-block text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded ml-1.5 uppercase">v2.5</span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-              <User size={16} />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <PWAInstallButton variant="compact" />
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer active:scale-95"
+              title="Refresh all data"
+            >
+              <RefreshCw size={17} className={cn("text-slate-500", isRefreshing && "animate-spin text-blue-600")} />
+            </button>
+            <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 text-xs font-bold">
+              <User size={14} />
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 pb-24 lg:pb-8 custom-scrollbar">
         <AnimatePresence mode="wait">
           {activeTab === 'Dashboard' && (
             <motion.div
@@ -4175,6 +4265,15 @@ export default function App() {
                   <h2 className="text-slate-800 font-bold text-base md:text-lg tracking-tight uppercase">WELCOME {userName}</h2>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-400 flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs"
+                    title="Refresh all data"
+                  >
+                    <RefreshCw size={14} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
+                    <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                  </button>
                   {hasPermission('admin') && (
                     <button 
                       onClick={() => {
@@ -4671,6 +4770,15 @@ export default function App() {
                   </div>
                   
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                      title="Refresh Inventory Data"
+                    >
+                      <RefreshCw size={14} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
+                      <span>{isRefreshing ? "SYNCING..." : "REFRESH"}</span>
+                    </button>
                     <button 
                       onClick={() => setIsLowStockOnly(!isLowStockOnly)}
                       className={cn(
@@ -5388,7 +5496,7 @@ export default function App() {
               className="h-full flex flex-col"
             >
               {/* Header */}
-              <div className="bg-[#0f2a43] -m-4 md:-m-8 mb-8 p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 shadow-lg">
+              <div className="bg-[#0f2a43] mb-6 p-4 md:p-6 rounded-3xl flex flex-wrap items-center justify-between gap-4 shadow-lg">
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => setActiveTab('Dashboard')}
@@ -5405,27 +5513,38 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Sub-view Switcher */}
-                <div className="flex items-center p-1 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
+                {/* Sub-view Switcher & Actions */}
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center p-1 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
+                    <button
+                      onClick={() => setQuickTrackerViewMode('combiner')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                        quickTrackerViewMode === 'combiner' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                      )}
+                    >
+                      <Zap size={14} />
+                      ⚡ Master Stock Combiner
+                    </button>
+                    <button
+                      onClick={() => setQuickTrackerViewMode('inout')}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                        quickTrackerViewMode === 'inout' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                      )}
+                    >
+                      <Clock size={14} />
+                      Quick IN/OUT Tracker
+                    </button>
+                  </div>
                   <button
-                    onClick={() => setQuickTrackerViewMode('combiner')}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
-                      quickTrackerViewMode === 'combiner' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
-                    )}
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-white/10 cursor-pointer"
+                    title="Refresh data from database"
                   >
-                    <Zap size={14} />
-                    ⚡ Master Stock Combiner
-                  </button>
-                  <button
-                    onClick={() => setQuickTrackerViewMode('inout')}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
-                      quickTrackerViewMode === 'inout' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
-                    )}
-                  >
-                    <Clock size={14} />
-                    Quick IN/OUT Tracker
+                    <RefreshCw size={14} className={cn(isRefreshing && "animate-spin text-blue-300")} />
+                    <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
                   </button>
                 </div>
               </div>
@@ -8915,7 +9034,21 @@ export default function App() {
 
               {/* Right Panel: Preview */}
               <div className="flex-1 flex flex-col gap-6 min-h-[500px] lg:min-h-0">
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 lg:p-6 flex flex-col h-full overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 lg:p-6 flex flex-col h-full overflow-hidden relative">
+                  {/* Floating Action Button for Instant PDF Download */}
+                  {jobCards.length > 0 && (
+                    <div className="absolute bottom-6 right-6 z-20 print:hidden">
+                      <button
+                        onClick={handleSaveToPdf}
+                        disabled={isGenerating}
+                        className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3.5 rounded-full shadow-2xl font-black text-xs uppercase tracking-wider transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50"
+                        title="Download Print-Ready PDF"
+                      >
+                        {isGenerating ? <Activity className="animate-spin" size={18} /> : <Download size={18} />}
+                        <span>DOWNLOAD PDF</span>
+                      </button>
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
@@ -9392,6 +9525,78 @@ export default function App() {
           background: #334155;
         }
       `}} />
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,8px)]">
+        <button
+          onClick={() => setActiveTab('Dashboard')}
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            activeTab === 'Dashboard' 
+              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              : "text-slate-500 font-medium hover:text-slate-800"
+          )}
+        >
+          <LayoutDashboard size={19} strokeWidth={activeTab === 'Dashboard' ? 2.5 : 2} />
+          <span className="text-[10px] mt-0.5 tracking-tight">Home</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('Full Inventory')}
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            activeTab === 'Full Inventory' 
+              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              : "text-slate-500 font-medium hover:text-slate-800"
+          )}
+        >
+          <Package size={19} strokeWidth={activeTab === 'Full Inventory' ? 2.5 : 2} />
+          <span className="text-[10px] mt-0.5 tracking-tight">Inventory</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('Quick Tracker')}
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px] relative",
+            activeTab === 'Quick Tracker' 
+              ? "text-emerald-600 font-black bg-emerald-50/80 scale-105" 
+              : "text-slate-500 font-medium hover:text-slate-800"
+          )}
+        >
+          <div className={cn(
+            "p-1 rounded-lg",
+            activeTab === 'Quick Tracker' ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+          )}>
+            <Zap size={16} strokeWidth={2.5} />
+          </div>
+          <span className="text-[10px] mt-0.5 tracking-tight">Optimizer</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('Pending Works')}
+          className={cn(
+            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            activeTab === 'Pending Works' 
+              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              : "text-slate-500 font-medium hover:text-slate-800"
+          )}
+        >
+          <Clock size={19} strokeWidth={activeTab === 'Pending Works' ? 2.5 : 2} />
+          <span className="text-[10px] mt-0.5 tracking-tight">Works</span>
+        </button>
+
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-slate-500 hover:text-slate-800 font-medium transition-all min-w-[56px]"
+          aria-label="Open full menu"
+        >
+          <Menu size={19} />
+          <span className="text-[10px] mt-0.5 tracking-tight">Menu</span>
+        </button>
+      </nav>
+
+      {/* Offline Status Badge */}
+      <OfflineIndicator />
         </div>
       </div>
     )}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*"
+  ],
+  "exclude": [
+    "/assets/*",
+    "/Job Card.pdf",
+    "/job-card-template.pdf",
+    "/favicon.ico",
+    "/icon.svg",
+    "/manifest.webmanifest",
+    "/sw.js",
+    "/workbox-*.js",
+    "/pwa-*.png"
+  ]
+}
