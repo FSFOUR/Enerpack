@@ -13,11 +13,15 @@ export type OptimizationGoal =
   | 'inventory_first';
 
 export type WasteClassification = 
-  | 'TRUE ZERO-WASTE' 
+  | 'ZERO WASTE'
+  | 'TRUE ZERO-WASTE'
   | 'NEAR ZERO-WASTE' 
-  | 'EXCELLENT' 
+  | 'LOW WASTE'
+  | 'EXCELLENT'
+  | 'MODERATE WASTE'
   | 'ACCEPTABLE' 
-  | 'HIGH WASTE';
+  | 'HIGH WASTE'
+  | 'NOT FEASIBLE';
 
 export interface StockInputItem {
   id: string;
@@ -268,15 +272,20 @@ export function parseSizeString(raw: string, defaultUnit: DimensionUnit = 'cm'):
 // WASTE CLASSIFICATION
 // ==========================================
 
-export function classifyWaste(wastePct: number, maxAcceptableWastePct = 3.0): WasteClassification {
-  if (wastePct <= 0.05) {
-    return 'TRUE ZERO-WASTE';
-  } else if (wastePct <= 2.0) {
+export function classifyWaste(wastePct: number, isFeasibleOrMaxWaste: boolean | number = true): WasteClassification {
+  const isFeasible = typeof isFeasibleOrMaxWaste === 'boolean' ? isFeasibleOrMaxWaste : true;
+  if (!isFeasible) {
+    return 'NOT FEASIBLE';
+  }
+  // Floating point tolerance for 0%
+  if (wastePct <= 0.001) {
+    return 'ZERO WASTE';
+  } else if (wastePct <= 3.0) {
     return 'NEAR ZERO-WASTE';
-  } else if (wastePct <= 5.0) {
-    return 'EXCELLENT';
-  } else if (wastePct <= maxAcceptableWastePct || wastePct <= 10.0) {
-    return 'ACCEPTABLE';
+  } else if (wastePct <= 10.0) {
+    return 'LOW WASTE';
+  } else if (wastePct <= 20.0) {
+    return 'MODERATE WASTE';
   } else {
     return 'HIGH WASTE';
   }
@@ -507,7 +516,7 @@ export function evaluateStockSheet(
       kerfConsumptionPct: 0,
       totalWastePct: 100,
       usableAreaPct: 0,
-      classification: 'HIGH WASTE',
+      classification: 'NOT FEASIBLE',
       estimatedCuts: 0,
       cuttingSequence: [],
       pieces: [],
@@ -782,7 +791,7 @@ export function evaluateStockSheet(
       kerfConsumptionPct: 0,
       totalWastePct: 100,
       usableAreaPct: 0,
-      classification: 'HIGH WASTE',
+      classification: 'NOT FEASIBLE',
       estimatedCuts: 0,
       cuttingSequence: [],
       pieces: [],
@@ -809,24 +818,19 @@ export function evaluateStockSheet(
     const estCuts = (cand.cols - 1) + (cand.rows - 1) + (edgeTrimMm > 0 ? 1 : 0);
 
     let score = 0;
-    switch (goal) {
-      case 'min_waste':
-        score = -wastePct * 10 + cand.yield - estCuts * 0.1;
-        break;
-      case 'max_yield':
-        score = cand.yield * 100 - wastePct - estCuts * 0.5;
-        break;
-      case 'min_sheets':
-        score = cand.yield * 1000 - wastePct;
-        break;
-      case 'inventory_first':
-        score = (stock.qtyAvailable > 0 ? 500 : 0) + cand.yield * 50 - wastePct - estCuts * 0.2;
-        break;
-      case 'balanced':
-      default:
-        // Yield is high, waste is low, cut count is low, inventory availability gives bonus
-        score = cand.yield * 80 - wastePct * 2 - estCuts * 0.5 + (stock.qtyAvailable > 0 ? 50 : 0);
-        break;
+    // Primary goal: highest yield produces lowest waste on a given stock sheet
+    score = cand.yield * 1000 - wastePct * 2;
+    // When yields are equal, prefer Normal (unrotated) over Rotated
+    if (cand.orientation === 'Normal') {
+      score += 15;
+    }
+    // Prefer pure grid over mixed if yields are identical
+    if (cand.orientation !== 'Mixed') {
+      score += 10;
+    }
+    score -= estCuts * 0.1;
+    if (stock.qtyAvailable > 0 && goal === 'inventory_first') {
+      score += 50;
     }
 
     if (score > bestScore) {
@@ -887,7 +891,7 @@ export function evaluateStockSheet(
 
   const processWasteArea = Math.max(0, rawWasteArea - reusableOffcutArea);
   const usableAreaPct = ((productArea + reusableOffcutArea) / stockArea) * 100;
-  const classification = classifyWaste(totalWastePct, maxAcceptableWastePct);
+  const classification = classifyWaste(totalWastePct, true);
 
   // Sheets required for quantity
   const sheetsReq = requiredQty && requiredQty > 0 ? Math.ceil(requiredQty / yieldPerSheet) : 1;
@@ -911,16 +915,16 @@ export function evaluateStockSheet(
 
   // Explanation logic
   let reason = '';
-  if (totalWastePct <= 0.05) {
-    reason = `True Zero-Waste Match (Level 1): Exact dimensional multiple yields ${yieldPerSheet} pcs with 100.00% material utilization.`;
-  } else if (totalWastePct <= 2.0) {
-    reason = `Near Zero-Waste / Dimensional Match (Level 2): Tight fit on ${bestCandidate.orientation === 'Rotated 90°' ? '90° rotated' : 'standard'} grid yields ${yieldPerSheet} pcs with only ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
-  } else if (totalWastePct <= 5.0) {
-    reason = `Low Waste Match (Level 3): Excellent layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+  if (totalWastePct <= 0.001) {
+    reason = `Exact Zero-Waste Match: 100.00% material utilization, 0.00% waste.`;
+  } else if (totalWastePct <= 3.0) {
+    reason = `Near Zero-Waste Match: Layout on ${bestCandidate.orientation} grid yields ${yieldPerSheet} pcs with only ${totalWastePct.toFixed(2)}% waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
   } else if (totalWastePct <= 10.0) {
-    reason = `Acceptable Commercial Yield (Level 4): Layout produces ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% trim waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+    reason = `Low Waste Match: Layout on ${bestCandidate.orientation} grid yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+  } else if (totalWastePct <= 20.0) {
+    reason = `Moderate Waste: Layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
   } else {
-    reason = `High Waste (Level 5): Layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% offcut waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
+    reason = `High Waste: Layout yields ${yieldPerSheet} pcs with ${totalWastePct.toFixed(2)}% waste (${productEfficiencyPct.toFixed(2)}% efficiency).`;
   }
 
   const gridLabel = bestCandidate.orientation === 'Mixed'

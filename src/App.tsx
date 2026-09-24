@@ -1390,27 +1390,27 @@ const SidebarItem = ({
   <button
     onClick={onClick}
     className={cn(
-      "w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors relative",
+      "w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium rounded-xl transition-all relative my-0.5 text-left cursor-pointer",
       active 
-        ? "bg-blue-600/20 text-white border-l-4 border-blue-500" 
-        : "text-slate-400 hover:bg-slate-800 hover:text-white"
+        ? "bg-blue-600 text-white font-bold shadow-xs" 
+        : "text-slate-300 hover:bg-white/10 hover:text-white"
     )}
   >
-    <div className="flex items-center gap-3">
-      <Icon size={18} />
-      <span>{label}</span>
+    <div className="flex items-center gap-2.5 min-w-0 truncate">
+      <Icon size={16} className="shrink-0" />
+      <span className="truncate">{label}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] flex items-center justify-center">
+        <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full min-w-[16px] flex items-center justify-center shrink-0 ml-auto mr-1">
           {badge}
         </span>
       )}
     </div>
-    {active && <ChevronRight size={14} />}
+    {active && <ChevronRight size={13} className="shrink-0 opacity-80" />}
   </button>
 );
 
 const SectionHeader = ({ label }: { label: string }) => (
-  <div className="px-4 py-2 mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+  <div className="px-3 py-1 mt-2.5 mb-0.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
     {label}
   </div>
 );
@@ -1609,21 +1609,27 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const initialSyncDoneRef = useRef(false);
 
   const handleRefresh = async () => {
+    if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      setRefreshKey(prev => prev + 1);
-      toast.success('Data refreshed successfully', {
-        description: 'All inventory, logs, and system records are up to date.'
-      });
+      // Perform a smooth background sync without destroying active real-time listeners
+      const snapshot = await getDocs(collection(db, 'inventory'));
+      if (!snapshot.empty) {
+        const inventoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const structuredInventory = reconstructInventory(inventoryList);
+        setInventory(structuredInventory);
+      }
+      toast.success('Records synced & up to date', { duration: 1500 });
     } catch (error) {
-      toast.error('Failed to refresh data');
+      console.warn('Sync notice:', error);
+      toast.info('Connected with live database', { duration: 1200 });
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
-      }, 600);
+      }, 400);
     }
   };
 
@@ -1635,6 +1641,16 @@ export default function App() {
     } else {
       setActiveTab('Dashboard');
     }
+
+    const handleNavEvent = (e: any) => {
+      if (e.detail) {
+        setActiveTab(e.detail);
+      }
+    };
+    window.addEventListener('navigate-to-tab', handleNavEvent);
+    return () => {
+      window.removeEventListener('navigate-to-tab', handleNavEvent);
+    };
   }, []);
 
   useEffect(() => {
@@ -2311,8 +2327,11 @@ export default function App() {
       }
     };
 
-    checkAndSeedInventory();
-    checkAndSeedStaffs();
+    if (!initialSyncDoneRef.current) {
+      initialSyncDoneRef.current = true;
+      checkAndSeedInventory();
+      checkAndSeedStaffs();
+    }
 
     const staffsQuery = query(collection(db, 'staffs'), orderBy('name'));
     const unsubscribeStaffs = onSnapshot(staffsQuery, (snapshot) => {
@@ -2397,7 +2416,7 @@ export default function App() {
       unsubscribeJobCards();
       unsubscribeReorderDrafts();
     };
-  }, [isAuthenticated, isAuthReady, refreshKey]);
+  }, [isAuthenticated, isAuthReady]);
 
   const notifyAdmin = async (type: string, details: string) => {
     // In Firebase version, we can just log it or send a specific notification if needed
@@ -4249,30 +4268,31 @@ export default function App() {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 pb-24 lg:pb-8 custom-scrollbar">
-        <AnimatePresence mode="wait">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-20 lg:pb-6 custom-scrollbar">
+        <AnimatePresence initial={false}>
           {activeTab === 'Dashboard' && (
             <motion.div
               key="dashboard"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="space-y-6"
             >
               {/* Dashboard Header */}
-              <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-xs border border-slate-200 mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-slate-800 font-bold text-base md:text-lg tracking-tight uppercase">WELCOME {userName}</h2>
+                  <h2 className="text-slate-800 font-bold text-sm sm:text-base tracking-tight uppercase">WELCOME {userName}</h2>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
                   <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
-                    className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-400 flex items-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
                     title="Refresh all data"
                   >
-                    <RefreshCw size={14} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
-                    <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                    <RefreshCw size={13} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
                   </button>
                   {hasPermission('admin') && (
                     <button 
@@ -4280,20 +4300,20 @@ export default function App() {
                         setActiveTab('Admin Panel');
                         setAdminTab('Approval');
                       }}
-                      className="relative p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-slate-200"
+                      className="relative p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all border border-slate-200 cursor-pointer"
                       title="Pending Approvals"
                     >
-                      <Bell size={20} />
+                      <Bell size={18} />
                       {approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white">
                           {approvals.filter(a => a.type === 'User Registration' && a.status === 'Pending').length}
                         </span>
                       )}
                     </button>
                   )}
-                  <div className="px-3 py-1.5 md:px-4 md:py-2 bg-slate-50 rounded-xl border border-slate-400 flex items-center gap-2">
-                    <Clock size={14} className="text-slate-400" />
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-600 uppercase tracking-widest">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  <div className="px-2.5 py-1.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                    <Clock size={13} className="text-slate-400" />
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   </div>
                 </div>
               </div>
@@ -4751,68 +4771,80 @@ export default function App() {
               className="flex flex-col h-full"
             >
               {/* Inventory Header */}
-              <div className="hidden lg:flex bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-slate-400 mb-8 flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-slate-800 font-bold text-base md:text-lg tracking-tight uppercase">ENER PACK INVENTORY</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Central Warehouse Terminal</p>
+              <div className="flex bg-white p-3 sm:p-4 rounded-2xl shadow-xs border border-slate-200 mb-4 flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-slate-800 font-bold text-sm sm:text-base tracking-tight uppercase">ENER PACK INVENTORY</h2>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Central Warehouse Terminal</p>
+                  </div>
+                  {isAdmin && (
+                    <button 
+                      onClick={() => setShowNewSkuForm(!showNewSkuForm)}
+                      className={cn(
+                        "lg:hidden flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer",
+                        showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                      )}
+                    >
+                      {showNewSkuForm ? <Minus size={12} /> : <Plus size={12} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 w-full lg:max-w-2xl">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 w-full lg:max-w-3xl">
                   <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
                     <input 
                       type="text" 
                       placeholder="Search SKU..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-400 rounded-xl py-2.5 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={handleRefresh}
                       disabled={isRefreshing}
-                      className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors cursor-pointer"
+                      className="flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
                       title="Refresh Inventory Data"
                     >
-                      <RefreshCw size={14} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
+                      <RefreshCw size={12} className={cn("text-slate-600", isRefreshing && "animate-spin text-blue-600")} />
                       <span>{isRefreshing ? "SYNCING..." : "REFRESH"}</span>
                     </button>
                     <button 
                       onClick={() => setIsLowStockOnly(!isLowStockOnly)}
                       className={cn(
-                        "flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors",
+                        "flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer",
                         isLowStockOnly ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       )}
                     >
-                      <AlertCircle size={14} /> {isLowStockOnly ? "LOW STOCK ONLY" : "ALL STOCK"}
+                      <AlertCircle size={12} /> {isLowStockOnly ? "LOW STOCK" : "ALL STOCK"}
                     </button>
                     <button 
                       onClick={() => handleInitiateExport('xlsx')}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                      className="flex items-center justify-center gap-1 bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-slate-200 transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet size={14} /> XLSX
+                      <FileSpreadsheet size={12} /> XLSX
                     </button>
                     <button 
                       onClick={() => handleInitiateExport('pdf')}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                      className="flex items-center justify-center gap-1 bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-slate-200 transition-colors cursor-pointer"
                     >
-                      <FileText size={14} /> PDF
+                      <FileText size={12} /> PDF
                     </button>
+                    {isAdmin && (
+                      <button 
+                        onClick={() => setShowNewSkuForm(!showNewSkuForm)}
+                        className={cn(
+                          "hidden lg:flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors whitespace-nowrap cursor-pointer",
+                          showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                        )}
+                      >
+                        {showNewSkuForm ? <Minus size={12} /> : <Plus size={12} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
+                      </button>
+                    )}
                   </div>
-
-                  {isAdmin && (
-                    <button 
-                      onClick={() => setShowNewSkuForm(!showNewSkuForm)}
-                      className={cn(
-                        "hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors whitespace-nowrap",
-                        showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                      )}
-                    >
-                      {showNewSkuForm ? <Minus size={14} /> : <Plus size={14} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -5496,54 +5528,55 @@ export default function App() {
               className="h-full flex flex-col"
             >
               {/* Header */}
-              <div className="bg-[#0f2a43] mb-6 p-4 md:p-6 rounded-3xl flex flex-wrap items-center justify-between gap-4 shadow-lg">
-                <div className="flex items-center gap-3">
+              <div className="bg-[#0f2a43] mb-4 p-3 sm:p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm border border-slate-700/40">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <button 
                     onClick={() => setActiveTab('Dashboard')}
-                    className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"
+                    className="p-1.5 hover:bg-white/10 rounded-lg text-white transition-colors cursor-pointer shrink-0"
+                    title="Back to Dashboard"
                   >
-                    <ChevronRight className="rotate-180" size={24} />
+                    <ChevronRight className="rotate-180" size={18} />
                   </button>
-                  <div className="flex items-center gap-3">
-                    <Box className="text-blue-400" size={24} />
-                    <div>
-                      <h2 className="text-sm md:text-lg font-bold text-white tracking-widest uppercase">QUICK TRACKER</h2>
-                      <p className="text-[10px] text-blue-200 uppercase font-semibold">Master Stock Combiner & 2D Guillotine Optimizer</p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Box className="text-blue-400 shrink-0" size={20} />
+                    <div className="min-w-0">
+                      <h2 className="text-xs sm:text-base font-bold text-white tracking-widest uppercase truncate">QUICK TRACKER</h2>
+                      <p className="text-[9px] sm:text-[10px] text-blue-200 uppercase font-medium truncate">Stock Combiner & 2D Optimizer</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Sub-view Switcher & Actions */}
-                <div className="flex items-center gap-2.5">
-                  <div className="flex items-center p-1 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center p-0.5 bg-white/10 rounded-xl border border-white/10">
                     <button
                       onClick={() => setQuickTrackerViewMode('combiner')}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
-                        quickTrackerViewMode === 'combiner' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                        "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold tracking-tight transition-all cursor-pointer",
+                        quickTrackerViewMode === 'combiner' ? "bg-blue-500 text-white shadow-xs" : "text-blue-200 hover:text-white"
                       )}
                     >
-                      <Zap size={14} />
-                      ⚡ Master Stock Combiner
+                      <Zap size={13} />
+                      <span>Combiner</span>
                     </button>
                     <button
                       onClick={() => setQuickTrackerViewMode('inout')}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
-                        quickTrackerViewMode === 'inout' ? "bg-blue-500 text-white shadow-md" : "text-blue-200 hover:text-white"
+                        "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold tracking-tight transition-all cursor-pointer",
+                        quickTrackerViewMode === 'inout' ? "bg-blue-500 text-white shadow-xs" : "text-blue-200 hover:text-white"
                       )}
                     >
-                      <Clock size={14} />
-                      Quick IN/OUT Tracker
+                      <Clock size={13} />
+                      <span>IN/OUT</span>
                     </button>
                   </div>
                   <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
-                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-white/10 cursor-pointer"
+                    className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-white/10 cursor-pointer"
                     title="Refresh data from database"
                   >
-                    <RefreshCw size={14} className={cn(isRefreshing && "animate-spin text-blue-300")} />
+                    <RefreshCw size={13} className={cn(isRefreshing && "animate-spin text-blue-300")} />
                     <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
                   </button>
                 </div>
@@ -5553,6 +5586,7 @@ export default function App() {
                 <MasterStockCombiner 
                   inventory={inventory} 
                   isAdmin={isAdmin}
+                  onNavigateToInventory={() => setActiveTab('Full Inventory')}
                   onReserveStock={async (stockId, size, gsm, sheets) => {
                     try {
                       const ok = await updateStockByGlobal(size, gsm, -sheets);
@@ -9527,71 +9561,71 @@ export default function App() {
       `}} />
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,8px)]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1 py-1 flex items-center justify-around shadow-sm pb-[env(safe-area-inset-bottom,4px)]">
         <button
           onClick={() => setActiveTab('Dashboard')}
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            "flex flex-col items-center justify-center py-1 px-2 rounded-lg transition-colors min-w-[48px]",
             activeTab === 'Dashboard' 
-              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              ? "text-blue-600 font-bold bg-blue-50/90" 
               : "text-slate-500 font-medium hover:text-slate-800"
           )}
         >
-          <LayoutDashboard size={19} strokeWidth={activeTab === 'Dashboard' ? 2.5 : 2} />
-          <span className="text-[10px] mt-0.5 tracking-tight">Home</span>
+          <LayoutDashboard size={16} strokeWidth={activeTab === 'Dashboard' ? 2.4 : 1.8} />
+          <span className="text-[9px] mt-0.5 tracking-tight">Home</span>
         </button>
 
         <button
           onClick={() => setActiveTab('Full Inventory')}
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            "flex flex-col items-center justify-center py-1 px-2 rounded-lg transition-colors min-w-[48px]",
             activeTab === 'Full Inventory' 
-              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              ? "text-blue-600 font-bold bg-blue-50/90" 
               : "text-slate-500 font-medium hover:text-slate-800"
           )}
         >
-          <Package size={19} strokeWidth={activeTab === 'Full Inventory' ? 2.5 : 2} />
-          <span className="text-[10px] mt-0.5 tracking-tight">Inventory</span>
+          <Package size={16} strokeWidth={activeTab === 'Full Inventory' ? 2.4 : 1.8} />
+          <span className="text-[9px] mt-0.5 tracking-tight">Inventory</span>
         </button>
 
         <button
           onClick={() => setActiveTab('Quick Tracker')}
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px] relative",
+            "flex flex-col items-center justify-center py-1 px-2 rounded-lg transition-colors min-w-[48px] relative",
             activeTab === 'Quick Tracker' 
-              ? "text-emerald-600 font-black bg-emerald-50/80 scale-105" 
+              ? "text-emerald-600 font-bold bg-emerald-50/90" 
               : "text-slate-500 font-medium hover:text-slate-800"
           )}
         >
           <div className={cn(
-            "p-1 rounded-lg",
+            "p-0.5 rounded-md",
             activeTab === 'Quick Tracker' ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
           )}>
-            <Zap size={16} strokeWidth={2.5} />
+            <Zap size={13} strokeWidth={2.4} />
           </div>
-          <span className="text-[10px] mt-0.5 tracking-tight">Optimizer</span>
+          <span className="text-[9px] mt-0.5 tracking-tight">Optimizer</span>
         </button>
 
         <button
           onClick={() => setActiveTab('Pending Works')}
           className={cn(
-            "flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px]",
+            "flex flex-col items-center justify-center py-1 px-2 rounded-lg transition-colors min-w-[48px]",
             activeTab === 'Pending Works' 
-              ? "text-blue-600 font-black bg-blue-50/80 scale-105" 
+              ? "text-blue-600 font-bold bg-blue-50/90" 
               : "text-slate-500 font-medium hover:text-slate-800"
           )}
         >
-          <Clock size={19} strokeWidth={activeTab === 'Pending Works' ? 2.5 : 2} />
-          <span className="text-[10px] mt-0.5 tracking-tight">Works</span>
+          <Clock size={16} strokeWidth={activeTab === 'Pending Works' ? 2.4 : 1.8} />
+          <span className="text-[9px] mt-0.5 tracking-tight">Works</span>
         </button>
 
         <button
           onClick={() => setIsSidebarOpen(true)}
-          className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-slate-500 hover:text-slate-800 font-medium transition-all min-w-[56px]"
+          className="flex flex-col items-center justify-center py-1 px-2 rounded-lg text-slate-500 hover:text-slate-800 font-medium transition-colors min-w-[48px]"
           aria-label="Open full menu"
         >
-          <Menu size={19} />
-          <span className="text-[10px] mt-0.5 tracking-tight">Menu</span>
+          <Menu size={16} />
+          <span className="text-[9px] mt-0.5 tracking-tight">Menu</span>
         </button>
       </nav>
 

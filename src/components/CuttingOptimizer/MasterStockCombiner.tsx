@@ -48,7 +48,11 @@ import {
   Award,
   Search,
   ArrowDownUp,
-  Filter
+  Filter,
+  Warehouse,
+  Database,
+  ArrowUpRight,
+  SlidersHorizontal
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
@@ -61,17 +65,35 @@ interface MasterStockCombinerProps {
   inventory: { title: string; subSections: { title: string; items: any[] }[] }[];
   onReserveStock?: (stockId: string, size: string, gsm: string, sheets: number) => Promise<boolean>;
   isAdmin?: boolean;
+  onNavigateToInventory?: () => void;
 }
+
+export interface FiveStockInput {
+  id: number;
+  width: string;
+  height: string;
+}
+
+export const DEFAULT_FIVE_STOCKS: FiveStockInput[] = [
+  { id: 1, width: '47', height: '64' },
+  { id: 2, width: '57', height: '96' },
+  { id: 3, width: '83', height: '56' },
+  { id: 4, width: '22', height: '65' },
+  { id: 5, width: '65', height: '97.5' },
+  { id: 6, width: '70', height: '100' },
+];
 
 export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
   inventory,
   onReserveStock,
-  isAdmin = false
+  isAdmin = false,
+  onNavigateToInventory
 }) => {
   // --- Inputs State ---
-  const [itemWidth, setItemWidth] = useState<string>('45');
-  const [itemHeight, setItemHeight] = useState<string>('65');
+  const [itemWidth, setItemWidth] = useState<string>('23');
+  const [itemHeight, setItemHeight] = useState<string>('32');
   const [itemUnit, setItemUnit] = useState<DimensionUnit>('cm');
+  const [fiveStocks, setFiveStocks] = useState<FiveStockInput[]>(DEFAULT_FIVE_STOCKS);
   const [requiredQty, setRequiredQty] = useState<string>('1000');
   const [kerf, setKerf] = useState<string>('0');
   const [kerfUnit, setKerfUnit] = useState<DimensionUnit>('cm');
@@ -114,7 +136,13 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
   const [zeroWasteTargets, setZeroWasteTargets] = useState<ZeroWasteTarget[]>([]);
   const [expandedDetailsId, setExpandedDetailsId] = useState<string | null>(null);
   const [resultDetailLevel, setResultDetailLevel] = useState<'minimal' | 'detailed'>('minimal');
-  const [activeTabSection, setActiveTabSection] = useState<'summary' | 'grid' | 'plan' | 'targets' | 'combiner'>('summary');
+  const [activeTabSection, setActiveTabSection] = useState<'summary' | 'grid' | 'plan' | 'targets' | 'combiner' | 'realInventory'>('summary');
+
+  // Real inventory evaluation state
+  const [realInventorySolutions, setRealInventorySolutions] = useState<SingleSheetSolution[]>([]);
+  const [realInvSearch, setRealInvSearch] = useState<string>('');
+  const [realInvGsmFilter, setRealInvGsmFilter] = useState<string>('all');
+  const [realInvSortBy, setRealInvSortBy] = useState<'waste' | 'yield' | 'stock'>('waste');
 
   // Modal / Action states
   const [isSavingJob, setIsSavingJob] = useState(false);
@@ -173,8 +201,53 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     }
 
     setStockList(extracted);
-    handleOptimize(extracted);
-    toast.success(`Imported & evaluated ${extracted.length} real stock sheet items from Enerpack inventory!`);
+    // Populate the available stock slots with top inventory sizes
+    const updatedFive = DEFAULT_FIVE_STOCKS.map((slot, idx) => {
+      if (extracted[idx]) {
+        return {
+          id: slot.id,
+          width: String(extracted[idx].width),
+          height: String(extracted[idx].length)
+        };
+      }
+      return slot;
+    });
+    setFiveStocks(updatedFive);
+    handleOptimize(undefined, undefined, updatedFive);
+    toast.success(`Imported & loaded ${extracted.length} real stock sizes from inventory!`);
+  };
+
+  const handleUpdateFiveStock = (id: number, field: 'width' | 'height', value: string) => {
+    setFiveStocks(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handleAddStockRow = () => {
+    setFiveStocks(prev => {
+      const nextId = prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1;
+      return [...prev, { id: nextId, width: '', height: '' }];
+    });
+  };
+
+  const handleRemoveStockRow = (id: number) => {
+    setFiveStocks(prev => {
+      if (prev.length <= 1) {
+        toast.info('At least one available stock option is required.');
+        return prev;
+      }
+      const filtered = prev.filter(s => s.id !== id);
+      handleOptimize(undefined, undefined, filtered);
+      return filtered;
+    });
+  };
+
+  const handleResetToTestStocks = () => {
+    setFiveStocks(DEFAULT_FIVE_STOCKS);
+    setItemWidth('23');
+    setItemHeight('32');
+    setItemUnit('cm');
+    setKerf('0');
+    handleOptimize(undefined, undefined, DEFAULT_FIVE_STOCKS, '23', '32', 'cm', '0');
+    toast.success('Reset to standard available stock test values (23×32 target)');
   };
 
   const handleAddCustomStock = () => {
@@ -206,12 +279,22 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     });
   };
 
-  // Main Optimization Procedure with 8-Point Priority Hierarchy and Target GSM filtering
-  const handleOptimize = (stocksToUse?: StockInputItem[], gsmParam?: string) => {
-    const activeStocks = stocksToUse && stocksToUse.length > 0 ? stocksToUse : stockList;
-    const wi = parseFloat(itemWidth);
-    const hi = parseFloat(itemHeight);
-    const k = includeKerf ? (parseFloat(kerf) || 0) : 0;
+  // Main Optimization Procedure with 4-Point Priority Hierarchy
+  const handleOptimize = (
+    stocksToUse?: StockInputItem[],
+    gsmParam?: string,
+    fiveStocksOverride?: FiveStockInput[],
+    overrideW?: string,
+    overrideH?: string,
+    overrideUnit?: DimensionUnit,
+    overrideKerf?: string
+  ) => {
+    const currentFive = fiveStocksOverride || fiveStocks;
+    const currentUnit = overrideUnit || itemUnit;
+    const wi = parseFloat(overrideW !== undefined ? overrideW : itemWidth);
+    const hi = parseFloat(overrideH !== undefined ? overrideH : itemHeight);
+    const kerfVal = overrideKerf !== undefined ? overrideKerf : kerf;
+    const k = includeKerf ? (parseFloat(kerfVal) || 0) : 0;
     const et = includeEdgeTrim ? (parseFloat(edgeTrim) || 0) : 0;
     const reqQ = parseInt(requiredQty) || 0;
 
@@ -223,8 +306,26 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
       return;
     }
 
+    // Default to the 5 Available Stocks
+    const activeStocks: StockInputItem[] = stocksToUse && stocksToUse.length > 0
+      ? stocksToUse
+      : currentFive.map(s => {
+          const w = parseFloat(s.width) || 0;
+          const h = parseFloat(s.height) || 0;
+          return {
+            id: `Stock ${s.id}`,
+            name: `Stock ${s.id} (${s.width} × ${s.height})`,
+            width: w,
+            length: h,
+            unit: currentUnit,
+            qtyAvailable: 100,
+            isInventoryItem: false,
+            sectionTitle: `Available Stock ${s.id}`
+          };
+        });
+
     if (activeStocks.length === 0) {
-      toast.error('Please add or import at least one available stock sheet size.');
+      toast.error('Please add or enter at least one available stock size.');
       return;
     }
 
@@ -251,8 +352,8 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
       }
 
       // 2. Normalize all inputs to mm
-      const itemWMm = convertToMm(wi, itemUnit);
-      const itemHMm = convertToMm(hi, itemUnit);
+      const itemWMm = convertToMm(wi, currentUnit);
+      const itemHMm = convertToMm(hi, currentUnit);
       const kerfMm = convertToMm(k, kerfUnit);
       const edgeTrimMm = convertToMm(et, edgeTrimUnit);
 
@@ -286,86 +387,48 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
           maxWastePct,
           reqQ,
           goal,
-          itemUnit
+          currentUnit
         );
       });
 
-      // Rank solutions using the 8-Point Priority Hierarchy:
-      // 1. Feasibility (feasible first)
-      // 2. Target GSM Match (matching target GSM first)
-      // 3. Point 1: Zero-Waste Match (totalWastePct <= 0.05% or TRUE ZERO-WASTE)
-      // 4. Point 2: Dimensional Match / Near Zero-Waste (totalWastePct <= 2.0% or NEAR ZERO-WASTE)
-      // 5. Point 3 & 4: Waste % ascending (lowest waste first)
-      // 6. Point 5: Yield per Sheet descending (higher pcs/sheet first)
-      // 7. Point 6: Product Efficiency % descending
-      // 8. Point 7: Inventory Availability (available in stock preferred, but shortage never hidden)
-      // 9. Point 8: Sheets Required ascending
-      // 10. Composite Score fallback
+      // Rank solutions using exact Priority Hierarchy:
+      // Priority 1: 100% Zero Waste / Exact Match (Waste <= 0.001% or ZERO WASTE)
+      // Priority 2: Lowest waste percentage (ascending order)
+      // Priority 3: Highest yield (descending order)
+      // Priority 4: Best stock-size utilization (higher efficiency, then smaller stock area)
+      // Feasible first, Not Feasible last
       const rankedSolutions = [...evaluatedSolutions].sort((a, b) => {
         if (a.isFeasible !== b.isFeasible) {
           return a.isFeasible ? -1 : 1;
         }
         if (!a.isFeasible && !b.isFeasible) return 0;
 
-        // Target GSM Match
-        if (cleanTargetGsm) {
-          const aGsm = String(a.stockGsm || '').replace(/[^0-9]/g, '').trim();
-          const bGsm = String(b.stockGsm || '').replace(/[^0-9]/g, '').trim();
-          const aMatch = aGsm === cleanTargetGsm;
-          const bMatch = bGsm === cleanTargetGsm;
-          if (aMatch !== bMatch) {
-            return aMatch ? -1 : 1;
-          }
-        }
-
-        // 1. Zero Waste Matches First (<= 0.05% or TRUE ZERO-WASTE)
-        const aIsZero = a.totalWastePct <= 0.05 || a.classification === 'TRUE ZERO-WASTE';
-        const bIsZero = b.totalWastePct <= 0.05 || b.classification === 'TRUE ZERO-WASTE';
+        // PRIORITY 1: 100% Zero Waste / Exact Match (Waste <= 0.001%)
+        const aIsZero = a.totalWastePct <= 0.001 || a.classification === 'ZERO WASTE' || a.classification === 'TRUE ZERO-WASTE';
+        const bIsZero = b.totalWastePct <= 0.001 || b.classification === 'ZERO WASTE' || b.classification === 'TRUE ZERO-WASTE';
         if (aIsZero !== bIsZero) {
           return aIsZero ? -1 : 1;
         }
         if (aIsZero && bIsZero) {
           if (b.yieldPerSheet !== a.yieldPerSheet) return b.yieldPerSheet - a.yieldPerSheet;
-          if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
-            return b.productEfficiencyPct - a.productEfficiencyPct;
-          }
+          return a.stockAreaMm2 - b.stockAreaMm2;
         }
 
-        // 2. Dimensional Match / Near Zero-Waste (<= 2.0% or NEAR ZERO-WASTE)
-        const aIsNearZero = a.totalWastePct <= 2.0 || a.classification === 'NEAR ZERO-WASTE';
-        const bIsNearZero = b.totalWastePct <= 2.0 || b.classification === 'NEAR ZERO-WASTE';
-        if (aIsNearZero !== bIsNearZero) {
-          return aIsNearZero ? -1 : 1;
-        }
-
-        // 3. Lowest Total Waste % first (ascending)
-        if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.001) {
+        // PRIORITY 2: Lowest waste percentage (ascending)
+        if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.0001) {
           return a.totalWastePct - b.totalWastePct;
         }
 
-        // 4. Higher Yield per Sheet (descending)
+        // PRIORITY 3: Highest yield (descending)
         if (b.yieldPerSheet !== a.yieldPerSheet) {
           return b.yieldPerSheet - a.yieldPerSheet;
         }
 
-        // 5. Higher Product Efficiency % (descending)
-        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+        // PRIORITY 4: Best stock-size utilization (higher efficiency, then smaller stock area)
+        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.0001) {
           return b.productEfficiencyPct - a.productEfficiencyPct;
         }
-
-        // 6. Inventory Availability (in-stock sheets preferred when waste & yield are equal)
-        const aHasStock = a.qtyAvailable > 0 ? 1 : 0;
-        const bHasStock = b.qtyAvailable > 0 ? 1 : 0;
-        if (aHasStock !== bHasStock) {
-          return bHasStock - aHasStock;
-        }
-
-        // 7. Sheets Required (fewer is better)
-        if (a.sheetsRequired !== b.sheetsRequired) {
-          return a.sheetsRequired - b.sheetsRequired;
-        }
-
-        return b.compositeScore - a.compositeScore;
+        return a.stockAreaMm2 - b.stockAreaMm2;
       });
 
       // Log Debug Trace for Verification
@@ -429,6 +492,93 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         setMultiStockResult(null);
       }
 
+      // 5. Evaluate Full Real Inventory Stock Sheets from Enerpack Warehouse
+      const extractedRealStocks = extractStockFromInventory(inventory);
+      const fallbackRealStocks: StockInputItem[] = [
+        { id: 'INV-001', name: '70*100 (280 GSM)', width: 70, length: 100, unit: 'cm', qtyAvailable: 1999, gsm: '280', sectionTitle: '280 GSM SECTION', subTitle: '280 REELS & SHEETS', isInventoryItem: true },
+        { id: 'INV-002', name: '65*97.5 (280 GSM)', width: 65, length: 97.5, unit: 'cm', qtyAvailable: 340, gsm: '280', sectionTitle: '280 GSM SECTION', subTitle: '280 REELS & SHEETS', isInventoryItem: true },
+        { id: 'INV-003', name: '94.5*80.3 (280 GSM)', width: 80.3, length: 94.5, unit: 'cm', qtyAvailable: 32, gsm: '280', sectionTitle: '280 GSM SECTION', subTitle: '280 REELS & SHEETS', isInventoryItem: true },
+        { id: 'INV-004', name: '100*74 (280 GSM)', width: 74, length: 100, unit: 'cm', qtyAvailable: 20, gsm: '280', sectionTitle: '280 GSM SECTION', subTitle: '280 REELS & SHEETS', isInventoryItem: true },
+        { id: 'INV-005', name: '108*76 (280 GSM)', width: 76, length: 108, unit: 'cm', qtyAvailable: 103, gsm: '280', sectionTitle: '280 GSM SECTION', subTitle: '280 REELS & SHEETS', isInventoryItem: true },
+        { id: 'INV-006', name: '50*64.5 (250 GSM)', width: 50, length: 64.5, unit: 'cm', qtyAvailable: 255, gsm: '250', sectionTitle: '250 & 230 GSM SECTION', subTitle: '250 DOUBLE', isInventoryItem: true },
+        { id: 'INV-007', name: '54*78 (230 GSM)', width: 54, length: 78, unit: 'cm', qtyAvailable: 55, gsm: '230', sectionTitle: '250 & 230 GSM SECTION', subTitle: '230 DOUBLE', isInventoryItem: true },
+        { id: 'INV-008', name: '59*91 (230 GSM)', width: 59, length: 91, unit: 'cm', qtyAvailable: 42, gsm: '230', sectionTitle: '250 & 230 GSM SECTION', subTitle: '230 DOUBLE', isInventoryItem: true },
+        { id: 'INV-009', name: '82*98 (230 GSM)', width: 82, length: 98, unit: 'cm', qtyAvailable: 110, gsm: '230', sectionTitle: '250 & 230 GSM SECTION', subTitle: '230 DOUBLE', isInventoryItem: true },
+        { id: 'INV-010', name: '55*80 (230 GSM)', width: 55, length: 80, unit: 'cm', qtyAvailable: 60, gsm: '230', sectionTitle: '250 & 230 GSM SECTION', subTitle: '230 DOUBLE', isInventoryItem: true },
+      ];
+
+      const allRealStocksToEval: StockInputItem[] = [...extractedRealStocks];
+      if (allRealStocksToEval.length < 5) {
+        fallbackRealStocks.forEach(fb => {
+          if (!allRealStocksToEval.some(e => e.name === fb.name || (e.width === fb.width && e.length === fb.length))) {
+            allRealStocksToEval.push(fb);
+          }
+        });
+      }
+
+      const normalizedRealStocks: NormalizedStock[] = allRealStocksToEval.map(stk => ({
+        id: stk.id,
+        name: stk.name || `${stk.width}×${stk.length} ${stk.unit}`,
+        originalWidth: stk.width,
+        originalLength: stk.length,
+        originalUnit: stk.unit,
+        widthMm: convertToMm(stk.width, stk.unit),
+        lengthMm: convertToMm(stk.length, stk.unit),
+        qtyAvailable: stk.qtyAvailable || 0,
+        gsm: stk.gsm || (cleanTargetGsm ? cleanTargetGsm : undefined),
+        sectionTitle: stk.sectionTitle,
+        subTitle: stk.subTitle,
+        isInventoryItem: true
+      }));
+
+      const evaluatedRealSolutions = normalizedRealStocks.map(stock => {
+        return evaluateStockSheet(
+          stock,
+          itemWMm,
+          itemHMm,
+          kerfMm,
+          edgeTrimMm,
+          allowRotation,
+          allowMixed,
+          maxWastePct,
+          reqQ,
+          goal,
+          currentUnit
+        );
+      });
+
+      const rankedRealSolutions = [...evaluatedRealSolutions].sort((a, b) => {
+        if (a.isFeasible !== b.isFeasible) {
+          return a.isFeasible ? -1 : 1;
+        }
+        if (!a.isFeasible && !b.isFeasible) return 0;
+
+        const aIsZero = a.totalWastePct <= 0.001 || a.classification === 'ZERO WASTE' || a.classification === 'TRUE ZERO-WASTE';
+        const bIsZero = b.totalWastePct <= 0.001 || b.classification === 'ZERO WASTE' || b.classification === 'TRUE ZERO-WASTE';
+        if (aIsZero !== bIsZero) {
+          return aIsZero ? -1 : 1;
+        }
+        if (aIsZero && bIsZero) {
+          if (b.yieldPerSheet !== a.yieldPerSheet) return b.yieldPerSheet - a.yieldPerSheet;
+          return a.stockAreaMm2 - b.stockAreaMm2;
+        }
+
+        if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.0001) {
+          return a.totalWastePct - b.totalWastePct;
+        }
+
+        if (b.yieldPerSheet !== a.yieldPerSheet) {
+          return b.yieldPerSheet - a.yieldPerSheet;
+        }
+
+        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.0001) {
+          return b.productEfficiencyPct - a.productEfficiencyPct;
+        }
+        return a.stockAreaMm2 - b.stockAreaMm2;
+      });
+
+      setRealInventorySolutions(rankedRealSolutions);
+
       setIsOptimizing(false);
       setOptimizationProgress('');
       toast.success('Stock optimization completed successfully!');
@@ -440,21 +590,13 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     }, 250);
   };
 
-  // Auto-import real inventory on mount or when inventory prop changes
+  // Initialize on mount with default 5 test stocks (23×32 target)
   useEffect(() => {
-    if (inventory && inventory.length > 0) {
-      const extracted = extractStockFromInventory(inventory);
-      if (extracted.length > 0) {
-        setStockList(extracted);
-        handleOptimize(extracted);
-        return;
-      }
-    }
     handleOptimize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventory, extractStockFromInventory]);
+  }, []);
 
-  const activeSolution = solutions[selectedSolutionIndex] || solutions[0];
+  const activeSolution = solutions[selectedSolutionIndex] || solutions.find(s => s.isFeasible) || solutions[0];
 
   // Available GSM categories from main inventory
   const availableGsms = useMemo(() => {
@@ -471,9 +613,9 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     return Array.from(gsms).sort();
   }, [inventory]);
 
-  // Top 6 solutions strictly ranked Higher to Low (fills 3-column grid perfectly)
+  // Evaluated stock solutions strictly ranked by Priority (all evaluated available stocks)
   const topSolutions = useMemo(() => {
-    return solutions.filter(s => s.isFeasible).slice(0, 6);
+    return solutions;
   }, [solutions]);
 
   // Top 10 solutions for Section 3 table (strictly top 10 feasible matches ranked higher to low out of main results)
@@ -485,7 +627,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
     return solutions.slice(0, 10);
   }, [solutions]);
 
-  // Top 6 Best Matching Sizes from Main Inventory: Zero Wastages first, followed by Low Wastages
+  // Top Best Matching Sizes from Available Stocks: Zero Wastages first, followed by Low Wastages
   const top6MatchingSizes = useMemo(() => {
     let list = solutions.filter(s => s.isFeasible);
     if (queryGsmFilter !== 'all') {
@@ -501,58 +643,173 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
       );
     }
 
-    // Sort: 8-Point Priority Hierarchy (Zero-Waste, Dimensional Match, lowest waste %, higher yield, efficiency, in-stock)
+    // Sort: 4-Point Priority Hierarchy (Zero-Waste, lowest waste %, higher yield, efficiency)
     list = [...list].sort((a, b) => {
-      // 1. Zero Waste Matches First (<= 0.05% or TRUE ZERO-WASTE)
-      const aIsZero = a.totalWastePct <= 0.05 || a.classification === 'TRUE ZERO-WASTE';
-      const bIsZero = b.totalWastePct <= 0.05 || b.classification === 'TRUE ZERO-WASTE';
+      // 1. Zero Waste Matches First (<= 0.001% or ZERO WASTE)
+      const aIsZero = a.totalWastePct <= 0.001 || a.classification === 'ZERO WASTE' || a.classification === 'TRUE ZERO-WASTE';
+      const bIsZero = b.totalWastePct <= 0.001 || b.classification === 'ZERO WASTE' || b.classification === 'TRUE ZERO-WASTE';
       if (aIsZero !== bIsZero) return aIsZero ? -1 : 1;
       if (aIsZero && bIsZero) {
         if (b.yieldPerSheet !== a.yieldPerSheet) return b.yieldPerSheet - a.yieldPerSheet;
-        if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
-          return b.productEfficiencyPct - a.productEfficiencyPct;
-        }
+        return a.stockAreaMm2 - b.stockAreaMm2;
       }
 
-      // 2. Dimensional Match / Near Zero-Waste (<= 2.0% or NEAR ZERO-WASTE)
-      const aIsNearZero = a.totalWastePct <= 2.0 || a.classification === 'NEAR ZERO-WASTE';
-      const bIsNearZero = b.totalWastePct <= 2.0 || b.classification === 'NEAR ZERO-WASTE';
-      if (aIsNearZero !== bIsNearZero) {
-        return aIsNearZero ? -1 : 1;
-      }
-
-      // 3. Lowest Total Waste % first (ascending)
-      if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.001) {
+      // 2. Lowest Total Waste % first (ascending)
+      if (Math.abs(a.totalWastePct - b.totalWastePct) > 0.0001) {
         return a.totalWastePct - b.totalWastePct;
       }
 
-      // 4. Higher Yield per Sheet (descending)
+      // 3. Higher Yield per Sheet (descending)
       if (b.yieldPerSheet !== a.yieldPerSheet) {
         return b.yieldPerSheet - a.yieldPerSheet;
       }
 
-      // 5. Higher Product Efficiency % (descending)
-      if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.01) {
+      // 4. Higher Product Efficiency % (descending)
+      if (Math.abs(b.productEfficiencyPct - a.productEfficiencyPct) > 0.0001) {
         return b.productEfficiencyPct - a.productEfficiencyPct;
       }
 
-      // 6. Inventory Availability
-      const aHasStock = a.qtyAvailable > 0 ? 1 : 0;
-      const bHasStock = b.qtyAvailable > 0 ? 1 : 0;
-      if (aHasStock !== bHasStock) {
-        return bHasStock - aHasStock;
-      }
-
-      // 7. Sheets Required (fewer is better)
-      if (a.sheetsRequired !== b.sheetsRequired) {
-        return a.sheetsRequired - b.sheetsRequired;
-      }
-
-      return b.compositeScore - a.compositeScore;
+      return a.stockAreaMm2 - b.stockAreaMm2;
     });
 
     return list.slice(0, 6);
   }, [solutions, queryGsmFilter, querySearchText]);
+
+  // Best available stock match (#1 ranked)
+  const bestAvailableMatch = solutions.length > 0 ? solutions[0] : null;
+
+  // Exact Zero-Waste Target corresponding to the best available match grid & orientation
+  const numWi = parseFloat(itemWidth) || 0;
+  const numHi = parseFloat(itemHeight) || 0;
+  const numKerf = includeKerf ? (parseFloat(kerf) || 0) : 0;
+
+  const targetCols = bestAvailableMatch && bestAvailableMatch.isFeasible ? bestAvailableMatch.columns : 2;
+  const targetRows = bestAvailableMatch && bestAvailableMatch.isFeasible ? bestAvailableMatch.rows : 2;
+  const isRotatedBest = bestAvailableMatch && bestAvailableMatch.isFeasible && bestAvailableMatch.orientation === 'Rotated 90°';
+
+  const exactTargetWidth = isRotatedBest
+    ? targetCols * numHi + (targetCols - 1) * numKerf
+    : targetCols * numWi + (targetCols - 1) * numKerf;
+
+  const exactTargetHeight = isRotatedBest
+    ? targetRows * numWi + (targetRows - 1) * numKerf
+    : targetRows * numHi + (targetRows - 1) * numKerf;
+
+  const exactTargetPieces = targetCols * targetRows;
+  const exactTargetGrid = `${targetCols} × ${targetRows}`;
+
+  // Difference calculation: Available Stock - Exact Target
+  const availW = bestAvailableMatch && bestAvailableMatch.isFeasible ? bestAvailableMatch.originalStockWidth : 0;
+  const availH = bestAvailableMatch && bestAvailableMatch.isFeasible ? bestAvailableMatch.originalStockLength : 0;
+  const diffW = availW - exactTargetWidth;
+  const diffH = availH - exactTargetHeight;
+
+  const formatDiffVal = (val: number) => {
+    const r = Math.round(val * 100) / 100;
+    if (r === 0) return '0';
+    if (r > 0) return `+${r}`;
+    return `${r}`;
+  };
+  const diffString = `${formatDiffVal(diffW)} × ${formatDiffVal(diffH)}`;
+
+  const handleAddTargetAsStock = () => {
+    const targetW = String(exactTargetWidth);
+    const targetH = String(exactTargetHeight);
+    const newStocks = [...fiveStocks];
+    if (newStocks.length < 6) {
+      newStocks.push({ id: newStocks.length + 1, width: targetW, height: targetH });
+    } else {
+      newStocks[newStocks.length - 1] = { ...newStocks[newStocks.length - 1], width: targetW, height: targetH };
+    }
+    setFiveStocks(newStocks);
+    handleOptimize(undefined, undefined, newStocks);
+    toast.success(`Added Zero-Waste Target (${targetW} × ${targetH} ${itemUnit}) to Available Stocks!`);
+  };
+
+  // Top 5 best matching results from real inventory (full warehouse evaluation)
+  const top5RealInventorySolutions = useMemo(() => {
+    const feasible = realInventorySolutions.filter(s => s.isFeasible);
+    return feasible.slice(0, 5);
+  }, [realInventorySolutions]);
+
+  const filteredRealInventorySolutions = useMemo(() => {
+    let list = [...realInventorySolutions];
+    if (realInvGsmFilter !== 'all') {
+      const cleanGsm = realInvGsmFilter.replace(/[^0-9]/g, '').trim();
+      list = list.filter(s => {
+        const stkGsm = String(s.stockGsm || '').replace(/[^0-9]/g, '').trim();
+        return stkGsm === cleanGsm;
+      });
+    }
+    if (realInvSearch.trim()) {
+      const q = realInvSearch.toLowerCase();
+      list = list.filter(s => 
+        s.stockName.toLowerCase().includes(q) ||
+        (s.sectionTitle && s.sectionTitle.toLowerCase().includes(q)) ||
+        `${s.originalStockWidth}x${s.originalStockLength}`.includes(q) ||
+        `${s.originalStockWidth}*${s.originalStockLength}`.includes(q)
+      );
+    }
+    if (realInvSortBy === 'yield') {
+      list.sort((a, b) => b.yieldPerSheet - a.yieldPerSheet);
+    } else if (realInvSortBy === 'stock') {
+      list.sort((a, b) => b.qtyAvailable - a.qtyAvailable);
+    }
+    return list;
+  }, [realInventorySolutions, realInvGsmFilter, realInvSearch, realInvSortBy]);
+
+  const handleInspectRealStock = (sol: SingleSheetSolution) => {
+    const existingIdx = solutions.findIndex(s => s.stockId === sol.stockId);
+    if (existingIdx >= 0) {
+      setSelectedSolutionIndex(existingIdx);
+    } else {
+      setSolutions(prev => [sol, ...prev]);
+      setSelectedSolutionIndex(0);
+    }
+    setActiveTabSection('grid');
+    toast.success(`Loaded ${sol.stockName} into 2D Cutting Diagram`);
+  };
+
+  const handleExportRealInventoryExcel = () => {
+    if (realInventorySolutions.length === 0) {
+      toast.error('No real inventory solutions to export');
+      return;
+    }
+    const data = realInventorySolutions.map((s, idx) => ({
+      'Rank': `#${idx + 1}`,
+      'Stock ID': s.stockId,
+      'Stock Name': s.stockName,
+      'Warehouse Section': s.sectionTitle || 'General Inventory',
+      'Stock Dimensions': `${s.originalStockWidth} × ${s.originalStockLength} ${s.originalStockUnit}`,
+      'GSM': s.stockGsm || 'N/A',
+      'In Stock (Sheets)': s.qtyAvailable,
+      'Feasible': s.isFeasible ? 'YES' : 'NO',
+      'Best Orientation': s.orientation,
+      'Grid Layout': s.gridLayout,
+      'Yield (pcs/sheet)': s.yieldPerSheet,
+      'Product Efficiency %': s.productEfficiencyPct.toFixed(2),
+      'Kerf Consumption %': s.kerfConsumptionPct.toFixed(2),
+      'Total Waste %': s.totalWastePct.toFixed(2),
+      'Classification': s.classification,
+      'Sheets Required': s.sheetsRequired,
+      'Estimated Cuts': s.estimatedCuts
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Real Inventory Matches');
+    XLSX.writeFile(wb, `Enerpack_Real_Inventory_Matches_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Exported Real Inventory Matches to Excel');
+  };
+
+  const handleGoToFullInventoryPage = () => {
+    if (onNavigateToInventory) {
+      onNavigateToInventory();
+    } else {
+      window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'Full Inventory' }));
+    }
+    toast.success('Redirecting to Full Inventory page...');
+  };
 
   // Export functions
   const handleExportExcel = () => {
@@ -798,7 +1055,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                 <div className="flex items-center gap-2">
                   <Target className="text-blue-600" size={18} />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    1. Required Item / Finished Piece
+                    Required Size
                   </h3>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -814,61 +1071,138 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              {/* Required Size: Width, Height, Unit */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Item Width (Wi)
+                    Required Width
                   </label>
                   <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
                     <input
-                      id="input-item-width"
+                      id="input-required-width"
                       type="number"
                       step="any"
                       value={itemWidth}
                       onChange={(e) => setItemWidth(e.target.value)}
-                      placeholder="e.g. 40"
-                      className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
+                      placeholder="23"
+                      className="w-full px-3 py-2 text-sm font-bold bg-transparent outline-none"
                     />
                     <select
-                      id="select-item-width-unit"
+                      id="select-item-unit"
                       value={itemUnit}
                       onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
-                      className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
+                      className="bg-slate-100 text-xs font-bold px-2.5 py-2 border-l border-slate-200 outline-none cursor-pointer"
                     >
-                      <option value="mm">mm</option>
                       <option value="cm">cm</option>
+                      <option value="mm">mm</option>
                       <option value="inch">inch</option>
-                      <option value="m">m</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Item Height (Hi)
+                    Required Height
                   </label>
                   <div className="flex rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20">
                     <input
-                      id="input-item-height"
+                      id="input-required-height"
                       type="number"
                       step="any"
                       value={itemHeight}
                       onChange={(e) => setItemHeight(e.target.value)}
-                      placeholder="e.g. 55"
-                      className="w-full px-3 py-2.5 text-sm font-bold bg-transparent outline-none"
+                      placeholder="32"
+                      className="w-full px-3 py-2 text-sm font-bold bg-transparent outline-none"
                     />
-                    <select
-                      id="select-item-height-unit"
-                      value={itemUnit}
-                      onChange={(e) => setItemUnit(e.target.value as DimensionUnit)}
-                      className="bg-slate-100 text-xs font-bold px-2 py-2 border-l border-slate-200 outline-none cursor-pointer"
-                    >
-                      <option value="mm">mm</option>
-                      <option value="cm">cm</option>
-                      <option value="inch">inch</option>
-                      <option value="m">m</option>
-                    </select>
+                    <span className="bg-slate-100 text-xs font-bold px-3 py-2 border-l border-slate-200 text-slate-600 flex items-center">
+                      {itemUnit}
+                    </span>
                   </div>
+                </div>
+              </div>
+
+              {/* AVAILABLE STOCK INPUT OPTIONS */}
+              <div className="space-y-2.5 pt-2 pb-1 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="text-blue-600" size={14} />
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                      Available Stock Options ({fiveStocks.length} Sizes)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddStockRow}
+                      className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                      title="Add another stock size row"
+                    >
+                      <Plus size={11} /> Add Stock
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={handleResetToTestStocks}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      title="Reset to test stocks"
+                    >
+                      Reset Test Values
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={handleLoadFromInventory}
+                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer"
+                      title="Load sizes from inventory"
+                    >
+                      Load Inventory
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  {fiveStocks.map((stk, sIdx) => (
+                    <div
+                      key={stk.id}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 hover:border-slate-300 transition-colors"
+                    >
+                      <span className="w-28 text-[11px] font-bold text-slate-700 shrink-0">
+                        Available Stock {sIdx + 1}
+                      </span>
+                      <div className="flex-1 flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          step="any"
+                          value={stk.width}
+                          onChange={(e) => handleUpdateFiveStock(stk.id, 'width', e.target.value)}
+                          placeholder="Width"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-center"
+                        />
+                        <span className="text-slate-400 font-bold text-xs shrink-0">×</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={stk.height}
+                          onChange={(e) => handleUpdateFiveStock(stk.id, 'height', e.target.value)}
+                          placeholder="Height"
+                          className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 text-center"
+                        />
+                        <span className="text-[10px] font-bold text-slate-400 shrink-0 w-6 text-right">
+                          {itemUnit}
+                        </span>
+                        {fiveStocks.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStockRow(stk.id)}
+                            className="text-slate-400 hover:text-rose-500 p-0.5 rounded cursor-pointer transition-colors"
+                            title="Remove stock option"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1472,13 +1806,13 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
       {/* RESULTS DISPLAY SECTION */}
       <div ref={resultsRef} className="space-y-8 pt-4">
         {/* Navigation Tabs for Master Output Sections */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-2">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar no-scrollbar py-0.5 max-w-full">
             <button
               onClick={() => setActiveTabSection('summary')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
                 activeTabSection === 'summary'
-                  ? 'bg-[#0f2a43] text-white shadow-md'
+                  ? 'bg-[#0f2a43] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -1486,9 +1820,9 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
             </button>
             <button
               onClick={() => setActiveTabSection('grid')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
                 activeTabSection === 'grid'
-                  ? 'bg-[#0f2a43] text-white shadow-md'
+                  ? 'bg-[#0f2a43] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -1496,9 +1830,9 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
             </button>
             <button
               onClick={() => setActiveTabSection('plan')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
                 activeTabSection === 'plan'
-                  ? 'bg-[#0f2a43] text-white shadow-md'
+                  ? 'bg-[#0f2a43] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -1506,9 +1840,9 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
             </button>
             <button
               onClick={() => setActiveTabSection('targets')}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
                 activeTabSection === 'targets'
-                  ? 'bg-[#0f2a43] text-white shadow-md'
+                  ? 'bg-[#0f2a43] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -1517,47 +1851,66 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
             {multiStockResult && (
               <button
                 onClick={() => setActiveTabSection('combiner')}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all cursor-pointer ${
                   activeTabSection === 'combiner'
-                    ? 'bg-emerald-700 text-white shadow-md'
+                    ? 'bg-emerald-700 text-white shadow-xs'
                     : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                 }`}
               >
-                5. Master Multi-Stock Combiner
+                5. Multi-Stock Combiner
               </button>
             )}
+            <button
+              onClick={() => setActiveTabSection('realInventory')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold tracking-tight whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTabSection === 'realInventory'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+              }`}
+            >
+              <Warehouse size={12} className={activeTabSection === 'realInventory' ? 'text-white' : 'text-blue-600'} />
+              <span>Real Inventory</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded-full font-black ${
+                activeTabSection === 'realInventory' ? 'bg-white/20 text-white' : 'bg-blue-200 text-blue-800'
+              }`}>
+                Top 5
+              </span>
+            </button>
           </div>
 
           {/* Action & Export Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             <button
               onClick={() => setShowSaveModal(true)}
-              className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl transition-all shadow-sm"
+              className="flex items-center gap-1 text-[11px] font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
               title="Save this plan as an official cutting job"
             >
-              <Save size={14} className="text-blue-600" />
-              Save Optimization
+              <Save size={13} className="text-blue-600" />
+              <span>Save</span>
             </button>
             <button
               onClick={handleExportPDF}
-              className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl transition-all shadow-sm"
+              className="flex items-center gap-1 text-[11px] font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
+              title="Export PDF Report"
             >
-              <FileText size={14} className="text-rose-600" />
-              Export PDF
+              <FileText size={13} className="text-rose-600" />
+              <span className="hidden sm:inline">PDF</span>
             </button>
             <button
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl transition-all shadow-sm"
+              className="flex items-center gap-1 text-[11px] font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
+              title="Export Excel Report"
             >
-              <FileSpreadsheet size={14} className="text-emerald-600" />
-              Export Excel
+              <FileSpreadsheet size={13} className="text-emerald-600" />
+              <span className="hidden sm:inline">Excel</span>
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl transition-all shadow-sm"
+              className="flex items-center gap-1 text-[11px] font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer"
+              title="Print Cutting Plan"
             >
-              <Printer size={14} className="text-slate-600" />
-              Print
+              <Printer size={13} className="text-slate-600" />
+              <span className="hidden sm:inline">Print</span>
             </button>
           </div>
         </div>
@@ -1670,22 +2023,144 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
         {/* TAB CONTENT: 1. OVERVIEW & TOP SOLUTIONS */}
         {activeTabSection === 'summary' && (
           <div className="space-y-8">
-            {/* SECTION 4 — TOP 5 BEST MATCHING SIZES (HIGHER TO LOW) */}
+            {/* ZERO-WASTE TARGET vs AVAILABLE STOCK MATCH BENTO */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* ZERO-WASTE TARGET CARD */}
+              <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-[#0f2a43] text-white p-5 sm:p-6 rounded-3xl border border-indigo-500/30 shadow-lg relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-indigo-400/20">
+                    <div className="flex items-center gap-2">
+                      <Target className="text-indigo-400" size={18} />
+                      <span className="text-xs font-black uppercase tracking-widest text-indigo-200">
+                        ZERO-WASTE TARGET
+                      </span>
+                    </div>
+                    <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
+                      100% Target
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-2.5">
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-indigo-200 font-medium">Required Size:</span>
+                      <span className="font-bold text-white text-sm">{itemWidth} × {itemHeight} {itemUnit}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-indigo-200 font-medium">Exact Target Size:</span>
+                      <span className="font-black text-indigo-300 text-base">
+                        {exactTargetWidth} × {exactTargetHeight} {itemUnit}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2 pt-4 mt-3 border-t border-indigo-400/20 text-center">
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                    <p className="text-[9px] text-indigo-300 font-bold uppercase">Grid</p>
+                    <p className="text-xs font-black text-white">{exactTargetGrid}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                    <p className="text-[9px] text-indigo-300 font-bold uppercase">Yield</p>
+                    <p className="text-xs font-black text-white">{exactTargetPieces} pcs</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                    <p className="text-[9px] text-emerald-300 font-bold uppercase">Efficiency</p>
+                    <p className="text-xs font-black text-emerald-400">100.00%</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                    <p className="text-[9px] text-indigo-300 font-bold uppercase">Waste</p>
+                    <p className="text-xs font-black text-emerald-400">0.00%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* AVAILABLE STOCK MATCH CARD */}
+              <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-lg relative overflow-hidden flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Layers className="text-blue-600" size={18} />
+                      <span className="text-xs font-black uppercase tracking-widest text-slate-800">
+                        AVAILABLE STOCK MATCH
+                      </span>
+                    </div>
+                    {bestAvailableMatch && (
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase border ${
+                        bestAvailableMatch.totalWastePct <= 0.001
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : bestAvailableMatch.totalWastePct <= 3.0
+                          ? 'bg-teal-50 text-teal-800 border-teal-300'
+                          : bestAvailableMatch.totalWastePct <= 10.0
+                          ? 'bg-blue-50 text-blue-800 border-blue-300'
+                          : bestAvailableMatch.isFeasible
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-rose-50 text-rose-800 border-rose-300'
+                      }`}>
+                        {bestAvailableMatch.totalWastePct <= 0.001 ? 'EXACT ZERO-WASTE MATCH' : bestAvailableMatch.classification}
+                      </span>
+                    )}
+                  </div>
+
+                  {bestAvailableMatch && bestAvailableMatch.isFeasible ? (
+                    <div className="mt-4 space-y-2.5">
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Closest Available:</span>
+                        <span className="font-bold text-slate-900 text-base">
+                          {bestAvailableMatch.originalStockWidth} × {bestAvailableMatch.originalStockLength} {bestAvailableMatch.originalStockUnit}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Difference from Target:</span>
+                        <span className="font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
+                          {diffString}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center text-xs text-rose-600 font-bold">
+                      No feasible stock match found.
+                    </div>
+                  )}
+                </div>
+
+                {bestAvailableMatch && bestAvailableMatch.isFeasible && (
+                  <div className="grid grid-cols-4 gap-2 pt-4 mt-3 border-t border-slate-100 text-center">
+                    <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Orientation</p>
+                      <p className="text-xs font-black text-slate-800">{bestAvailableMatch.orientation}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Yield</p>
+                      <p className="text-xs font-black text-slate-800">{bestAvailableMatch.yieldPerSheet} pcs</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Efficiency</p>
+                      <p className="text-xs font-black text-emerald-600">{bestAvailableMatch.productEfficiencyPct.toFixed(2)}%</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">Waste</p>
+                      <p className={`text-xs font-black ${bestAvailableMatch.totalWastePct <= 0.001 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {bestAvailableMatch.totalWastePct.toFixed(2)}%
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* AVAILABLE STOCK MATCHES (All evaluated stock sheets sorted by priority) */}
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Award className="text-amber-500" size={18} />
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    SECTION 4 — Best Matching Stock Sizes (Top {topSolutions.length} Ranked Higher → Low)
+                    AVAILABLE STOCK MATCHES (Ranked: Lowest Waste → Highest Waste)
                   </h3>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
                   <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 font-bold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Main Inventory Live Evaluated
-                  </span>
-                  <span>
-                    Objective: <strong className="text-slate-800 uppercase">{goal}</strong>
+                    {topSolutions.length === 5 ? '6 Results Evaluated (5 Stocks + 1 Target)' : `${topSolutions.length} Available Stocks Evaluated`}
                   </span>
                 </div>
               </div>
@@ -1698,7 +2173,7 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
 
                   return (
                     <div
-                      key={sol.stockId}
+                      key={sol.stockId || idx}
                       onClick={() => setSelectedSolutionIndex(idx)}
                       className={`cursor-pointer p-5 rounded-3xl border transition-all duration-200 flex flex-col justify-between ${
                         isSelected 
@@ -1720,63 +2195,79 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
                               : 'bg-slate-700 text-white'
                           }`}>
                             {isHighest && <Star size={10} className="fill-amber-300 text-amber-300" />}
-                            #{rank} {isHighest ? 'Best Match (Highest)' : 'Match'}
+                            #{rank} Match
                           </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            sol.classification === 'TRUE ZERO-WASTE' ? 'bg-emerald-100 text-emerald-800' :
-                            sol.classification === 'NEAR ZERO-WASTE' ? 'bg-teal-100 text-teal-800' :
-                            sol.classification === 'EXCELLENT' ? 'bg-blue-100 text-blue-800' :
-                            'bg-amber-100 text-amber-800'
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            sol.classification === 'NOT FEASIBLE'
+                              ? 'bg-rose-100 text-rose-800 border-rose-200'
+                              : sol.totalWastePct <= 0.001
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : sol.classification === 'NEAR ZERO-WASTE'
+                              ? 'bg-teal-100 text-teal-800 border-teal-300'
+                              : sol.classification === 'LOW WASTE'
+                              ? 'bg-blue-100 text-blue-800 border-blue-300'
+                              : sol.classification === 'MODERATE WASTE'
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
                           }`}>
-                            {sol.classification}
+                            {sol.totalWastePct <= 0.001 ? 'ZERO WASTE' : sol.classification}
                           </span>
                         </div>
 
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-slate-900 text-sm">{sol.stockName}</h4>
-                            {sol.isInventoryItem && (
-                              <span className="text-[9px] font-extrabold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                Inventory
-                              </span>
-                            )}
+                            <h4 className="font-bold text-slate-900 text-sm">
+                              {sol.originalStockWidth} × {sol.originalStockLength} {itemUnit}
+                            </h4>
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
-                            {sol.stockGsm && ` • ${sol.stockGsm} GSM`}
-                            {sol.sectionTitle && ` • ${sol.sectionTitle}`}
+                            {sol.stockName}
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-center">
-                          <div>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase">Yield</p>
-                            <p className="text-base font-black text-emerald-600">{sol.yieldPerSheet} pcs</p>
+                        {/* Visual Result Details */}
+                        <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Stock:</span>
+                            <span className="font-bold text-slate-900">{sol.originalStockWidth} × {sol.originalStockLength} {itemUnit}</span>
                           </div>
-                          <div>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase">Efficiency</p>
-                            <p className="text-sm font-black text-slate-800">{sol.productEfficiencyPct.toFixed(1)}%</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Required:</span>
+                            <span className="font-bold text-slate-700">{itemWidth} × {itemHeight} {itemUnit}</span>
                           </div>
-                          <div>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase">Waste</p>
-                            <p className="text-sm font-black text-rose-500">{sol.totalWastePct.toFixed(1)}%</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Orientation:</span>
+                            <span className={`font-bold ${sol.orientation === 'Rotated 90°' ? 'text-amber-700' : 'text-slate-800'}`}>
+                              {sol.isFeasible ? sol.orientation : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Grid:</span>
+                            <span className="font-bold text-slate-800">{sol.isFeasible ? sol.gridLayout : 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Yield:</span>
+                            <span className={`font-black ${sol.isFeasible ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {sol.yieldPerSheet} pcs
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Efficiency:</span>
+                            <span className="font-bold text-slate-800">{sol.productEfficiencyPct.toFixed(2)}%</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Waste:</span>
+                            <span className={`font-bold ${sol.totalWastePct <= 0.001 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                              {sol.totalWastePct.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Status:</span>
+                            <span className="font-black text-[11px] text-slate-900">
+                              {sol.totalWastePct <= 0.001 ? 'ZERO WASTE' : sol.classification}
+                            </span>
                           </div>
                         </div>
-
-                        {/* GSM Weight Metrics */}
-                        {sol.pieceWeightGrams !== undefined && sol.pieceWeightGrams > 0 && (
-                          <div className="flex items-center justify-between text-[10px] bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-100 text-slate-600">
-                            <span>Piece: <strong className="text-slate-900">{sol.pieceWeightGrams.toFixed(1)}g</strong></span>
-                            {sol.sheetWeightKg !== undefined && (
-                              <span>Sheet: <strong className="text-slate-900">{sol.sheetWeightKg.toFixed(2)}kg</strong></span>
-                            )}
-                            {sol.totalWeightKg !== undefined && sol.totalWeightKg > 0 && (
-                              <span className="text-blue-700 font-semibold">
-                                Total: <strong>{sol.totalWeightKg >= 1000 ? `${(sol.totalWeightKg / 1000).toFixed(2)}t` : `${sol.totalWeightKg.toFixed(1)}kg`}</strong>
-                              </span>
-                            )}
-                          </div>
-                        )}
 
                         <p className="text-[11px] text-slate-600 leading-snug">
                           {sol.recommendationReason}
@@ -1785,18 +2276,110 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
 
                       <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span className="text-slate-500 text-[11px]">
-                          Available: <strong className="text-slate-800">{sol.qtyAvailable} sheets</strong>
+                          {sol.isFeasible ? `${sol.yieldPerSheet} pcs/sheet` : 'Cannot cut piece'}
                         </span>
                         <span className={`font-bold text-[11px] flex items-center gap-1 ${
                           isSelected ? 'text-blue-600' : 'text-slate-400'
                         }`}>
-                          {isSelected ? 'Active Plan' : 'View Plan'}
+                          {isSelected ? 'Active 2D Layout' : 'View 2D Layout'}
                           <ChevronRight size={14} />
                         </span>
                       </div>
                     </div>
                   );
                 })}
+
+                {/* 6TH RESULT CARD TO FILL THE EMPTY SPACE WHEN 5 STOCKS ARE EVALUATED */}
+                {topSolutions.length === 5 && (
+                  <div
+                    onClick={handleAddTargetAsStock}
+                    className="cursor-pointer p-5 rounded-3xl border border-indigo-200 hover:border-indigo-400 bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/30 hover:shadow-md transition-all duration-200 flex flex-col justify-between group"
+                    title="Click to add this Zero-Waste Target to your Available Stocks"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md flex items-center gap-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm">
+                          <Star size={10} className="fill-amber-300 text-amber-300" />
+                          #6 Match
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300">
+                          ZERO WASTE
+                        </span>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm">
+                            {exactTargetWidth} × {exactTargetHeight} {itemUnit}
+                          </h4>
+                          <span className="text-[9px] font-extrabold uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                            Zero-Waste Target
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Calculated Ideal Target Stock
+                        </p>
+                      </div>
+
+                      {/* Visual Result Details */}
+                      <div className="space-y-1.5 text-xs text-slate-700 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Stock:</span>
+                          <span className="font-bold text-indigo-900">{exactTargetWidth} × {exactTargetHeight} {itemUnit}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Required:</span>
+                          <span className="font-bold text-slate-700">{itemWidth} × {itemHeight} {itemUnit}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Orientation:</span>
+                          <span className={`font-bold ${isRotatedBest ? 'text-amber-700' : 'text-slate-800'}`}>
+                            {isRotatedBest ? 'Rotated 90°' : 'Normal'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Grid:</span>
+                          <span className="font-bold text-slate-800">{exactTargetGrid}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Yield:</span>
+                          <span className="font-black text-emerald-600">
+                            {exactTargetPieces} pcs
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Efficiency:</span>
+                          <span className="font-bold text-emerald-600">100.00%</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Waste:</span>
+                          <span className="font-bold text-emerald-600">0.00%</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                          <span className="text-slate-400 font-bold uppercase text-[10px]">Status:</span>
+                          <span className="font-black text-[11px] text-emerald-700">
+                            ZERO WASTE (100% UTILIZATION)
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Exact sheet size calculated for 100% material utilization without cutting waste.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-indigo-600 font-bold text-[11px] flex items-center gap-1">
+                        <Plus size={13} />
+                        Add as Stock 6
+                      </span>
+                      <span className="font-bold text-[11px] text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                        Use Target
+                        <ChevronRight size={14} />
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2462,6 +3045,371 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
           </div>
         )}
 
+        {/* TAB CONTENT: 6. REAL INVENTORY MATCHES */}
+        {activeTabSection === 'realInventory' && (
+          <div className="space-y-8">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-br from-[#0f2a43] via-[#1a3a5a] to-[#254d74] text-white rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+              <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-blue-500/20 text-blue-300 font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-blue-400/30 flex items-center gap-1.5">
+                      <Warehouse size={12} />
+                      LIVE ENERPACK WAREHOUSE SCAN
+                    </span>
+                    <span className="bg-emerald-500/20 text-emerald-300 font-bold text-[10px] px-2.5 py-0.5 rounded-full uppercase border border-emerald-400/30">
+                      {top5RealInventorySolutions.length} Top Matches Ranked
+                    </span>
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-black tracking-tight">
+                    Real Inventory Optimization (Full Warehouse)
+                  </h3>
+                  <p className="text-xs text-blue-200 font-medium">
+                    Exhaustive 2D guillotine cut evaluation across all warehouse stock sheets for finished piece <span className="text-white font-bold">{itemWidth} × {itemHeight} {itemUnit}</span> (Blade Kerf: <span className="text-white font-bold">{kerf} {kerfUnit}</span>).
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10 text-center">
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Sizes Scanned</p>
+                    <p className="text-2xl font-black text-white">{realInventorySolutions.length}</p>
+                    <p className="text-[9px] text-blue-300">Entire Warehouse</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10 text-center">
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Feasible Sheets</p>
+                    <p className="text-2xl font-black text-emerald-300">
+                      {realInventorySolutions.filter(s => s.isFeasible).length}
+                    </p>
+                    <p className="text-[9px] text-emerald-200">Fits Finished Piece</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 border border-white/10 text-center col-span-2 sm:col-span-1">
+                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Best Waste %</p>
+                    <p className="text-2xl font-black text-amber-300">
+                      {top5RealInventorySolutions[0] ? `${top5RealInventorySolutions[0].totalWastePct.toFixed(2)}%` : 'N/A'}
+                    </p>
+                    <p className="text-[9px] text-amber-200">#1 Warehouse Match</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* TOP 5 BEST MATCHING RESULTS FROM REAL INVENTORY */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Award className="text-amber-500" size={20} />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Five Best Matching Results from Real Inventory
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Top 5 sheets with minimum waste percentage and highest yield, directly available in Enerpack warehouse stock.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200">
+                  Priority 1 to 4 Hierarchy Applied
+                </div>
+              </div>
+
+              {top5RealInventorySolutions.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                  <Package className="mx-auto text-slate-400 mb-2" size={32} />
+                  <p className="text-sm font-bold text-slate-600">No feasible real inventory sheets found</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    The requested piece ({itemWidth} × {itemHeight} {itemUnit}) is larger than warehouse sheets or exceeded maximum waste limit.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                  {top5RealInventorySolutions.map((sol, idx) => {
+                    const isRank1 = idx === 0;
+                    return (
+                      <div
+                        key={sol.stockId}
+                        className={`rounded-3xl border p-5 flex flex-col justify-between transition-all relative overflow-hidden bg-white shadow-sm hover:shadow-md ${
+                          isRank1 
+                            ? 'border-emerald-300 ring-2 ring-emerald-500/20 bg-gradient-to-b from-emerald-50/30 to-white' 
+                            : 'border-slate-200 hover:border-blue-300'
+                        }`}
+                      >
+                        {/* Top Rank Badge & Classification */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1 ${
+                              isRank1 
+                                ? 'bg-emerald-600 text-white shadow-sm' 
+                                : 'bg-slate-900 text-white'
+                            }`}>
+                              {isRank1 && <Star size={10} className="fill-amber-300 text-amber-300" />}
+                              #{idx + 1} MATCH
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase border ${
+                              sol.totalWastePct <= 0.001
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : sol.totalWastePct <= 3.0
+                                ? 'bg-teal-50 text-teal-800 border-teal-300'
+                                : sol.totalWastePct <= 10.0
+                                ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                : 'bg-amber-50 text-amber-800 border-amber-300'
+                            }`}>
+                              {sol.totalWastePct <= 0.001 ? 'ZERO WASTE' : sol.classification}
+                            </span>
+                          </div>
+
+                          {/* Dimensions & Name */}
+                          <div className="space-y-1">
+                            <h4 className="text-lg font-black text-slate-900">
+                              {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
+                            </h4>
+                            <p className="text-[11px] font-bold text-blue-700 truncate" title={sol.stockName}>
+                              {sol.stockName}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-semibold truncate">
+                              {sol.sectionTitle || 'Warehouse Inventory'}
+                            </p>
+                          </div>
+
+                          {/* In-stock status */}
+                          <div className="mt-3 py-1.5 px-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">In Stock:</span>
+                            <span className={`font-black ${sol.qtyAvailable > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {sol.qtyAvailable.toLocaleString()} sheets
+                            </span>
+                          </div>
+
+                          {/* Key Performance Metrics */}
+                          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
+                            <div className="bg-slate-50 p-2 rounded-xl">
+                              <span className="text-[9px] font-bold text-slate-400 block uppercase">Yield / Sheet</span>
+                              <span className="text-base font-black text-slate-900">{sol.yieldPerSheet} pcs</span>
+                              <span className="text-[9px] text-slate-500 font-bold block">{sol.gridLayout}</span>
+                            </div>
+                            <div className="bg-slate-50 p-2 rounded-xl">
+                              <span className="text-[9px] font-bold text-slate-400 block uppercase">Waste %</span>
+                              <span className={`text-base font-black ${
+                                sol.totalWastePct <= 3 ? 'text-emerald-600' : sol.totalWastePct <= 10 ? 'text-blue-600' : 'text-amber-600'
+                              }`}>
+                                {sol.totalWastePct.toFixed(2)}%
+                              </span>
+                              <span className="text-[9px] text-slate-500 block">Eff: {sol.productEfficiencyPct.toFixed(1)}%</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 text-[10px] text-slate-500 flex items-center justify-between px-1">
+                            <span>Orientation:</span>
+                            <span className="font-bold text-slate-700">{sol.orientation}</span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                          <button
+                            onClick={() => handleInspectRealStock(sol)}
+                            className="w-full flex items-center justify-center gap-1.5 bg-[#0f2a43] hover:bg-slate-800 text-white font-bold text-xs py-2 px-3 rounded-xl transition-all shadow-sm"
+                          >
+                            <Scissors size={13} />
+                            <span>Inspect 2D Diagram</span>
+                          </button>
+                          {sol.qtyAvailable > 0 && (
+                            <button
+                              onClick={() => {
+                                setReservingStockItem({ sol, sheets: sol.sheetsRequired || 1 });
+                                setShowReserveModal(true);
+                              }}
+                              className="w-full flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs py-1.5 px-3 rounded-xl transition-all border border-emerald-200"
+                            >
+                              <Package size={13} />
+                              <span>Reserve Stock</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* FULL INVENTORY EVALUATION RESULTS TABLE */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2">
+                  <Database className="text-blue-600" size={20} />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Full Warehouse Inventory Results ({filteredRealInventorySolutions.length} sizes)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      All scanned sheets from Enerpack central warehouse ranked by guillotine cut optimization
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filters & Export */}
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                  <div className="relative flex-1 sm:flex-initial">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="text"
+                      placeholder="Search size, GSM..."
+                      value={realInvSearch}
+                      onChange={(e) => setRealInvSearch(e.target.value)}
+                      className="w-full sm:w-44 bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <select
+                    value={realInvGsmFilter}
+                    onChange={(e) => setRealInvGsmFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                  >
+                    <option value="all">All GSMs</option>
+                    {availableGsms.map(g => (
+                      <option key={g} value={g}>{g} GSM</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={realInvSortBy}
+                    onChange={(e) => setRealInvSortBy(e.target.value as any)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                  >
+                    <option value="waste">Sort: Lowest Waste</option>
+                    <option value="yield">Sort: Highest Yield</option>
+                    <option value="stock">Sort: Most In-Stock</option>
+                  </select>
+
+                  <button
+                    onClick={handleExportRealInventoryExcel}
+                    className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-sm"
+                  >
+                    <FileSpreadsheet size={14} />
+                    <span>Export XLSX</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-wider bg-slate-50/50">
+                      <th className="py-3 px-3">Rank</th>
+                      <th className="py-3 px-3">Stock Sheet Size</th>
+                      <th className="py-3 px-3">GSM & Warehouse Section</th>
+                      <th className="py-3 px-3 text-center">In Stock</th>
+                      <th className="py-3 px-3 text-center">Feasible</th>
+                      <th className="py-3 px-3 text-center">Orientation</th>
+                      <th className="py-3 px-3 text-center">Grid</th>
+                      <th className="py-3 px-3 text-right">Yield</th>
+                      <th className="py-3 px-3 text-right">Efficiency %</th>
+                      <th className="py-3 px-3 text-right">Waste %</th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredRealInventorySolutions.map((sol, idx) => (
+                      <tr 
+                        key={sol.stockId}
+                        className={`hover:bg-blue-50/40 transition-colors ${
+                          idx < 5 && sol.isFeasible ? 'bg-emerald-50/20' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-3 font-black text-slate-800">
+                          #{idx + 1}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-slate-900 block">
+                            {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {sol.stockId}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-slate-700 block">
+                            {sol.stockGsm ? `${sol.stockGsm} GSM` : 'Standard'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {sol.sectionTitle || 'General Stock'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center font-bold text-slate-700">
+                          {sol.qtyAvailable.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {sol.isFeasible ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 size={10} /> YES
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                              <AlertCircle size={10} /> NO
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center text-[11px] font-semibold text-slate-600">
+                          {sol.isFeasible ? sol.orientation : '—'}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
+                          {sol.isFeasible ? sol.gridLayout : '—'}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 text-sm">
+                          {sol.isFeasible ? `${sol.yieldPerSheet} pcs` : '0'}
+                        </td>
+                        <td className="py-3 px-3 text-right font-bold text-slate-700">
+                          {sol.isFeasible ? `${sol.productEfficiencyPct.toFixed(2)}%` : '0.00%'}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black">
+                          {sol.isFeasible ? (
+                            <span className={
+                              sol.totalWastePct <= 3 ? 'text-emerald-600' : sol.totalWastePct <= 10 ? 'text-blue-600' : 'text-amber-600'
+                            }>
+                              {sol.totalWastePct.toFixed(2)}%
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">100.00%</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md uppercase border ${
+                            sol.totalWastePct <= 0.001
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : sol.totalWastePct <= 3.0
+                              ? 'bg-teal-50 text-teal-800 border-teal-300'
+                              : sol.totalWastePct <= 10.0
+                              ? 'bg-blue-50 text-blue-800 border-blue-300'
+                              : sol.isFeasible
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
+                              : 'bg-rose-50 text-rose-800 border-rose-200'
+                          }`}>
+                            {sol.totalWastePct <= 0.001 ? 'ZERO WASTE' : sol.classification}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {sol.isFeasible ? (
+                            <button
+                              onClick={() => handleInspectRealStock(sol)}
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-[10px] font-bold transition-all inline-flex items-center gap-1 text-slate-700"
+                              title="Inspect this stock in 2D diagram"
+                            >
+                              <Scissors size={11} /> 2D View
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* SECTION 8 — CALCULATION DETAILS & AUDITABILITY */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -2498,6 +3446,125 @@ export const MasterStockCombiner: React.FC<MasterStockCombinerProps> = ({
               <p className="text-[10px] text-slate-400">Guaranteed practical sheet cutter feasibility</p>
             </div>
           </div>
+        </div>
+
+        {/* SECTION 9 — FIVE BEST MATCHING RESULTS FROM REAL INVENTORY */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-200">
+                <Warehouse size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    SECTION 9 — FIVE BEST MATCHING RESULTS FROM REAL INVENTORY
+                  </h3>
+                  <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                    Full Inventory Scan
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Direct warehouse inventory matches evaluated against {itemWidth} × {itemHeight} {itemUnit} finished piece
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleGoToFullInventoryPage}
+              className="group flex items-center gap-2 text-xs font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white px-4 py-2.5 rounded-2xl transition-all duration-200 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/35 hover:-translate-y-0.5 active:translate-y-0 border border-blue-400/30 cursor-pointer"
+              title="Open full warehouse inventory management page"
+            >
+              <Package size={15} className="text-blue-200 transition-transform duration-200 group-hover:scale-110" />
+              <span>Go to Full Inventory Page</span>
+              <ArrowUpRight size={15} className="text-blue-200 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </button>
+          </div>
+
+          {top5RealInventorySolutions.length === 0 ? (
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <Package className="mx-auto text-slate-400 mb-2" size={28} />
+              <p className="text-xs font-bold text-slate-600">No feasible real inventory sheets found for this size.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {top5RealInventorySolutions.map((sol, idx) => {
+                const isFirst = idx === 0;
+                return (
+                  <div
+                    key={sol.stockId}
+                    className={`rounded-2xl border p-4 flex flex-col justify-between transition-all bg-white relative ${
+                      isFirst 
+                        ? 'border-emerald-300 ring-2 ring-emerald-500/20 bg-gradient-to-b from-emerald-50/40 to-white' 
+                        : 'border-slate-200 hover:border-blue-200'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-2">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1 ${
+                          isFirst ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
+                        }`}>
+                          {isFirst && <Star size={9} className="fill-amber-300 text-amber-300" />}
+                          #{idx + 1} Real Match
+                        </span>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase border ${
+                          sol.totalWastePct <= 0.001
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : sol.totalWastePct <= 3.0
+                            ? 'bg-teal-50 text-teal-800 border-teal-300'
+                            : 'bg-blue-50 text-blue-800 border-blue-300'
+                        }`}>
+                          {sol.totalWastePct <= 0.001 ? 'ZERO WASTE' : sol.classification}
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-black text-slate-900 mt-1">
+                        {sol.originalStockWidth} × {sol.originalStockLength} {sol.originalStockUnit}
+                      </h4>
+                      <p className="text-[10px] font-bold text-blue-700 truncate" title={sol.stockName}>
+                        {sol.stockName}
+                      </p>
+                      <p className="text-[9px] text-slate-400 truncate">
+                        {sol.sectionTitle || 'Warehouse'}
+                      </p>
+
+                      <div className="mt-2 py-1 px-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">In Stock:</span>
+                        <span className="font-bold text-emerald-700">{sol.qtyAvailable.toLocaleString()} sheets</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 mt-2.5 pt-2 border-t border-slate-100 text-center">
+                        <div className="bg-slate-50 p-1.5 rounded-lg">
+                          <span className="text-[8px] font-bold text-slate-400 block uppercase">Yield</span>
+                          <span className="text-xs font-black text-slate-900">{sol.yieldPerSheet} pcs</span>
+                          <span className="text-[8px] text-slate-500 font-bold block">{sol.gridLayout}</span>
+                        </div>
+                        <div className="bg-slate-50 p-1.5 rounded-lg">
+                          <span className="text-[8px] font-bold text-slate-400 block uppercase">Waste %</span>
+                          <span className={`text-xs font-black ${
+                            sol.totalWastePct <= 3 ? 'text-emerald-600' : 'text-blue-600'
+                          }`}>
+                            {sol.totalWastePct.toFixed(2)}%
+                          </span>
+                          <span className="text-[8px] text-slate-500 block">Eff: {sol.productEfficiencyPct.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2.5 border-t border-slate-100">
+                      <button
+                        onClick={() => handleInspectRealStock(sol)}
+                        className="w-full flex items-center justify-center gap-1 bg-[#0f2a43] hover:bg-slate-800 text-white font-bold text-[11px] py-1.5 px-2 rounded-xl transition-all cursor-pointer"
+                      >
+                        <Scissors size={12} />
+                        <span>Inspect 2D Diagram</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
