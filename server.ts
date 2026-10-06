@@ -5,7 +5,7 @@ async function startServer() {
   const app = express();
   // In development sandbox behind nginx proxy, listen on port 3000.
   // In Cloud Run production deployment, listen on PORT env variable provided by Cloud Run (default 8080).
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // API routes go here
   app.use(express.json());

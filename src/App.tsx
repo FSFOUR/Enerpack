@@ -2601,52 +2601,71 @@ export default function App() {
     const items = [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    let currentItem: any = { workName: '', size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
-    
     for (const line of lines) {
-      const lower = line.toLowerCase();
+      let workName = '';
+      let size = '';
+      let gsm = '';
+      let totalGross = '';
 
       const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
       const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
-      const qtyMatch = line.match(/(?:qty|quantity|quandity|qty\s*[:\-]|gross)[\s*:-]*(.+)/i);
+      const qtyMatch = line.match(/(?:qty|quantity|quandity|gross)[\s*:-]*(.+)/i);
 
       if (sizeMatch) {
-        currentItem.size = (sizeMatch[1] || sizeMatch[2]).trim();
-      } else if (gsmMatch) {
-        currentItem.gsm = gsmMatch[1].trim();
-      } else if (qtyMatch || lower.startsWith('qty') || lower.startsWith('quantity') || lower.startsWith('quandity')) {
-        const colonIdx = line.indexOf(':');
-        const dashIdx = line.indexOf('-');
-        const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
-        currentItem.totalGross = idx !== -1 ? line.substring(idx + 1).trim() : line;
-      } else {
-        let cleanName = line.replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
-        // If current item already has size/gsm/qty, this new non-labeled line indicates a new item starts
-        if (currentItem.size || currentItem.gsm || currentItem.totalGross) {
-          if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
-            items.push({ ...currentItem });
-          }
-          currentItem = { workName: cleanName, size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
-        } else {
-          if (!currentItem.workName) {
-            currentItem.workName = cleanName;
-          } else {
-            currentItem.workName += ' ' + cleanName;
-          }
-        }
+        size = (sizeMatch[1] || sizeMatch[2]).trim();
       }
-    }
+      if (gsmMatch) {
+        gsm = gsmMatch[1].trim();
+      }
+      if (qtyMatch) {
+        totalGross = qtyMatch[1].trim();
+      }
 
-    if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
-      items.push({ ...currentItem });
+      let namePart = line;
+      const lower = line.toLowerCase();
+      const idxSize = lower.indexOf('size');
+      const idxGsm = lower.indexOf('gsm');
+      const idxQty = Math.min(
+        lower.indexOf('qty') !== -1 ? lower.indexOf('qty') : 9999,
+        lower.indexOf('quantity') !== -1 ? lower.indexOf('quantity') : 9999,
+        lower.indexOf('quandity') !== -1 ? lower.indexOf('quandity') : 9999,
+        lower.indexOf('gross') !== -1 ? lower.indexOf('gross') : 9999
+      );
+      
+      const minIdx = Math.min(
+        idxSize !== -1 ? idxSize : 9999,
+        idxGsm !== -1 ? idxGsm : 9999,
+        idxQty !== -1 ? idxQty : 9999
+      );
+
+      if (minIdx !== 9999) {
+        namePart = line.substring(0, minIdx);
+      }
+
+      workName = namePart.replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
+
+      if (!workName && !size && !gsm && !totalGross) {
+        workName = line;
+      }
+
+      if (workName || size || gsm || totalGross) {
+        items.push({
+          workName: workName || 'Custom Order Item',
+          size: size || '57*86',
+          gsm: gsm || '200',
+          totalGross: totalGross || '200 gross',
+          deliveryLoc: '',
+          loadingDate: ''
+        });
+      }
     }
 
     if (items.length === 0 && text.trim().length > 0) {
       items.push({
         workName: text.split('\n')[0].trim(),
-        size: '',
-        gsm: '',
-        totalGross: '',
+        size: '57*86',
+        gsm: '200',
+        totalGross: '200 gross',
         deliveryLoc: '',
         loadingDate: ''
       });
