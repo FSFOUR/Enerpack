@@ -2606,64 +2606,44 @@ export default function App() {
     }
 
     for (const block of blocks) {
-      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-      let workName = '';
-      let size = '';
-      let gsm = '';
-      let totalGross = '';
+      const normalized = block.replace(/\r/g, '\n');
+      
+      // Match Item / Product / Work Name
+      const itemMatch = normalized.match(/(?:item|product|work\s*name|work)[:\-]\s*([^\n]+?(?=\s+(?:size|gsm|qty|quantity)[:\-]|,\s*(?:size|gsm|qty|quantity)[:\-]|$\n?))/i) ||
+                        normalized.match(/(?:item|product|work\s*name|work)[:\-]\s*(.+?)(?=\s+(?:size|gsm|qty|quantity)|$\n?)/i);
+      
+      // Match Size
+      const sizeMatch = normalized.match(/(?:size)[:\-]\s*([^\n,]+?(?=\s+(?:gsm|qty|quantity)|$\n?))/i);
+      
+      // Match GSM (only digits following gsm:)
+      const gsmMatch = normalized.match(/(?:gsm)[:\-]\s*(\d+)/i);
+      
+      // Match Qty / Total Gross
+      const qtyMatch = normalized.match(/(?:qty|quantity)[:\-]\s*([^\n]+)/i);
 
-      for (const line of lines) {
-        const lower = line.toLowerCase();
-        if (lower.startsWith('item:') || lower.startsWith('item -') || lower.startsWith('product:') || lower.startsWith('product -') || lower.startsWith('work:') || lower.startsWith('work name:')) {
-          const colonIdx = line.indexOf(':');
-          const dashIdx = line.indexOf('-');
-          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
-          workName = line.substring(idx + 1).trim();
-        } else if (lower.startsWith('size:') || lower.startsWith('size -')) {
-          const colonIdx = line.indexOf(':');
-          const dashIdx = line.indexOf('-');
-          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
-          size = line.substring(idx + 1).trim();
-        } else if (lower.startsWith('gsm:') || lower.startsWith('gsm -')) {
-          const colonIdx = line.indexOf(':');
-          const dashIdx = line.indexOf('-');
-          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
-          gsm = line.substring(idx + 1).trim();
-        } else if (lower.startsWith('qty:') || lower.startsWith('qty -') || lower.startsWith('quantity:') || lower.startsWith('quantity -')) {
-          const colonIdx = line.indexOf(':');
-          const dashIdx = line.indexOf('-');
-          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
-          totalGross = line.substring(idx + 1).trim();
-        } else {
-          const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)/i);
-          const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
-          const qtyMatch = line.match(/(?:qty|quantity)[\s*:-]*(.+)/i);
+      let workName = itemMatch ? itemMatch[1].trim() : '';
+      let size = sizeMatch ? sizeMatch[1].trim() : '';
+      let gsm = gsmMatch ? gsmMatch[1].trim() : '';
+      let totalGross = qtyMatch ? qtyMatch[1].trim() : '';
 
-          if (sizeMatch) size = sizeMatch[1].trim();
-          if (gsmMatch) gsm = gsmMatch[1].trim();
-          if (qtyMatch) totalGross = qtyMatch[1].trim();
-
-          if (!sizeMatch && !gsmMatch && !qtyMatch) {
-            if (!workName) {
-              workName = line;
-            } else {
-              workName += ' ' + line;
-            }
-          }
+      // Fallback if workName was not matched explicitly by Item:
+      if (!workName) {
+        const parts = normalized.split(/(?:size|gsm|qty|quantity)[:\-]/i);
+        if (parts.length > 0) {
+          workName = parts[0].replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
         }
       }
 
+      // Fallback size regex
       if (!size) {
-        const sizeMatch = block.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
-        if (sizeMatch) size = (sizeMatch[1] || sizeMatch[2]).trim();
+        const sMatch = normalized.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
+        if (sMatch) size = (sMatch[1] || sMatch[2]).trim();
       }
-      if (!gsm) {
-        const gsmMatch = block.match(/(?:gsm)[\s*:-]*(\d+)/i);
-        if (gsmMatch) gsm = gsmMatch[1].trim();
-      }
+
+      // Fallback qty regex
       if (!totalGross) {
-        const qtyMatch = block.match(/(?:qty|quantity)[\s*:-]*(.+)/i);
-        if (qtyMatch) totalGross = qtyMatch[1].trim();
+        const qMatch = normalized.match(/(?:qty|quantity)[\s*:-]*([^\n]+)/i);
+        if (qMatch) totalGross = qMatch[1].trim();
       }
 
       if (workName || size || gsm || totalGross) {

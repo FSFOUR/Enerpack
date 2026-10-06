@@ -36,13 +36,12 @@ async function startServer() {
         try {
           response = await ai.models.generateContent({
             model: modelName,
-            contents: `Parse the following WhatsApp order and extract job card details.
-            Extract:
-            - workName: Product/Item name or description (e.g., Fw10181 Leeds xxl ladies)
-            - size: Dimensions (e.g., 57*86)
-            - gsm: GSM value (numeric value only, e.g. 200. NEVER use item numbers or codes as GSM)
-            - totalGross: Quantity / Gross (e.g., 200 grosses, 18 gross)
-            Return an array of objects.
+            contents: `Parse the following WhatsApp order and extract job card details into an array of objects.
+            Each object must have:
+            - workName: Product/Item name or description only (e.g. Fw10181 Leeds xxl ladies). Do NOT include Size, Gsm, or Qty in workName.
+            - size: Dimensions only (e.g. 57*86)
+            - gsm: GSM numeric value only (e.g. 200. NEVER use item numbers or codes like 10181 or 10134 as GSM)
+            - totalGross: Quantity / Gross (e.g. 200 gross, 18 gross)
             Order: ${whatsappOrder}`,
             config: {
               responseMimeType: "application/json",
