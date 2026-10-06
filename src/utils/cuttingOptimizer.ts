@@ -35,6 +35,7 @@ export interface StockInputItem {
   subTitle?: string;
   location?: string;
   isInventoryItem?: boolean;
+  sizeCategory?: 'double' | 'single';
 }
 
 export interface NormalizedStock {
@@ -51,6 +52,7 @@ export interface NormalizedStock {
   sectionTitle?: string;
   subTitle?: string;
   isInventoryItem?: boolean;
+  sizeCategory?: 'double' | 'single';
 }
 
 export interface GuillotineCutStep {
@@ -132,6 +134,7 @@ export interface SingleSheetSolution {
   sectionTitle?: string;
   subTitle?: string;
   isInventoryItem?: boolean;
+  sizeCategory?: 'double' | 'single';
 
   // GSM & Weight calculations
   pieceWeightGrams?: number;
@@ -266,6 +269,22 @@ export function parseSizeString(raw: string, defaultUnit: DimensionUnit = 'cm'):
     };
   }
   return null;
+}
+
+// Helper to determine if an inventory item is a Double Size vs Single Size
+export function isDoubleSizeItem(rawSize: string, subTitle?: string, sectionTitle?: string): boolean {
+  if (subTitle) {
+    const subUpper = subTitle.toUpperCase();
+    if (subUpper.includes('DOUBLE')) return true;
+    if (subUpper.includes('SINGLE')) return false;
+  }
+  if (!rawSize || typeof rawSize !== 'string') return false;
+  const s = rawSize.trim();
+  // Check for multiplication delimiters: *, x, X, ×
+  if (s.includes('*') || s.includes('×') || s.includes('X') || /(^|[^a-zA-Z0-9])x([^a-zA-Z0-9]|$)/i.test(s)) {
+    return true;
+  }
+  return false;
 }
 
 // ==========================================
@@ -798,6 +817,10 @@ export function evaluateStockSheet(
       offcuts: [],
       reusableOffcutAreaMm2: 0,
       processWasteAreaMm2: stockArea,
+      sectionTitle: stock.sectionTitle,
+      subTitle: stock.subTitle,
+      isInventoryItem: stock.isInventoryItem,
+      sizeCategory: stock.sizeCategory,
       sheetsRequired: 0,
       totalProductionCapacity: 0,
       extraPieces: 0,
@@ -982,6 +1005,7 @@ export function evaluateStockSheet(
     sectionTitle: stock.sectionTitle,
     subTitle: stock.subTitle,
     isInventoryItem: stock.isInventoryItem,
+    sizeCategory: stock.sizeCategory,
     pieceWeightGrams,
     sheetWeightKg,
     totalWeightKg,

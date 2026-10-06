@@ -2372,7 +2372,17 @@ export default function App() {
 
     const pendingWorksQuery = query(collection(db, 'pendingWorks'), orderBy('timestamp', 'desc'));
     const unsubscribePendingWorks = onSnapshot(pendingWorksQuery, (snapshot) => {
-      const works = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const works = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let rawStatus = (data.status || 'CUTTING').toString().trim();
+        let status = rawStatus.toUpperCase();
+        // If a pending work doc has status DELIVERED or invalid, heal/sanitize to CUTTING because it is active in pending works
+        if (status === 'DELIVERED') {
+          status = 'CUTTING';
+          updateDoc(docSnap.ref, { status: 'CUTTING' }).catch(() => {});
+        }
+        return { id: docSnap.id, ...data, status };
+      });
       setPendingWorks(works);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'pendingWorks'));
 
@@ -2604,55 +2614,68 @@ export default function App() {
 
       for (const line of lines) {
         const lower = line.toLowerCase();
-        if (lower.startsWith('size:')) {
-          size = line.substring(5).trim();
-        } else if (lower.startsWith('gsm:')) {
-          gsm = line.substring(4).trim();
-        } else if (lower.startsWith('qty:') || lower.startsWith('quantity:')) {
-          totalGross = line.substring(line.indexOf(':') + 1).trim();
+        if (lower.startsWith('item:') || lower.startsWith('item -') || lower.startsWith('product:') || lower.startsWith('product -') || lower.startsWith('work:') || lower.startsWith('work name:')) {
+          const colonIdx = line.indexOf(':');
+          const dashIdx = line.indexOf('-');
+          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+          workName = line.substring(idx + 1).trim();
+        } else if (lower.startsWith('size:') || lower.startsWith('size -')) {
+          const colonIdx = line.indexOf(':');
+          const dashIdx = line.indexOf('-');
+          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+          size = line.substring(idx + 1).trim();
+        } else if (lower.startsWith('gsm:') || lower.startsWith('gsm -')) {
+          const colonIdx = line.indexOf(':');
+          const dashIdx = line.indexOf('-');
+          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+          gsm = line.substring(idx + 1).trim();
+        } else if (lower.startsWith('qty:') || lower.startsWith('qty -') || lower.startsWith('quantity:') || lower.startsWith('quantity -')) {
+          const colonIdx = line.indexOf(':');
+          const dashIdx = line.indexOf('-');
+          const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+          totalGross = line.substring(idx + 1).trim();
         } else {
-          if (!workName) {
-            workName = line;
-          } else {
-            workName += ' ' + line;
+          const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)/i);
+          const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
+          const qtyMatch = line.match(/(?:qty|quantity)[\s*:-]*(.+)/i);
+
+          if (sizeMatch) size = sizeMatch[1].trim();
+          if (gsmMatch) gsm = gsmMatch[1].trim();
+          if (qtyMatch) totalGross = qtyMatch[1].trim();
+
+          if (!sizeMatch && !gsmMatch && !qtyMatch) {
+            if (!workName) {
+              workName = line;
+            } else {
+              workName += ' ' + line;
+            }
           }
         }
       }
 
       if (!size) {
-        const sizeMatch = block.match(/(\d+)\s*[*x×X-]\s*(\d+)/);
-        if (sizeMatch) size = `${sizeMatch[1]}*${sizeMatch[2]}`;
+        const sizeMatch = block.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
+        if (sizeMatch) size = (sizeMatch[1] || sizeMatch[2]).trim();
       }
       if (!gsm) {
-        const gsmMatch = block.match(/(\d+)/);
-        if (gsmMatch && !gsm) gsm = gsmMatch[1];
+        const gsmMatch = block.match(/(?:gsm)[\s*:-]*(\d+)/i);
+        if (gsmMatch) gsm = gsmMatch[1].trim();
       }
       if (!totalGross) {
-        const qtyMatch = block.match(/(qty|quantity)[:\s]*(.+)/i);
-        if (qtyMatch) totalGross = qtyMatch[2].trim();
+        const qtyMatch = block.match(/(?:qty|quantity)[\s*:-]*(.+)/i);
+        if (qtyMatch) totalGross = qtyMatch[1].trim();
       }
 
-      if (workName || size || gsm) {
+      if (workName || size || gsm || totalGross) {
         items.push({
-          workName: workName || 'Custom Order Item',
-          size: size || '57*86',
-          gsm: gsm || '200',
-          totalGross: totalGross || '35 gross',
+          workName: workName || '',
+          size: size || '',
+          gsm: gsm || '',
+          totalGross: totalGross || '',
           deliveryLoc: '',
           loadingDate: ''
         });
       }
-    }
-
-    if (items.length === 0 && text.trim().length > 0) {
-      items.push({
-        workName: text.split('\n')[0].trim() || 'Order Item',
-        size: '57*86',
-        gsm: '200',
-        totalGross: '35 gross',
-        deliveryLoc: '',
-        loadingDate: ''
-      });
     }
 
     return items;
@@ -2706,11 +2729,17 @@ export default function App() {
 
     try {
       toast.loading('Generating job cards...', { id: 'ai-parse' });
+      for (const card of parsedCards) {
+        if (!card.workName || !card.size || !card.gsm || !card.totalGross) {
+          throw new Error('Missing required fields. Please ensure Work Name, Size, GSM, and Qty are provided (e.g. Gsm : 200).');
+        }
+      }
+
       const newCards = parsedCards.map((card: any, index: number) => ({
-        workName: card.workName || card.product || 'Custom Item',
-        size: card.size || '57*86',
-        gsm: card.gsm ?? '200',
-        totalGross: card.totalGross ?? card.quantity ?? '35 gross',
+        workName: card.workName,
+        size: card.size,
+        gsm: card.gsm,
+        totalGross: card.totalGross,
         deliveryLoc: card.deliveryLoc || '',
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
         date: new Date().toISOString().split('T')[0],
@@ -2725,7 +2754,7 @@ export default function App() {
       setWhatsappOrder('');
     } catch (dbError: any) {
       console.error('Database Error saving job cards:', dbError);
-      toast.error('Failed to save job cards to database: ' + dbError.message, { id: 'ai-parse' });
+      toast.error(dbError.message || 'Failed to save job cards to database', { id: 'ai-parse' });
     } finally {
       setIsGenerating(false);
     }
@@ -2844,6 +2873,8 @@ export default function App() {
 
     const followUp = async () => {
       try {
+        const rawStatus = (stockOutItem.formData.status || 'CUTTING').toString().toUpperCase();
+        const pendingStatus = rawStatus === 'DELIVERED' ? 'CUTTING' : rawStatus;
         await addDoc(collection(db, 'pendingWorks'), {
           date: stockOutItem.formData.date,
           size: stockOutItem.item.size,
@@ -2856,7 +2887,7 @@ export default function App() {
           cutSize: stockOutItem.formData.cuttingSize,
           sheets: parseInt(stockOutItem.formData.sheets) || 0,
           priority: stockOutItem.formData.priority.toUpperCase(),
-          status: stockOutItem.formData.status.toUpperCase(),
+          status: pendingStatus,
           remarks: stockOutItem.formData.remarks,
           timestamp: Timestamp.now()
         });
@@ -5278,8 +5309,11 @@ export default function App() {
                               value={stockOutItem.formData.itemCode || ''}
                               onChange={(e) => {
                                 const newCode = e.target.value.toUpperCase();
-                                const lastLog = stockOutLogs.find(log => log.itemCode === newCode);
+                                const lastLog = stockOutLogs.find(log => log.itemCode === newCode) || pendingWorks.find(w => w.itemCode === newCode);
                                 if (lastLog) {
+                                  const autoStatus = (lastLog.status && lastLog.status.toUpperCase() !== 'DELIVERED') 
+                                    ? lastLog.status 
+                                    : (stockOutItem.formData.status || 'Cutting');
                                   setStockOutItem({
                                     ...stockOutItem,
                                     formData: {
@@ -5289,7 +5323,7 @@ export default function App() {
                                       workName: lastLog.workName || stockOutItem.formData.workName,
                                       unit: lastLog.unit || stockOutItem.formData.unit,
                                       cuttingSize: lastLog.cutSize || stockOutItem.formData.cuttingSize,
-                                      status: lastLog.status || stockOutItem.formData.status,
+                                      status: autoStatus,
                                       priority: lastLog.priority || stockOutItem.formData.priority,
                                       remarks: lastLog.remarks || stockOutItem.formData.remarks
                                     }
@@ -6974,38 +7008,44 @@ export default function App() {
                                 disabled={!canEdit}
                                 onChange={async (e) => {
                                   if (canEdit) {
-                                    const newStatus = e.target.value;
-                                    if (newStatus === 'DELIVERED') {
-                                      setDeliveringWork(work);
-                                    } else {
-                                      try {
-                                        if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
-                                          await updateStockByGlobal(work.size, work.gsm, work.qty);
-                                          toast.success(`Restored ${work.qty} units to Main Inventory`);
-                                        } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
-                                          await updateStockByGlobal(work.size, work.gsm, -work.qty);
-                                          toast.info(`Deducted ${work.qty} units from Main Inventory`);
-                                        }
-                                        await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
-                                        logAction(`Updated status for work ${work.workName} to ${newStatus}`);
-                                      } catch (error) {
-                                        handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                    const newStatus = e.target.value.toUpperCase();
+                                    try {
+                                      if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
+                                        await updateStockByGlobal(work.size, work.gsm, work.qty);
+                                        toast.success(`Restored ${work.qty} units to Main Inventory`);
+                                      } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
+                                        await updateStockByGlobal(work.size, work.gsm, -work.qty);
+                                        toast.info(`Deducted ${work.qty} units from Main Inventory`);
                                       }
+                                      await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
+                                      logAction(`Updated status for work ${work.workName} to ${newStatus}`);
+                                    } catch (error) {
+                                      handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
                                     }
                                   }
                                 }}
                                 className={cn(
-                                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 focus:outline-none border-none w-full",
-                                  !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg focus:outline-none border-none w-full transition-colors",
+                                  !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer",
+                                  work.status === 'CUTTING' ? "bg-amber-50 text-amber-700 font-extrabold" :
+                                  work.status === 'CUTTING FINISHED' ? "bg-blue-50 text-blue-700 font-extrabold" :
+                                  work.status === 'PRINTING' ? "bg-purple-50 text-purple-700 font-extrabold" :
+                                  work.status === 'PACKING' ? "bg-indigo-50 text-indigo-700 font-extrabold" :
+                                  work.status === 'OUT OF STOCK' ? "bg-rose-50 text-rose-700 font-extrabold" :
+                                  work.status === 'ORDER PLACED' ? "bg-cyan-50 text-cyan-700 font-extrabold" :
+                                  work.status === 'WAITING FOR REEL' ? "bg-yellow-50 text-yellow-700 font-extrabold" :
+                                  work.status === 'CANCELLED' ? "bg-slate-200 text-slate-500 line-through" :
+                                  "bg-slate-100 text-slate-700 font-bold"
                                 )}
                               >
                                 <option value="CUTTING">Cutting</option>
                                 <option value="CUTTING FINISHED">Cut Fin</option>
+                                <option value="PRINTING">Printing</option>
+                                <option value="PACKING">Packing</option>
                                 <option value="OUT OF STOCK">OOS</option>
                                 <option value="ORDER PLACED">Ordered</option>
                                 <option value="WAITING FOR REEL">Waiting</option>
                                 <option value="PENDING">Pending</option>
-                                <option value="DELIVERED">Delivered</option>
                                 <option value="CANCELLED">Cancelled</option>
                                 <option value="OTHER">Other</option>
                               </select>
@@ -7134,35 +7174,44 @@ export default function App() {
                               disabled={!canEdit}
                               onChange={async (e) => {
                                 if (canEdit) {
-                                  const newStatus = e.target.value;
-                                  if (newStatus === 'DELIVERED') {
-                                    setDeliveringWork(work);
-                                  } else {
-                                    try {
-                                      if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
-                                        await updateStockByGlobal(work.size, work.gsm, work.qty);
-                                      } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
-                                        await updateStockByGlobal(work.size, work.gsm, -work.qty);
-                                      }
-                                      await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
-                                    } catch (error) {
-                                      handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
+                                  const newStatus = e.target.value.toUpperCase();
+                                  try {
+                                    if (newStatus === 'CANCELLED' && work.status !== 'CANCELLED') {
+                                      await updateStockByGlobal(work.size, work.gsm, work.qty);
+                                      toast.success(`Restored ${work.qty} units to Main Inventory`);
+                                    } else if (work.status === 'CANCELLED' && newStatus !== 'CANCELLED') {
+                                      await updateStockByGlobal(work.size, work.gsm, -work.qty);
+                                      toast.info(`Deducted ${work.qty} units from Main Inventory`);
                                     }
+                                    await updateDoc(doc(db, 'pendingWorks', work.id), { status: newStatus });
+                                    logAction(`Updated status for work ${work.workName} to ${newStatus}`);
+                                  } catch (error) {
+                                    handleFirestoreError(error, OperationType.UPDATE, `pendingWorks/${work.id}`);
                                   }
                                 }
                               }}
                               className={cn(
-                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl bg-slate-50 text-slate-600 focus:outline-none border border-slate-100",
-                                !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer"
+                                "w-full text-[10px] font-bold uppercase px-3 py-2 rounded-xl focus:outline-none border border-slate-100",
+                                !canEdit ? "cursor-not-allowed opacity-80" : "cursor-pointer",
+                                work.status === 'CUTTING' ? "bg-amber-50 text-amber-700" :
+                                work.status === 'CUTTING FINISHED' ? "bg-blue-50 text-blue-700" :
+                                work.status === 'PRINTING' ? "bg-purple-50 text-purple-700" :
+                                work.status === 'PACKING' ? "bg-indigo-50 text-indigo-700" :
+                                work.status === 'OUT OF STOCK' ? "bg-rose-50 text-rose-700" :
+                                work.status === 'ORDER PLACED' ? "bg-cyan-50 text-cyan-700" :
+                                work.status === 'WAITING FOR REEL' ? "bg-yellow-50 text-yellow-700" :
+                                work.status === 'CANCELLED' ? "bg-slate-200 text-slate-500 line-through" :
+                                "bg-slate-50 text-slate-600"
                               )}
                             >
                               <option value="CUTTING">Cutting</option>
                               <option value="CUTTING FINISHED">Cutting Finished</option>
+                              <option value="PRINTING">Printing</option>
+                              <option value="PACKING">Packing</option>
                               <option value="OUT OF STOCK">Out of Stock</option>
                               <option value="ORDER PLACED">Order Placed</option>
                               <option value="WAITING FOR REEL">Waiting for Reel</option>
                               <option value="PENDING">Pending</option>
-                              <option value="DELIVERED">Delivered</option>
                               <option value="CANCELLED">Cancelled</option>
                               <option value="OTHER">Other</option>
                             </select>
@@ -7395,17 +7444,18 @@ export default function App() {
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</label>
                             <select 
-                              value={editingPendingWork.status || 'PENDING'}
+                              value={editingPendingWork.status || 'CUTTING'}
                               onChange={(e) => setEditingPendingWork({ ...editingPendingWork, status: e.target.value })}
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                             >
                               <option value="CUTTING">Cutting</option>
                               <option value="CUTTING FINISHED">Cutting Finished</option>
+                              <option value="PRINTING">Printing</option>
+                              <option value="PACKING">Packing</option>
                               <option value="OUT OF STOCK">Out of Stock</option>
                               <option value="ORDER PLACED">Order Placed</option>
                               <option value="WAITING FOR REEL">Waiting for Reel</option>
                               <option value="PENDING">Pending</option>
-                              <option value="DELIVERED">Delivered</option>
                               <option value="CANCELLED">Cancelled</option>
                               <option value="OTHER">Other</option>
                             </select>
@@ -7529,7 +7579,17 @@ export default function App() {
                                     }
                                   }
 
-                                  await updateDoc(doc(db, 'pendingWorks', editingPendingWork.id), editingPendingWork);
+                                  let cleanStatus = (editingPendingWork.status || 'CUTTING').toString().trim().toUpperCase();
+                                  if (cleanStatus === 'DELIVERED') {
+                                    cleanStatus = 'CUTTING';
+                                  }
+
+                                  const workToUpdate = {
+                                    ...editingPendingWork,
+                                    status: cleanStatus
+                                  };
+
+                                  await updateDoc(doc(db, 'pendingWorks', editingPendingWork.id), workToUpdate);
                                   await logAction(`Updated pending work: ${editingPendingWork.workName} (Qty: ${newQty})`);
                                   toast.success(`Pending work updated successfully`);
                                   setEditingPendingWork(null);

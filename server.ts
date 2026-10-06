@@ -20,9 +20,10 @@ async function startServer() {
     try {
       const modelsToTry = [
         process.env.GEMINI_MODEL,
-        "gemini-3.6-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite"
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite"
       ].filter(Boolean) as string[];
 
       let response: any = null;
@@ -35,8 +36,12 @@ async function startServer() {
         try {
           response = await ai.models.generateContent({
             model: modelName,
-            contents: `Parse the following WhatsApp order and extract job card details. 
-            Extract: workName, size, gsm, totalGross. Preserve exact values, units, numbers and strings as written in the order without modifying them or adding extra words.
+            contents: `Parse the following WhatsApp order and extract job card details.
+            Extract:
+            - workName: Product/Item name or description (e.g., Fw10181 Leeds xxl ladies)
+            - size: Dimensions (e.g., 57*86)
+            - gsm: GSM value (numeric value only, e.g. 200. NEVER use item numbers or codes as GSM)
+            - totalGross: Quantity / Gross (e.g., 200 grosses, 18 gross)
             Return an array of objects.
             Order: ${whatsappOrder}`,
             config: {

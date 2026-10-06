@@ -42,23 +42,23 @@ export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({
     );
   }
 
-  // Calculate SVG ViewBox with margins for dimension arrows
-  const margin = 80;
+  // Calculate SVG ViewBox with compact margins to maximize layout utilization with zero dead space
+  const margin = compact ? 34 : (embedded ? 38 : 50);
   const stockW = solution.stockWidthMm;
   const stockL = solution.stockLengthMm;
   const viewBoxWidth = stockW + margin * 2;
   const viewBoxHeight = stockL + margin * 2;
 
-  // Aspect ratio scaling for container
-  const effectiveMaxHeight = maxDisplayHeight || (compact ? 360 : 460);
-  const maxDisplayWidth = 720;
+  // Aspect ratio scaling for container to generously fill the section
+  const effectiveMaxHeight = maxDisplayHeight || (compact ? 410 : 480);
+  const maxDisplayWidth = embedded ? 860 : 760;
   const scaleRatio = Math.min(maxDisplayWidth / viewBoxWidth, effectiveMaxHeight / viewBoxHeight);
 
   return (
-    <div className={embedded ? "w-full flex flex-col gap-3" : "bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4"}>
+    <div className={embedded ? "w-full flex-1 flex flex-col gap-2.5" : "bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4"}>
       {/* Controls header */}
       {!hideHeader && (
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className={`flex flex-wrap items-center justify-between gap-2.5 pb-2.5 ${embedded ? 'border-b border-slate-200/60' : 'border-b border-slate-100'}`}>
           <div className="flex items-center gap-2">
             <Layers className="text-blue-600" size={16} />
             <div>
@@ -116,16 +116,17 @@ export const CuttingDiagram: React.FC<CuttingDiagramProps> = ({
       )}
 
       {/* SVG Canvas Container */}
-      <div className="relative w-full bg-slate-50/70 border border-slate-200/80 rounded-2xl overflow-hidden flex items-center justify-center p-4 min-h-[360px]">
+      <div className={`relative w-full ${embedded ? 'bg-slate-50/50 border border-slate-200/70 rounded-2xl p-1.5 sm:p-2 min-h-[380px] sm:min-h-[420px]' : 'bg-slate-50/70 border border-slate-200/80 rounded-2xl p-3 min-h-[380px]'} overflow-hidden flex items-center justify-center flex-1`}>
         <div 
-          className="transition-transform duration-200 ease-out origin-center"
+          className="transition-transform duration-200 ease-out origin-center flex items-center justify-center w-full h-full"
           style={{ transform: `scale(${zoom})` }}
         >
           <svg
-            width={viewBoxWidth * scaleRatio}
-            height={viewBoxHeight * scaleRatio}
+            width={Math.round(viewBoxWidth * scaleRatio)}
+            height={Math.round(viewBoxHeight * scaleRatio)}
             viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-            className="select-none filter drop-shadow-md"
+            className="select-none filter drop-shadow-md max-w-full h-auto"
+            style={{ maxHeight: `${effectiveMaxHeight}px` }}
           >
             <defs>
               {/* Pattern for Kerf gap */}

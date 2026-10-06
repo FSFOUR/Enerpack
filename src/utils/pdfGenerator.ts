@@ -34,36 +34,40 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  // Attempt to load existing template PDF if available from multiple possible URLs
-  let templateDoc: PDFDocument | null = null;
-  const templateUrls = ['/job-card-template.pdf', '/Job%20Card.pdf', '/Job Card.pdf'];
-
-  for (const url of templateUrls) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) {
-        const templateBytes = await response.arrayBuffer();
-        const header = new Uint8Array(templateBytes.slice(0, 5));
-        const isPdf = String.fromCharCode(...header).startsWith('%PDF');
-        if (isPdf) {
-          templateDoc = await PDFDocument.load(templateBytes);
-          break;
-        }
-      }
-    } catch {
-      // Continue to next URL or vector fallback
-    }
-  }
-
   // Calculate number of pages needed (2 cards per page, side-by-side)
   const totalPages = Math.ceil(jobCards.length / 2);
 
-  // Helper to draw master template card borders and labels directly if template PDF is unavailable
+  // Helper to draw master template card borders and labels directly
   const drawVectorCardTemplate = (page: any, startX: number) => {
     const cardWidth = 360;
-    const cardHeight = 500;
-    const startY = 545;
-    const rowHeight = 50;
+    const cardHeight = 450;
+    const startY = 510;
+    const rowHeight = 45;
+
+    // Header above card: "Ener Pack" and "JOB CARD"
+    page.drawText("Ener Pack", {
+      x: startX,
+      y: startY + 25,
+      size: 15,
+      font: font,
+      color: rgb(0.11, 0.24, 0.45),
+    });
+
+    page.drawText("JOB CARD", {
+      x: startX + cardWidth - 60,
+      y: startY + 27,
+      size: 9,
+      font: font,
+      color: rgb(0.11, 0.24, 0.45),
+    });
+
+    // Horizontal blue line under header
+    page.drawLine({
+      start: { x: startX, y: startY + 15 },
+      end: { x: startX + cardWidth, y: startY + 15 },
+      thickness: 1.5,
+      color: rgb(0.11, 0.24, 0.45),
+    });
 
     // Outer border
     page.drawRectangle({
@@ -88,8 +92,8 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
       // Label
       page.drawText(labels[i], {
         x: startX + 10,
-        y: y + 18,
-        size: 11,
+        y: y + 15,
+        size: 10,
         font: font,
         color: rgb(0, 0, 0),
       });
@@ -102,36 +106,31 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
       thickness: 1,
       color: rgb(0, 0, 0),
     });
+
+    // Footer on page
+    page.drawText("Ener Pack | Job Card", {
+      x: 380,
+      y: 20,
+      size: 8,
+      font: regularFont,
+      color: rgb(0.4, 0.4, 0.4),
+    });
   };
 
   for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-    let page: any;
-    if (templateDoc) {
-      try {
-        const [copiedPage] = await pdfDoc.copyPages(templateDoc, [0]);
-        pdfDoc.addPage(copiedPage);
-        page = pdfDoc.getPage(pageIdx);
-      } catch {
-        page = pdfDoc.addPage([841.89, 595.27]);
-        drawVectorCardTemplate(page, 40);
-        drawVectorCardTemplate(page, 450);
-      }
-    } else {
-      // Create A4 Landscape page directly
-      page = pdfDoc.addPage([841.89, 595.27]);
-      drawVectorCardTemplate(page, 40);
-      drawVectorCardTemplate(page, 450);
-    }
+    const page = pdfDoc.addPage([841.89, 595.27]);
+    drawVectorCardTemplate(page, 40);
+    drawVectorCardTemplate(page, 450);
 
     const leftCard = jobCards[pageIdx * 2];
     const rightCard = jobCards[pageIdx * 2 + 1]; // Might be undefined if odd number
 
-    // Helper to draw text on a card column
+    // Helper to draw text on a card column with precise vertical row centering
     const drawCardData = (card: JobCardData, startX: number) => {
-      const startY = 545;
-      const rowHeight = 50;
+      const startY = 510;
+      const rowHeight = 45;
       const valueX = startX + 145;
-      const maxWidth = 200;
+      const maxWidth = 205;
 
       const rows = [
         card.jobCardNo || '',
@@ -146,15 +145,12 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
 
       rows.forEach((text, i) => {
         if (!text) return;
-        const y = startY - i * rowHeight - 30; // vertical center of row
+        const y = startY - i * rowHeight - (rowHeight / 2) - 3.5; // exact vertical center baseline
 
-        // Adjust font size if text is too long (e.g., long work name or location)
-        let fontSize = 11;
-        if (text.length > 25 && i === 2) {
-          fontSize = 9;
-        } else if (text.length > 35 && i === 2) {
-          fontSize = 8;
-        }
+        let fontSize = 10;
+        if (text.length > 20) fontSize = 9;
+        if (text.length > 30) fontSize = 8;
+        if (text.length > 45) fontSize = 7;
 
         page.drawText(text, {
           x: valueX,
