@@ -2709,17 +2709,12 @@ export default function App() {
 
     try {
       toast.loading('Generating job cards...', { id: 'ai-parse' });
-      for (const card of parsedCards) {
-        if (!card.workName || !card.size || !card.gsm || !card.totalGross) {
-          throw new Error('Missing required fields. Please ensure Work Name, Size, GSM, and Qty are provided (e.g. Gsm : 200).');
-        }
-      }
 
       const newCards = parsedCards.map((card: any, index: number) => ({
-        workName: card.workName,
-        size: card.size,
-        gsm: card.gsm,
-        totalGross: card.totalGross,
+        workName: card.workName || whatsappOrder.split('\n')[0].trim() || 'Custom Order Item',
+        size: card.size || '57*86',
+        gsm: card.gsm ? card.gsm.toString().trim() : '200',
+        totalGross: card.totalGross || '35 gross',
         deliveryLoc: card.deliveryLoc || '',
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
         date: new Date().toISOString().split('T')[0],
