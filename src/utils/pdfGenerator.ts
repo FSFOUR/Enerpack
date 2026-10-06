@@ -25,6 +25,102 @@ const labels = [
   "ACCOUNTANT SIGN"
 ];
 
+export function parseJobInput(text: string, jobCardNo: string = 'EP/26-27/001'): JobCardData[] {
+  if (!text || !text.trim()) return [];
+  const items: JobCardData[] = [];
+  const lines = text.split('\n').map(l => l.trim());
+
+  let currentItem: Partial<JobCardData> = {
+    jobCardNo,
+    date: new Date().toISOString().split('T')[0],
+    workName: '',
+    size: '',
+    gsm: '',
+    totalGross: '',
+    deliveryLoc: '',
+    loadingDate: ''
+  };
+
+  const flushCurrent = () => {
+    if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
+      items.push({
+        jobCardNo: currentItem.jobCardNo || jobCardNo,
+        date: currentItem.date || new Date().toISOString().split('T')[0],
+        workName: (currentItem.workName || '').replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim(),
+        size: (currentItem.size || '').replace(/^(?:size)[:\-]\s*/i, '').trim(),
+        gsm: (currentItem.gsm || '').replace(/^(?:gsm)[:\-]\s*/i, '').trim(),
+        totalGross: (currentItem.totalGross || '').replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim(),
+        deliveryLoc: currentItem.deliveryLoc || '',
+        loadingDate: currentItem.loadingDate || ''
+      });
+    }
+    currentItem = {
+      jobCardNo,
+      date: new Date().toISOString().split('T')[0],
+      workName: '',
+      size: '',
+      gsm: '',
+      totalGross: '',
+      deliveryLoc: '',
+      loadingDate: ''
+    };
+  };
+
+  for (const line of lines) {
+    if (!line) {
+      flushCurrent();
+      continue;
+    }
+
+    const lower = line.toLowerCase();
+    const itemMatch = line.match(/^(?:item|product|work\s*name|work)[:\-]\s*(.+)/i);
+    const sizeMatch = line.match(/^(?:size)[:\-]\s*(.+)/i) || line.match(/(\d+\s*[*x×X-]\s*\d+)/i);
+    const gsmMatch = line.match(/^(?:gsm)[:\-]\s*(\d+(?:\.\d+)?)/i);
+    const qtyMatch = line.match(/^(?:qty|quantity|quandity|gross)[:\-]\s*(.+)/i);
+
+    if (itemMatch) {
+      if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
+        flushCurrent();
+      }
+      currentItem.workName = itemMatch[1].trim();
+    } else if (gsmMatch) {
+      currentItem.gsm = gsmMatch[1].trim();
+    } else if (sizeMatch) {
+      currentItem.size = (sizeMatch[1] || sizeMatch[0]).trim();
+    } else if (qtyMatch || lower.startsWith('qty') || lower.startsWith('quantity') || lower.startsWith('quandity') || lower.startsWith('gross')) {
+      const colonIdx = line.indexOf(':');
+      const dashIdx = line.indexOf('-');
+      const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+      currentItem.totalGross = idx !== -1 ? line.substring(idx + 1).trim() : line;
+    } else {
+      if (currentItem.size || currentItem.gsm || currentItem.totalGross) {
+        flushCurrent();
+      }
+      if (!currentItem.workName) {
+        currentItem.workName = line;
+      } else {
+        currentItem.workName += ' ' + line;
+      }
+    }
+  }
+  flushCurrent();
+
+  if (items.length === 0 && text.trim().length > 0) {
+    items.push({
+      jobCardNo,
+      date: new Date().toISOString().split('T')[0],
+      workName: text.split('\n')[0].trim(),
+      size: '57*86',
+      gsm: '200',
+      totalGross: '200 gross',
+      deliveryLoc: '',
+      loadingDate: ''
+    });
+  }
+
+  return items;
+}
+
 export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void> {
   if (!jobCards || jobCards.length === 0) {
     throw new Error('No job cards provided for PDF generation.');

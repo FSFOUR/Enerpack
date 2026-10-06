@@ -2599,66 +2599,62 @@ export default function App() {
 
   const parseOrderLocally = (text: string) => {
     const items = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = text.split('\n').map(l => l.trim());
 
-    for (const line of lines) {
-      let workName = '';
-      let size = '';
-      let gsm = '';
-      let totalGross = '';
+    let currentItem = { workName: '', size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
 
-      const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
-      const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
-      const qtyMatch = line.match(/(?:qty|quantity|quandity|gross)[\s*:-]*(.+)/i);
-
-      if (sizeMatch) {
-        size = (sizeMatch[1] || sizeMatch[2]).trim();
-      }
-      if (gsmMatch) {
-        gsm = gsmMatch[1].trim();
-      }
-      if (qtyMatch) {
-        totalGross = qtyMatch[1].trim();
-      }
-
-      let namePart = line;
-      const lower = line.toLowerCase();
-      const idxSize = lower.indexOf('size');
-      const idxGsm = lower.indexOf('gsm');
-      const idxQty = Math.min(
-        lower.indexOf('qty') !== -1 ? lower.indexOf('qty') : 9999,
-        lower.indexOf('quantity') !== -1 ? lower.indexOf('quantity') : 9999,
-        lower.indexOf('quandity') !== -1 ? lower.indexOf('quandity') : 9999,
-        lower.indexOf('gross') !== -1 ? lower.indexOf('gross') : 9999
-      );
-      
-      const minIdx = Math.min(
-        idxSize !== -1 ? idxSize : 9999,
-        idxGsm !== -1 ? idxGsm : 9999,
-        idxQty !== -1 ? idxQty : 9999
-      );
-
-      if (minIdx !== 9999) {
-        namePart = line.substring(0, minIdx);
-      }
-
-      workName = namePart.replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
-
-      if (!workName && !size && !gsm && !totalGross) {
-        workName = line;
-      }
-
-      if (workName || size || gsm || totalGross) {
+    const flushCurrent = () => {
+      if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
         items.push({
-          workName: workName || 'Custom Order Item',
-          size: size || '57*86',
-          gsm: gsm || '200',
-          totalGross: totalGross || '200 gross',
+          workName: (currentItem.workName || '').replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim(),
+          size: (currentItem.size || '').replace(/^(?:size)[:\-]\s*/i, '').trim(),
+          gsm: (currentItem.gsm || '').replace(/^(?:gsm)[:\-]\s*/i, '').trim(),
+          totalGross: (currentItem.totalGross || '').replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim(),
           deliveryLoc: '',
           loadingDate: ''
         });
       }
+      currentItem = { workName: '', size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
+    };
+
+    for (const line of lines) {
+      if (!line) {
+        flushCurrent();
+        continue;
+      }
+
+      const lower = line.toLowerCase();
+      const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
+      const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
+      const qtyMatch = line.match(/(?:qty|quantity|quandity|gross)[\s*:-]*(.+)/i);
+      const itemMatch = line.match(/^(?:item|product|work\s*name|work)[:\-]\s*(.+)/i);
+
+      if (itemMatch) {
+        if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
+          flushCurrent();
+        }
+        currentItem.workName = itemMatch[1].trim();
+      } else if (sizeMatch) {
+        currentItem.size = (sizeMatch[1] || sizeMatch[2]).trim();
+      } else if (gsmMatch) {
+        currentItem.gsm = gsmMatch[1].trim();
+      } else if (qtyMatch || lower.startsWith('qty') || lower.startsWith('quantity') || lower.startsWith('quandity') || lower.startsWith('gross')) {
+        const colonIdx = line.indexOf(':');
+        const dashIdx = line.indexOf('-');
+        const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+        currentItem.totalGross = idx !== -1 ? line.substring(idx + 1).trim() : line;
+      } else {
+        if (currentItem.size || currentItem.gsm || currentItem.totalGross) {
+          flushCurrent();
+        }
+        if (!currentItem.workName) {
+          currentItem.workName = line;
+        } else {
+          currentItem.workName += ' ' + line;
+        }
+      }
     }
+    flushCurrent();
 
     if (items.length === 0 && text.trim().length > 0) {
       items.push({
@@ -2724,10 +2720,10 @@ export default function App() {
       toast.loading('Generating job cards...', { id: 'ai-parse' });
 
       const newCards = parsedCards.map((card: any, index: number) => ({
-        workName: card.workName || whatsappOrder.split('\n')[0].trim() || 'Custom Order Item',
-        size: card.size || '57*86',
-        gsm: card.gsm ? card.gsm.toString().trim() : '200',
-        totalGross: card.totalGross || '35 gross',
+        workName: (card.workName || whatsappOrder.split('\n')[0] || '').toString().replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim() || 'Custom Order Item',
+        size: (card.size || '').toString().replace(/^(?:size)[:\-]\s*/i, '').trim() || '57*86',
+        gsm: (card.gsm || '').toString().replace(/^(?:gsm)[:\-]\s*/i, '').trim() || '200',
+        totalGross: (card.totalGross || '').toString().replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim() || '200 gross',
         deliveryLoc: card.deliveryLoc || '',
         jobCardNo: generateJobCardNo(cardPrefix, jobCards.length + index),
         date: new Date().toISOString().split('T')[0],
