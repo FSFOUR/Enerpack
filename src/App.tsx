@@ -2599,63 +2599,57 @@ export default function App() {
 
   const parseOrderLocally = (text: string) => {
     const items = [];
-    const blocks = text.split(/\n\s*\n/).filter(b => b.trim().length > 0);
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    let currentItem: any = { workName: '', size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
     
-    if (blocks.length === 0) {
-      blocks.push(text);
-    }
+    for (const line of lines) {
+      const lower = line.toLowerCase();
 
-    for (const block of blocks) {
-      const normalized = block.replace(/\r/g, '\n');
-      
-      // Match Item / Product / Work Name
-      const itemMatch = normalized.match(/(?:item|product|work\s*name|work)[:\-]\s*([^\n]+?(?=\s+(?:size|gsm|qty|quantity)[:\-]|,\s*(?:size|gsm|qty|quantity)[:\-]|$\n?))/i) ||
-                        normalized.match(/(?:item|product|work\s*name|work)[:\-]\s*(.+?)(?=\s+(?:size|gsm|qty|quantity)|$\n?)/i);
-      
-      // Match Size
-      const sizeMatch = normalized.match(/(?:size)[:\-]\s*([^\n,]+?(?=\s+(?:gsm|qty|quantity)|$\n?))/i);
-      
-      // Match GSM (only digits following gsm:)
-      const gsmMatch = normalized.match(/(?:gsm)[:\-]\s*(\d+)/i);
-      
-      // Match Qty / Total Gross
-      const qtyMatch = normalized.match(/(?:qty|quantity)[:\-]\s*([^\n]+)/i);
+      const sizeMatch = line.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
+      const gsmMatch = line.match(/(?:gsm)[\s*:-]*(\d+)/i);
+      const qtyMatch = line.match(/(?:qty|quantity|quandity|qty\s*[:\-]|gross)[\s*:-]*(.+)/i);
 
-      let workName = itemMatch ? itemMatch[1].trim() : '';
-      let size = sizeMatch ? sizeMatch[1].trim() : '';
-      let gsm = gsmMatch ? gsmMatch[1].trim() : '';
-      let totalGross = qtyMatch ? qtyMatch[1].trim() : '';
-
-      // Fallback if workName was not matched explicitly by Item:
-      if (!workName) {
-        const parts = normalized.split(/(?:size|gsm|qty|quantity)[:\-]/i);
-        if (parts.length > 0) {
-          workName = parts[0].replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
+      if (sizeMatch) {
+        currentItem.size = (sizeMatch[1] || sizeMatch[2]).trim();
+      } else if (gsmMatch) {
+        currentItem.gsm = gsmMatch[1].trim();
+      } else if (qtyMatch || lower.startsWith('qty') || lower.startsWith('quantity') || lower.startsWith('quandity')) {
+        const colonIdx = line.indexOf(':');
+        const dashIdx = line.indexOf('-');
+        const idx = colonIdx !== -1 && dashIdx !== -1 ? Math.min(colonIdx, dashIdx) : (colonIdx !== -1 ? colonIdx : dashIdx);
+        currentItem.totalGross = idx !== -1 ? line.substring(idx + 1).trim() : line;
+      } else {
+        let cleanName = line.replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
+        // If current item already has size/gsm/qty, this new non-labeled line indicates a new item starts
+        if (currentItem.size || currentItem.gsm || currentItem.totalGross) {
+          if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
+            items.push({ ...currentItem });
+          }
+          currentItem = { workName: cleanName, size: '', gsm: '', totalGross: '', deliveryLoc: '', loadingDate: '' };
+        } else {
+          if (!currentItem.workName) {
+            currentItem.workName = cleanName;
+          } else {
+            currentItem.workName += ' ' + cleanName;
+          }
         }
       }
+    }
 
-      // Fallback size regex
-      if (!size) {
-        const sMatch = normalized.match(/(?:size)[\s*:-]*(\d+\s*[*x×X-]\s*\d+)|(\d+\s*[*x×X]\s*\d+)/i);
-        if (sMatch) size = (sMatch[1] || sMatch[2]).trim();
-      }
+    if (currentItem.workName || currentItem.size || currentItem.gsm || currentItem.totalGross) {
+      items.push({ ...currentItem });
+    }
 
-      // Fallback qty regex
-      if (!totalGross) {
-        const qMatch = normalized.match(/(?:qty|quantity)[\s*:-]*([^\n]+)/i);
-        if (qMatch) totalGross = qMatch[1].trim();
-      }
-
-      if (workName || size || gsm || totalGross) {
-        items.push({
-          workName: workName || '',
-          size: size || '',
-          gsm: gsm || '',
-          totalGross: totalGross || '',
-          deliveryLoc: '',
-          loadingDate: ''
-        });
-      }
+    if (items.length === 0 && text.trim().length > 0) {
+      items.push({
+        workName: text.split('\n')[0].trim(),
+        size: '',
+        gsm: '',
+        totalGross: '',
+        deliveryLoc: '',
+        loadingDate: ''
+      });
     }
 
     return items;
