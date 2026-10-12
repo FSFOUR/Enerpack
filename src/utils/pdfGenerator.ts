@@ -126,12 +126,49 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
     throw new Error('No job cards provided for PDF generation.');
   }
 
+  // Normalize and clean all job cards so raw input and labels are never rendered
+  const normalizedCards: JobCardData[] = [];
+  for (const card of jobCards) {
+    const rawText = card.workName || '';
+    if (rawText.includes('\n') || rawText.includes('Item :') || rawText.includes('Size :') || rawText.includes('Gsm :') || rawText.includes('Qty :')) {
+      const parsedList = parseJobInput(rawText, card.jobCardNo);
+      for (const parsed of parsedList) {
+        normalizedCards.push({
+          ...parsed,
+          jobCardNo: card.jobCardNo || parsed.jobCardNo,
+          date: card.date || parsed.date,
+          deliveryLoc: card.deliveryLoc || parsed.deliveryLoc,
+          loadingDate: card.loadingDate || parsed.loadingDate,
+          gsm: parsed.gsm || card.gsm || '200',
+          totalGross: parsed.totalGross || card.totalGross || '200 gross',
+          size: parsed.size || card.size || '57*86',
+          workName: parsed.workName || card.workName || 'Custom Order Item'
+        });
+      }
+    } else {
+      normalizedCards.push({
+        ...card,
+        workName: (card.workName || '').replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim(),
+        size: (card.size || '').replace(/^(?:size)[:\-]\s*/i, '').trim(),
+        gsm: (card.gsm || '').replace(/^(?:gsm)[:\-]\s*/i, '').trim(),
+        totalGross: (card.totalGross || '').replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim(),
+      });
+    }
+  }
+
+  for (const card of normalizedCards) {
+    card.workName = card.workName.replace(/^(?:item|product|work\s*name|work)[:\-]\s*/i, '').trim();
+    card.size = card.size.replace(/^(?:size)[:\-]\s*/i, '').trim();
+    card.gsm = card.gsm.replace(/^(?:gsm)[:\-]\s*/i, '').trim();
+    card.totalGross = card.totalGross.replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim();
+  }
+
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   // Calculate number of pages needed (2 cards per page, side-by-side)
-  const totalPages = Math.ceil(jobCards.length / 2);
+  const totalPages = Math.ceil(normalizedCards.length / 2);
 
   // Helper to draw master template card borders and labels directly
   const drawVectorCardTemplate = (page: any, startX: number) => {
@@ -218,8 +255,8 @@ export async function generateJobCardsPdf(jobCards: JobCardData[]): Promise<void
     drawVectorCardTemplate(page, 40);
     drawVectorCardTemplate(page, 450);
 
-    const leftCard = jobCards[pageIdx * 2];
-    const rightCard = jobCards[pageIdx * 2 + 1]; // Might be undefined if odd number
+    const leftCard = normalizedCards[pageIdx * 2];
+    const rightCard = normalizedCards[pageIdx * 2 + 1]; // Might be undefined if odd number
 
     // Helper to draw text on a card column with precise vertical row centering
     const drawCardData = (card: JobCardData, startX: number) => {

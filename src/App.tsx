@@ -6,6 +6,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LoginPage } from './components/LoginPage';
 import { MasterStockCombiner } from './components/CuttingOptimizer/MasterStockCombiner';
+import { 
+  DemandForecastEngine, 
+  exportForecastEngineToXLSX, 
+  exportForecastEngineToPDF 
+} from './components/ForecastEngine/DemandForecastEngine';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { generateJobCardsPdf } from './utils/pdfGenerator';
@@ -1799,8 +1804,8 @@ export default function App() {
   const [searchForecastQuery, setSearchForecastQuery] = useState('');
   const [velocityMonth, setVelocityMonth] = useState('August');
   const [velocityYear, setVelocityYear] = useState('2026');
-  const [forecastMonth, setForecastMonth] = useState('August');
-  const [forecastYear, setForecastYear] = useState('2026');
+  const [forecastMonth, setForecastMonth] = useState(() => new Date().toLocaleString('en-US', { month: 'long' }));
+  const [forecastYear, setForecastYear] = useState(() => new Date().getFullYear().toString());
   const [forecastHorizon, setForecastHorizon] = useState<'30' | '60' | '90' | 'all'>('30');
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
 
@@ -3855,79 +3860,11 @@ export default function App() {
   };
 
   const handleExportDemandForecastXLSX = () => {
-    // Simple aggregation of stockOutLogs for forecast
-    const consumptionMap: Record<string, { size: string, gsm: string, totalOut: number, itemCode: string }> = {};
-    
-    stockOutLogs.forEach(log => {
-      const key = `${log.size}-${log.gsm}-${log.itemCode}`;
-      if (!consumptionMap[key]) {
-        consumptionMap[key] = { size: log.size, gsm: log.gsm, totalOut: 0, itemCode: log.itemCode };
-      }
-      consumptionMap[key].totalOut += log.out;
-    });
-
-    const forecastData = Object.values(consumptionMap)
-      .sort((a, b) => b.totalOut - a.totalOut)
-      .map((item, index) => ({
-        'RANK': index + 1,
-        'ITEM CODE': item.itemCode,
-        'SIZE': item.size,
-        'GSM': item.gsm,
-        'TOTAL CONSUMPTION': item.totalOut,
-        'AVG MONTHLY': (item.totalOut / 3).toFixed(2) // Simple average over 3 months
-      }));
-
-    if (forecastData.length === 0) {
-      toast.error("No consumption data for forecast.");
-      return;
-    }
-
-    const ws = XLSX.utils.json_to_sheet(forecastData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Demand Forecast");
-    XLSX.writeFile(wb, "Demand_Forecast.xlsx");
+    exportForecastEngineToXLSX(stockOutLogs, inventory, forecastMonth, forecastYear);
   };
 
   const handleExportDemandForecastPDF = () => {
-    const consumptionMap: Record<string, { size: string, gsm: string, totalOut: number, itemCode: string }> = {};
-    
-    stockOutLogs.forEach(log => {
-      const key = `${log.size}-${log.gsm}-${log.itemCode}`;
-      if (!consumptionMap[key]) {
-        consumptionMap[key] = { size: log.size, gsm: log.gsm, totalOut: 0, itemCode: log.itemCode };
-      }
-      consumptionMap[key].totalOut += log.out;
-    });
-
-    const forecastData = Object.values(consumptionMap)
-      .sort((a, b) => b.totalOut - a.totalOut)
-      .map((item, index) => [
-        index + 1,
-        item.itemCode,
-        `${item.size} / ${item.gsm}`,
-        item.totalOut,
-        (item.totalOut / 3).toFixed(2)
-      ]);
-
-    if (forecastData.length === 0) {
-      toast.error("No consumption data for forecast.");
-      return;
-    }
-
-    const doc = new jsPDF('p', 'mm', 'a4');
-    doc.setFontSize(18);
-    doc.text("DEMAND FORECAST (CONSUMPTION RANKING)", 14, 15);
-
-    autoTable(doc, {
-      head: [['RANK', 'ITEM CODE', 'SPEC (SIZE/GSM)', 'TOTAL VOL', 'AVG MONTHLY']],
-      body: forecastData,
-      startY: 20,
-      theme: 'grid',
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [14, 165, 233] }
-    });
-
-    doc.save("Demand_Forecast.pdf");
+    exportForecastEngineToPDF(stockOutLogs, inventory, forecastMonth, forecastYear);
   };
 
   const currentSelectedEntry = selectedQuickTrackerItem ? (() => {
@@ -8042,235 +7979,22 @@ export default function App() {
             </motion.div>
           )}
 
-                    {activeTab === 'Demand Forecast' && (
+          {activeTab === 'Demand Forecast' && (
             <motion.div
               key="demand-forecast"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
             >
-              {/* Header */}
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setActiveTab('Dashboard')}
-                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    <ChevronRight className="rotate-180" size={24} />
-                  </button>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">FORECAST ENGINE</h1>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">ANALYTICS & REQUIREMENTS</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto justify-between lg:justify-end">
-                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Month:</span>
-                      <select 
-                        value={forecastMonth} 
-                        onChange={(e) => setForecastMonth(e.target.value)}
-                        className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs font-bold text-slate-700 outline-none"
-                      >
-                        <option value="All">All Months</option>
-                        <option value="January">January</option>
-                        <option value="February">February</option>
-                        <option value="March">March</option>
-                        <option value="April">April</option>
-                        <option value="May">May</option>
-                        <option value="June">June</option>
-                        <option value="July">July</option>
-                        <option value="August">August</option>
-                        <option value="September">September</option>
-                        <option value="October">October</option>
-                        <option value="November">November</option>
-                        <option value="December">December</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Year:</span>
-                      <select 
-                        value={forecastYear} 
-                        onChange={(e) => setForecastYear(e.target.value)}
-                        className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs font-bold text-slate-700 outline-none"
-                      >
-                        <option value="All">All Years</option>
-                        <option value="2024">2024</option>
-                        <option value="2025">2025</option>
-                        <option value="2026">2026</option>
-                        <option value="2027">2027</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => handleInitiateExport('pdf', 'demandForecast')}
-                      className="flex items-center gap-2 bg-rose-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-md"
-                    >
-                      <FileText size={16} /> PDF
-                    </button>
-                    <button 
-                      onClick={() => handleInitiateExport('xlsx', 'demandForecast')}
-                      className="flex items-center gap-2 bg-[#0ea5e9] text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#0284c7] transition-all shadow-md"
-                    >
-                      <FileSpreadsheet size={16} /> EXCEL
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Top Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-[#fff5f5] p-8 rounded-3xl border border-rose-100 shadow-sm flex items-center gap-6">
-                  <div className="w-16 h-16 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-200">
-                    <ArrowUp size={32} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Outbound Flow ({forecastMonth} {forecastYear})</p>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Consumption</h2>
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-6">
-                  <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400">
-                    <ArrowDown size={32} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inbound Requirement ({forecastMonth} {forecastYear})</p>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Forecast</h2>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Cards / Sections */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Consumption by Top Moving Sizes */}
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <BarChart2 className="text-rose-500" size={24} />
-                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Consumption (Top Moving Sizes)</h3>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                          <th className="pb-4 text-left">SIZE</th>
-                          <th className="pb-4 text-left">GSM</th>
-                          <th className="pb-4 text-right">TOTAL OUT</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const sizeMap: Record<string, { size: string, gsm: string, total: number }> = {};
-                          stockOutLogs.forEach(log => {
-                            if (!log.date) return;
-                            const d = new Date(log.date);
-                            if (isNaN(d.getTime())) return;
-                            const logYear = d.getFullYear().toString();
-                            const logMonth = d.toLocaleString('default', { month: 'long' });
-
-                            if (forecastMonth !== 'All' && logMonth.toLowerCase() !== forecastMonth.toLowerCase()) return;
-                            if (forecastYear !== 'All' && logYear !== forecastYear) return;
-
-                            const key = `${log.size}|${log.gsm}`;
-                            if (!sizeMap[key]) sizeMap[key] = { size: log.size, gsm: log.gsm, total: 0 };
-                            sizeMap[key].total += (log.out || 0);
-                          });
-
-                          const sorted = Object.values(sizeMap).sort((a, b) => b.total - a.total);
-                          if (sorted.length === 0) {
-                            return (
-                              <tr>
-                                <td colSpan={3} className="py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No consumption records found for {forecastMonth} {forecastYear}</td>
-                              </tr>
-                            );
-                          }
-                          return sorted.map((item, idx) => (
-                            <tr key={idx} className="border-b border-slate-50 text-xs font-bold text-slate-700">
-                              <td className="py-4 font-black text-slate-900">{item.size}</td>
-                              <td className="py-4">{item.gsm}</td>
-                              <td className="py-4 text-right font-black text-rose-600">{item.total} Units</td>
-                            </tr>
-                          ));
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Restock Forecast / Requirement Sizes */}
-                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <TrendingUp className="text-blue-500" size={24} />
-                      <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Restock Forecast Requirements ({forecastHorizon === 'all' ? 'All Time' : `Next ${forecastHorizon} Days`})</h3>
-                    </div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-slate-400 text-[10px] font-black uppercase tracking-widest border-b border-slate-100">
-                          <th className="pb-4 text-left">SIZE</th>
-                          <th className="pb-4 text-left">GSM</th>
-                          <th className="pb-4 text-right">REQUIRED REFILL</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const reqMap: Record<string, { size: string, gsm: string, required: number }> = {};
-                          
-                          let relevantLogs = stockOutLogs.filter(log => {
-                            if (!log.date) return false;
-                            const d = new Date(log.date);
-                            if (isNaN(d.getTime())) return false;
-                            const logYear = d.getFullYear().toString();
-                            const logMonth = d.toLocaleString('default', { month: 'long' });
-
-                            if (forecastMonth !== 'All' && logMonth.toLowerCase() !== forecastMonth.toLowerCase()) return false;
-                            if (forecastYear !== 'All' && logYear !== forecastYear) return false;
-                            return true;
-                          });
-
-                          if (relevantLogs.length === 0) {
-                            relevantLogs = stockOutLogs;
-                          }
-
-                          relevantLogs.forEach(log => {
-                            const key = `${log.size}|${log.gsm}`;
-                            if (!reqMap[key]) reqMap[key] = { size: log.size, gsm: log.gsm, required: 0 };
-                            
-                            const outVal = log.out || 0;
-                            let multiplier = 1.25;
-                            if (forecastHorizon === '30') multiplier = 1.0;
-                            else if (forecastHorizon === '60') multiplier = 2.0;
-                            else if (forecastHorizon === '90') multiplier = 3.0;
-
-                            reqMap[key].required += Math.ceil(outVal * multiplier);
-                          });
-
-                          const sorted = Object.values(reqMap).sort((a, b) => b.required - a.required).slice(0, 5);
-                          if (sorted.length === 0) {
-                            return (
-                              <tr>
-                                <td colSpan={3} className="py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No consumption records available for forecasting</td>
-                              </tr>
-                            );
-                          }
-                          return sorted.map((item, idx) => (
-                            <tr key={idx} className="border-b border-slate-50 text-xs font-bold text-slate-700">
-                              <td className="py-4 font-black text-slate-900">{item.size}</td>
-                              <td className="py-4">{item.gsm}</td>
-                              <td className="py-4 text-right font-black text-blue-600">{item.required} Units</td>
-                            </tr>
-                          ));
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
+              <DemandForecastEngine
+                stockOutLogs={stockOutLogs}
+                inventory={inventory}
+                setActiveTab={setActiveTab}
+                forecastMonth={forecastMonth}
+                setForecastMonth={setForecastMonth}
+                forecastYear={forecastYear}
+                setForecastYear={setForecastYear}
+              />
             </motion.div>
           )}
 
