@@ -792,586 +792,620 @@ export const DemandForecastEngine: React.FC<DemandForecastEngineProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MAIN DASHBOARD STRUCTURE: 4 INDEPENDENTLY RANKED SECTIONS */}
+      {/* ROW 1: HISTORICAL CONSUMPTION — GSM 280 (LEFT) & GSM 200 (RIGHT) */}
       {/* ========================================================================= */}
-
-      {/* ------------------------------------------------------------------------- */}
-      {/* SECTION A — HISTORICAL CONSUMPTION, GSM 280 */}
-      {/* ------------------------------------------------------------------------- */}
-      <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
-              A
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                  CONSUMPTION — GSM 280
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">
-                  TOP 10 HIGH-MOVING SIZES
-                </span>
-              </div>
-              <p className="text-xs font-medium text-slate-400">
-                Authoritative outbound consumption records for GSM 280 in {forecastMonth} {forecastYear}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-slate-400">
-            {processedAnalytics.sectionA.length} sizes identified
-          </span>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+          <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">
+            HISTORICAL CONSUMPTION (OUTBOUND VELOCITY)
+          </h2>
+          <span className="text-xs text-slate-400 font-bold">• GSM 280 (Left) & GSM 200 (Right)</span>
         </div>
 
-        {/* Section A Visual Chart */}
-        {processedAnalytics.sectionA.length > 0 && (
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                <BarChart2 size={15} className="text-rose-500" />
-                Consumption Distribution (Top 10 Sizes)
-              </span>
-              <span className="text-[11px] font-bold text-rose-600">
-                Units Outbound
-              </span>
-            </div>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedAnalytics.sectionA} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="size" 
-                    tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} 
-                    angle={-25} 
-                    textAnchor="end" 
-                    interval={0}
-                  />
-                  <YAxis tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '1rem', border: '1px solid #fecdd3', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
-                    formatter={(val: any) => [`${Number(val).toLocaleString()} Units`, 'Consumption']}
-                  />
-                  <Bar dataKey="totalOut" fill="#f43f5e" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+          {/* ------------------------------------------------------------------------- */}
+          {/* SECTION A — HISTORICAL CONSUMPTION, GSM 280 (LEFT) */}
+          {/* ------------------------------------------------------------------------- */}
+          <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black shrink-0">
+                    A
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">
+                        CONSUMPTION — GSM 280
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">
+                        TOP 10 HIGH-MOVING
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Authoritative outbound records for GSM 280 in {forecastMonth} {forecastYear}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-slate-400 shrink-0">
+                  {processedAnalytics.sectionA.length} sizes
+                </span>
+              </div>
+
+              {/* Section A Visual Chart */}
+              {processedAnalytics.sectionA.length > 0 && (
+                <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                      <BarChart2 size={15} className="text-rose-500" />
+                      Consumption Distribution
+                    </span>
+                    <span className="text-[10px] font-bold text-rose-600">
+                      Units Outbound
+                    </span>
+                  </div>
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={processedAnalytics.sectionA} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis 
+                          dataKey="size" 
+                          tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} 
+                          angle={-25} 
+                          textAnchor="end" 
+                          interval={0}
+                        />
+                        <YAxis tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1rem', border: '1px solid #fecdd3', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                          formatter={(val: any) => [`${Number(val).toLocaleString()} Units`, 'Consumption']}
+                        />
+                        <Bar dataKey="totalOut" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Section A Data Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-3 text-center w-12">RANK</th>
+                      <th className="py-3 px-3">SIZE</th>
+                      <th className="py-3 px-2">GSM</th>
+                      <th className="py-3 px-3 text-right">TOTAL OUT</th>
+                      <th className="py-3 px-3 text-right">PREV ({processedAnalytics.prevMonthName})</th>
+                      <th className="py-3 px-3 text-right">CHANGE %</th>
+                      <th className="py-3 px-2 text-center">TREND</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {processedAnalytics.sectionA.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="max-w-xs mx-auto space-y-2">
+                            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-400 flex items-center justify-center mx-auto">
+                              <Layers size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Consumption Records</p>
+                            <p className="text-[11px] text-slate-400">
+                              No valid outbound consumption records found for GSM 280 in {forecastMonth} {forecastYear}.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      processedAnalytics.sectionA.map((row) => (
+                        <tr key={row.size} className="hover:bg-rose-50/30 transition-colors">
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black ${
+                              row.rank === 1 
+                                ? 'bg-rose-500 text-white shadow-xs' 
+                                : row.rank <= 3 
+                                ? 'bg-rose-100 text-rose-700' 
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-black text-slate-900 text-xs">{row.size}</td>
+                          <td className="py-3 px-2 font-bold text-slate-500">{row.gsm}</td>
+                          <td className="py-3 px-3 text-right font-black text-rose-600 text-xs">
+                            {row.totalOut.toLocaleString()} <span className="text-[9px] font-bold text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-slate-600 text-xs">
+                            {row.prevOut.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black">
+                            {row.changePct !== null ? (
+                              <span className={`px-1.5 py-0.5 rounded-lg text-[10px] ${
+                                row.changePct > 0 
+                                  ? 'bg-rose-100 text-rose-700' 
+                                  : row.changePct < 0 
+                                  ? 'bg-slate-100 text-slate-700' 
+                                  : 'text-slate-500'
+                              }`}>
+                                {row.changePct > 0 ? `+${row.changePct}%` : `${row.changePct}%`}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-lg text-[9px] bg-amber-100 text-amber-700 font-bold">
+                                NEW
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {row.trend === 'up' && (
+                              <span className="inline-flex items-center justify-center text-rose-600" title="Increased Outbound">
+                                <ArrowUp size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                            {row.trend === 'down' && (
+                              <span className="inline-flex items-center justify-center text-slate-400" title="Decreased Outbound">
+                                <ArrowDown size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                            {row.trend === 'flat' && (
+                              <span className="inline-flex items-center justify-center text-slate-300" title="Stable">
+                                <Minus size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Section A Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3.5 px-4 text-center w-14">RANK</th>
-                <th className="py-3.5 px-4">SIZE</th>
-                <th className="py-3.5 px-4">GSM</th>
-                <th className="py-3.5 px-4 text-right">TOTAL CONSUMPTION</th>
-                <th className="py-3.5 px-4 text-right">PREV MONTH ({processedAnalytics.prevMonthName})</th>
-                <th className="py-3.5 px-4 text-right">CHANGE %</th>
-                <th className="py-3.5 px-4 text-center">TREND</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {processedAnalytics.sectionA.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-400 flex items-center justify-center mx-auto">
-                        <Layers size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Consumption Records</p>
-                      <p className="text-[11px] text-slate-400">
-                        No valid outbound consumption records found for GSM 280 in {forecastMonth} {forecastYear}.
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                processedAnalytics.sectionA.map((row) => (
-                  <tr key={row.size} className="hover:bg-rose-50/30 transition-colors">
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
-                        row.rank === 1 
-                          ? 'bg-rose-500 text-white shadow-xs' 
-                          : row.rank <= 3 
-                          ? 'bg-rose-100 text-rose-700' 
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {row.rank}
+          {/* ------------------------------------------------------------------------- */}
+          {/* SECTION B — HISTORICAL CONSUMPTION, GSM 200 (RIGHT) */}
+          {/* ------------------------------------------------------------------------- */}
+          <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black shrink-0">
+                    B
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">
+                        CONSUMPTION — GSM 200
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">
+                        TOP 10 HIGH-MOVING
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-slate-900 text-sm">{row.size}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-500">{row.gsm}</td>
-                    <td className="py-3.5 px-4 text-right font-black text-rose-600 text-sm">
-                      {row.totalOut.toLocaleString()} <span className="text-[10px] font-bold text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-600">
-                      {row.prevOut.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-black">
-                      {row.changePct !== null ? (
-                        <span className={`px-2 py-0.5 rounded-lg text-[11px] ${
-                          row.changePct > 0 
-                            ? 'bg-rose-100 text-rose-700' 
-                            : row.changePct < 0 
-                            ? 'bg-slate-100 text-slate-700' 
-                            : 'text-slate-500'
-                        }`}>
-                          {row.changePct > 0 ? `+${row.changePct}%` : `${row.changePct}%`}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] bg-amber-100 text-amber-700 font-bold">
-                          NEW
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {row.trend === 'up' && (
-                        <span className="inline-flex items-center justify-center text-rose-600" title="Increased Outbound">
-                          <ArrowUp size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                      {row.trend === 'down' && (
-                        <span className="inline-flex items-center justify-center text-slate-400" title="Decreased Outbound">
-                          <ArrowDown size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                      {row.trend === 'flat' && (
-                        <span className="inline-flex items-center justify-center text-slate-300" title="Stable">
-                          <Minus size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                    </div>
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Authoritative outbound records for GSM 200 in {forecastMonth} {forecastYear}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-slate-400 shrink-0">
+                  {processedAnalytics.sectionB.length} sizes
+                </span>
+              </div>
+
+              {/* Section B Visual Chart */}
+              {processedAnalytics.sectionB.length > 0 && (
+                <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                      <BarChart2 size={15} className="text-rose-500" />
+                      Consumption Distribution
+                    </span>
+                    <span className="text-[10px] font-bold text-rose-600">
+                      Units Outbound
+                    </span>
+                  </div>
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={processedAnalytics.sectionB} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis 
+                          dataKey="size" 
+                          tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} 
+                          angle={-25} 
+                          textAnchor="end" 
+                          interval={0}
+                        />
+                        <YAxis tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1rem', border: '1px solid #fecdd3', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                          formatter={(val: any) => [`${Number(val).toLocaleString()} Units`, 'Consumption']}
+                        />
+                        <Bar dataKey="totalOut" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
+
+              {/* Section B Data Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-3 text-center w-12">RANK</th>
+                      <th className="py-3 px-3">SIZE</th>
+                      <th className="py-3 px-2">GSM</th>
+                      <th className="py-3 px-3 text-right">TOTAL OUT</th>
+                      <th className="py-3 px-3 text-right">PREV ({processedAnalytics.prevMonthName})</th>
+                      <th className="py-3 px-3 text-right">CHANGE %</th>
+                      <th className="py-3 px-2 text-center">TREND</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {processedAnalytics.sectionB.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="max-w-xs mx-auto space-y-2">
+                            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-400 flex items-center justify-center mx-auto">
+                              <Layers size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Consumption Records</p>
+                            <p className="text-[11px] text-slate-400">
+                              No valid outbound consumption records found for GSM 200 in {forecastMonth} {forecastYear}.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      processedAnalytics.sectionB.map((row) => (
+                        <tr key={row.size} className="hover:bg-rose-50/30 transition-colors">
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black ${
+                              row.rank === 1 
+                                ? 'bg-rose-500 text-white shadow-xs' 
+                                : row.rank <= 3 
+                                ? 'bg-rose-100 text-rose-700' 
+                                : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-black text-slate-900 text-xs">{row.size}</td>
+                          <td className="py-3 px-2 font-bold text-slate-500">{row.gsm}</td>
+                          <td className="py-3 px-3 text-right font-black text-rose-600 text-xs">
+                            {row.totalOut.toLocaleString()} <span className="text-[9px] font-bold text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-slate-600 text-xs">
+                            {row.prevOut.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black">
+                            {row.changePct !== null ? (
+                              <span className={`px-1.5 py-0.5 rounded-lg text-[10px] ${
+                                row.changePct > 0 
+                                  ? 'bg-rose-100 text-rose-700' 
+                                  : row.changePct < 0 
+                                  ? 'bg-slate-100 text-slate-700' 
+                                  : 'text-slate-500'
+                              }`}>
+                                {row.changePct > 0 ? `+${row.changePct}%` : `${row.changePct}%`}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-lg text-[9px] bg-amber-100 text-amber-700 font-bold">
+                                NEW
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-center">
+                            {row.trend === 'up' && (
+                              <span className="inline-flex items-center justify-center text-rose-600" title="Increased Outbound">
+                                <ArrowUp size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                            {row.trend === 'down' && (
+                              <span className="inline-flex items-center justify-center text-slate-400" title="Decreased Outbound">
+                                <ArrowDown size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                            {row.trend === 'flat' && (
+                              <span className="inline-flex items-center justify-center text-slate-300" title="Stable">
+                                <Minus size={15} strokeWidth={2.5} />
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ------------------------------------------------------------------------- */}
-      {/* SECTION B — HISTORICAL CONSUMPTION, GSM 200 */}
-      {/* ------------------------------------------------------------------------- */}
-      <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
-              B
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                  CONSUMPTION — GSM 200
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700">
-                  TOP 10 HIGH-MOVING SIZES
-                </span>
-              </div>
-              <p className="text-xs font-medium text-slate-400">
-                Authoritative outbound consumption records for GSM 200 in {forecastMonth} {forecastYear}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-slate-400">
-            {processedAnalytics.sectionB.length} sizes identified
-          </span>
+      {/* ========================================================================= */}
+      {/* ROW 2: FORECAST REQUIREMENTS — GSM 280 (LEFT) & GSM 200 (RIGHT) */}
+      {/* ========================================================================= */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#0ea5e9]" />
+          <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">
+            FORECAST REQUIREMENTS (INBOUND REPLENISHMENT)
+          </h2>
+          <span className="text-xs text-slate-400 font-bold">• GSM 280 (Left) & GSM 200 (Right)</span>
         </div>
 
-        {/* Section B Visual Chart */}
-        {processedAnalytics.sectionB.length > 0 && (
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                <BarChart2 size={15} className="text-rose-500" />
-                Consumption Distribution (Top 10 Sizes)
-              </span>
-              <span className="text-[11px] font-bold text-rose-600">
-                Units Outbound
-              </span>
-            </div>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedAnalytics.sectionB} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="size" 
-                    tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} 
-                    angle={-25} 
-                    textAnchor="end" 
-                    interval={0}
-                  />
-                  <YAxis tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '1rem', border: '1px solid #fecdd3', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
-                    formatter={(val: any) => [`${Number(val).toLocaleString()} Units`, 'Consumption']}
-                  />
-                  <Bar dataKey="totalOut" fill="#f43f5e" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Section B Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3.5 px-4 text-center w-14">RANK</th>
-                <th className="py-3.5 px-4">SIZE</th>
-                <th className="py-3.5 px-4">GSM</th>
-                <th className="py-3.5 px-4 text-right">TOTAL CONSUMPTION</th>
-                <th className="py-3.5 px-4 text-right">PREV MONTH ({processedAnalytics.prevMonthName})</th>
-                <th className="py-3.5 px-4 text-right">CHANGE %</th>
-                <th className="py-3.5 px-4 text-center">TREND</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {processedAnalytics.sectionB.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-400 flex items-center justify-center mx-auto">
-                        <Layers size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Consumption Records</p>
-                      <p className="text-[11px] text-slate-400">
-                        No valid outbound consumption records found for GSM 200 in {forecastMonth} {forecastYear}.
-                      </p>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+          {/* ------------------------------------------------------------------------- */}
+          {/* SECTION C — FORECAST REQUIREMENTS, GSM 280 (LEFT) */}
+          {/* ------------------------------------------------------------------------- */}
+          <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black shrink-0">
+                    C
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">
+                        FORECAST REQUIREMENTS — GSM 280
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                        TOP 5 REQUIRED
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                processedAnalytics.sectionB.map((row) => (
-                  <tr key={row.size} className="hover:bg-rose-50/30 transition-colors">
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
-                        row.rank === 1 
-                          ? 'bg-rose-500 text-white shadow-xs' 
-                          : row.rank <= 3 
-                          ? 'bg-rose-100 text-rose-700' 
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {row.rank}
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Replenishment targets based on consumption run-rate vs live inventory
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-blue-600 shrink-0">
+                  By refill need
+                </span>
+              </div>
+
+              {/* Section C Visual Comparison Chart */}
+              {processedAnalytics.sectionC.length > 0 && (
+                <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                      <TrendingUp size={15} className="text-blue-500" />
+                      Current Stock vs Required Refill
+                    </span>
+                    <div className="flex items-center gap-3 text-[10px] font-bold">
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <span className="w-2 h-2 rounded bg-slate-400" /> Stock
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-slate-900 text-sm">{row.size}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-500">{row.gsm}</td>
-                    <td className="py-3.5 px-4 text-right font-black text-rose-600 text-sm">
-                      {row.totalOut.toLocaleString()} <span className="text-[10px] font-bold text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-600">
-                      {row.prevOut.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-black">
-                      {row.changePct !== null ? (
-                        <span className={`px-2 py-0.5 rounded-lg text-[11px] ${
-                          row.changePct > 0 
-                            ? 'bg-rose-100 text-rose-700' 
-                            : row.changePct < 0 
-                            ? 'bg-slate-100 text-slate-700' 
-                            : 'text-slate-500'
-                        }`}>
-                          {row.changePct > 0 ? `+${row.changePct}%` : `${row.changePct}%`}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] bg-amber-100 text-amber-700 font-bold">
-                          NEW
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      {row.trend === 'up' && (
-                        <span className="inline-flex items-center justify-center text-rose-600" title="Increased Outbound">
-                          <ArrowUp size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                      {row.trend === 'down' && (
-                        <span className="inline-flex items-center justify-center text-slate-400" title="Decreased Outbound">
-                          <ArrowDown size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                      {row.trend === 'flat' && (
-                        <span className="inline-flex items-center justify-center text-slate-300" title="Stable">
-                          <Minus size={16} strokeWidth={2.5} />
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------------------- */}
-      {/* SECTION C — FORECAST REQUIREMENTS, GSM 280 */}
-      {/* ------------------------------------------------------------------------- */}
-      <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
-              C
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                  FORECAST REQUIREMENTS — GSM 280
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
-                  TOP 5 REQUIRED SIZES
-                </span>
-              </div>
-              <p className="text-xs font-medium text-slate-400">
-                Replenishment targets based on consumption run-rate vs current warehouse inventory
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-blue-600">
-            Ranked by required refill quantity
-          </span>
-        </div>
-
-        {/* Section C Visual Comparison Chart */}
-        {processedAnalytics.sectionC.length > 0 && (
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp size={15} className="text-blue-500" />
-                Current Stock vs Suggested Restock (Top 5 Sizes)
-              </span>
-              <div className="flex items-center gap-4 text-[11px] font-bold">
-                <span className="flex items-center gap-1.5 text-slate-600">
-                  <span className="w-2.5 h-2.5 rounded bg-slate-400" /> Current Stock
-                </span>
-                <span className="flex items-center gap-1.5 text-blue-600">
-                  <span className="w-2.5 h-2.5 rounded bg-[#0284c7]" /> Required Refill
-                </span>
-              </div>
-            </div>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedAnalytics.sectionC} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="size" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '1rem', border: '1px solid #bfdbfe', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
-                  />
-                  <Bar dataKey="currentStock" name="Current Stock" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="suggestedRestock" name="Required Refill" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Section C Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3.5 px-4 text-center w-14">RANK</th>
-                <th className="py-3.5 px-4">SIZE</th>
-                <th className="py-3.5 px-4">GSM</th>
-                <th className="py-3.5 px-4 text-right">CURRENT STOCK</th>
-                <th className="py-3.5 px-4 text-right">MONTHLY RUN RATE</th>
-                <th className="py-3.5 px-4 text-right">SUGGESTED RESTOCK</th>
-                <th className="py-3.5 px-4 text-center">STOCK STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {processedAnalytics.sectionC.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-400 flex items-center justify-center mx-auto">
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Forecast Requirements</p>
-                      <p className="text-[11px] text-slate-400">
-                        Warehouse stock levels are adequate for current consumption trends.
-                      </p>
+                      <span className="flex items-center gap-1 text-blue-600">
+                        <span className="w-2 h-2 rounded bg-[#0284c7]" /> Refill
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                processedAnalytics.sectionC.map((row) => (
-                  <tr key={row.size} className="hover:bg-blue-50/20 transition-colors">
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
-                        row.rank === 1 
-                          ? 'bg-blue-600 text-white shadow-xs' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {row.rank}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-slate-900 text-sm">{row.size}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-500">{row.gsm}</td>
-                    <td className="py-3.5 px-4 text-right font-black text-slate-700">
-                      {row.currentStock.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-600">
-                      {row.monthlyConsumption.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-black text-[#0284c7] text-sm">
-                      {row.suggestedRestock.toLocaleString()} <span className="text-[10px] font-bold text-blue-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1 ${
-                        row.status === 'Critical' 
-                          ? 'bg-rose-100 text-rose-700' 
-                          : row.status === 'Low Stock' 
-                          ? 'bg-amber-100 text-amber-800' 
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {row.status === 'Critical' && <AlertTriangle size={12} />}
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                  </div>
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={processedAnalytics.sectionC} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="size" tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <YAxis tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1rem', border: '1px solid #bfdbfe', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                        />
+                        <Bar dataKey="currentStock" name="Current Stock" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="suggestedRestock" name="Required Refill" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-      {/* ------------------------------------------------------------------------- */}
-      {/* SECTION D — FORECAST REQUIREMENTS, GSM 200 */}
-      {/* ------------------------------------------------------------------------- */}
-      <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
-              D
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight">
-                  FORECAST REQUIREMENTS — GSM 200
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
-                  TOP 5 REQUIRED SIZES
-                </span>
+              {/* Section C Data Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-3 text-center w-12">RANK</th>
+                      <th className="py-3 px-3">SIZE</th>
+                      <th className="py-3 px-2">GSM</th>
+                      <th className="py-3 px-3 text-right">IN STOCK</th>
+                      <th className="py-3 px-3 text-right">RUN RATE</th>
+                      <th className="py-3 px-3 text-right">REQUIRED REFILL</th>
+                      <th className="py-3 px-3 text-center">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {processedAnalytics.sectionC.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="max-w-xs mx-auto space-y-2">
+                            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-400 flex items-center justify-center mx-auto">
+                              <CheckCircle2 size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Forecast Requirements</p>
+                            <p className="text-[11px] text-slate-400">
+                              Warehouse stock levels are adequate for current consumption trends.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      processedAnalytics.sectionC.map((row) => (
+                        <tr key={row.size} className="hover:bg-blue-50/20 transition-colors">
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black ${
+                              row.rank === 1 
+                                ? 'bg-blue-600 text-white shadow-xs' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-black text-slate-900 text-xs">{row.size}</td>
+                          <td className="py-3 px-2 font-bold text-slate-500">{row.gsm}</td>
+                          <td className="py-3 px-3 text-right font-black text-slate-700 text-xs">
+                            {row.currentStock.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-slate-600 text-xs">
+                            {row.monthlyConsumption.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-[#0284c7] text-xs">
+                            {row.suggestedRestock.toLocaleString()} <span className="text-[9px] font-bold text-blue-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] inline-flex items-center gap-1 ${
+                              row.status === 'Critical' 
+                                ? 'bg-rose-100 text-rose-700' 
+                                : row.status === 'Low Stock' 
+                                ? 'bg-amber-100 text-amber-800' 
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {row.status === 'Critical' && <AlertTriangle size={11} />}
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <p className="text-xs font-medium text-slate-400">
-                Replenishment targets based on consumption run-rate vs current warehouse inventory
-              </p>
             </div>
           </div>
-          <span className="text-xs font-bold text-blue-600">
-            Ranked by required refill quantity
-          </span>
-        </div>
 
-        {/* Section D Visual Comparison Chart */}
-        {processedAnalytics.sectionD.length > 0 && (
-          <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp size={15} className="text-blue-500" />
-                Current Stock vs Suggested Restock (Top 5 Sizes)
-              </span>
-              <div className="flex items-center gap-4 text-[11px] font-bold">
-                <span className="flex items-center gap-1.5 text-slate-600">
-                  <span className="w-2.5 h-2.5 rounded bg-slate-400" /> Current Stock
-                </span>
-                <span className="flex items-center gap-1.5 text-blue-600">
-                  <span className="w-2.5 h-2.5 rounded bg-[#0284c7]" /> Required Refill
-                </span>
-              </div>
-            </div>
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedAnalytics.sectionD} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="size" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '1rem', border: '1px solid #bfdbfe', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
-                  />
-                  <Bar dataKey="currentStock" name="Current Stock" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="suggestedRestock" name="Required Refill" fill="#0284c7" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Section D Data Table */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-100">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3.5 px-4 text-center w-14">RANK</th>
-                <th className="py-3.5 px-4">SIZE</th>
-                <th className="py-3.5 px-4">GSM</th>
-                <th className="py-3.5 px-4 text-right">CURRENT STOCK</th>
-                <th className="py-3.5 px-4 text-right">MONTHLY RUN RATE</th>
-                <th className="py-3.5 px-4 text-right">SUGGESTED RESTOCK</th>
-                <th className="py-3.5 px-4 text-center">STOCK STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {processedAnalytics.sectionD.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <div className="max-w-xs mx-auto space-y-2">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-400 flex items-center justify-center mx-auto">
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Forecast Requirements</p>
-                      <p className="text-[11px] text-slate-400">
-                        Warehouse stock levels are adequate for current consumption trends.
-                      </p>
+          {/* ------------------------------------------------------------------------- */}
+          {/* SECTION D — FORECAST REQUIREMENTS, GSM 200 (RIGHT) */}
+          {/* ------------------------------------------------------------------------- */}
+          <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black shrink-0">
+                    D
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-black text-slate-900 uppercase tracking-tight">
+                        FORECAST REQUIREMENTS — GSM 200
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                        TOP 5 REQUIRED
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                processedAnalytics.sectionD.map((row) => (
-                  <tr key={row.size} className="hover:bg-blue-50/20 transition-colors">
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
-                        row.rank === 1 
-                          ? 'bg-blue-600 text-white shadow-xs' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {row.rank}
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Replenishment targets based on consumption run-rate vs live inventory
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-blue-600 shrink-0">
+                  By refill need
+                </span>
+              </div>
+
+              {/* Section D Visual Comparison Chart */}
+              {processedAnalytics.sectionD.length > 0 && (
+                <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/70">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                      <TrendingUp size={15} className="text-blue-500" />
+                      Current Stock vs Required Refill
+                    </span>
+                    <div className="flex items-center gap-3 text-[10px] font-bold">
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <span className="w-2 h-2 rounded bg-slate-400" /> Stock
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-black text-slate-900 text-sm">{row.size}</td>
-                    <td className="py-3.5 px-4 font-bold text-slate-500">{row.gsm}</td>
-                    <td className="py-3.5 px-4 text-right font-black text-slate-700">
-                      {row.currentStock.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-600">
-                      {row.monthlyConsumption.toLocaleString()} <span className="text-[10px] text-slate-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-black text-[#0284c7] text-sm">
-                      {row.suggestedRestock.toLocaleString()} <span className="text-[10px] font-bold text-blue-400">Units</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-center font-black">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1 ${
-                        row.status === 'Critical' 
-                          ? 'bg-rose-100 text-rose-700' 
-                          : row.status === 'Low Stock' 
-                          ? 'bg-amber-100 text-amber-800' 
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {row.status === 'Critical' && <AlertTriangle size={12} />}
-                        {row.status}
+                      <span className="flex items-center gap-1 text-blue-600">
+                        <span className="w-2 h-2 rounded bg-[#0284c7]" /> Refill
                       </span>
-                    </td>
-                  </tr>
-                ))
+                    </div>
+                  </div>
+                  <div className="h-52 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={processedAnalytics.sectionD} margin={{ top: 10, right: 10, left: -20, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="size" tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <YAxis tick={{ fontSize: 9.5, fontWeight: 700, fill: '#64748b' }} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1rem', border: '1px solid #bfdbfe', backgroundColor: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                        />
+                        <Bar dataKey="currentStock" name="Current Stock" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="suggestedRestock" name="Required Refill" fill="#0284c7" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
+
+              {/* Section D Data Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                      <th className="py-3 px-3 text-center w-12">RANK</th>
+                      <th className="py-3 px-3">SIZE</th>
+                      <th className="py-3 px-2">GSM</th>
+                      <th className="py-3 px-3 text-right">IN STOCK</th>
+                      <th className="py-3 px-3 text-right">RUN RATE</th>
+                      <th className="py-3 px-3 text-right">REQUIRED REFILL</th>
+                      <th className="py-3 px-3 text-center">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {processedAnalytics.sectionD.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="max-w-xs mx-auto space-y-2">
+                            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-400 flex items-center justify-center mx-auto">
+                              <CheckCircle2 size={20} />
+                            </div>
+                            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">No Forecast Requirements</p>
+                            <p className="text-[11px] text-slate-400">
+                              Warehouse stock levels are adequate for current consumption trends.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      processedAnalytics.sectionD.map((row) => (
+                        <tr key={row.size} className="hover:bg-blue-50/20 transition-colors">
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-black ${
+                              row.rank === 1 
+                                ? 'bg-blue-600 text-white shadow-xs' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {row.rank}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-black text-slate-900 text-xs">{row.size}</td>
+                          <td className="py-3 px-2 font-bold text-slate-500">{row.gsm}</td>
+                          <td className="py-3 px-3 text-right font-black text-slate-700 text-xs">
+                            {row.currentStock.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-bold text-slate-600 text-xs">
+                            {row.monthlyConsumption.toLocaleString()} <span className="text-[9px] text-slate-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-[#0284c7] text-xs">
+                            {row.suggestedRestock.toLocaleString()} <span className="text-[9px] font-bold text-blue-400">pcs</span>
+                          </td>
+                          <td className="py-3 px-3 text-center font-black">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] inline-flex items-center gap-1 ${
+                              row.status === 'Critical' 
+                                ? 'bg-rose-100 text-rose-700' 
+                                : row.status === 'Low Stock' 
+                                ? 'bg-amber-100 text-amber-800' 
+                                : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {row.status === 'Critical' && <AlertTriangle size={11} />}
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
