@@ -43,6 +43,8 @@ import {
   X,
   Menu,
   Save,
+  Loader2,
+  ClipboardList,
   Truck,
   Calendar,
   AlertTriangle,
@@ -1748,7 +1750,14 @@ export default function App() {
   const [editingItem, setEditingItem] = useState<{ sectionTitle: string, subTitle: string, item: any } | null>(null);
   const [deletingItem, setDeletingItem] = useState<{ sectionTitle: string, subTitle: string, size: string, gsm: string, id: string } | null>(null);
   const [stockInItem, setStockInItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
-  const [stockOutItem, setStockOutItem] = useState<{ sectionTitle: string, subTitle: string, item: any, formData: any } | null>(null);
+  const [stockOutItem, setStockOutItem] = useState<{ 
+    sectionTitle: string, 
+    subTitle: string, 
+    item: any, 
+    formData: any, 
+    isWorkOrder?: boolean 
+  } | null>(null);
+  const [isProcessingStockOut, setIsProcessingStockOut] = useState(false);
 
   // Quick Tracker State
   const [quickTrackerViewMode, setQuickTrackerViewMode] = useState<'combiner' | 'inout'>('combiner');
@@ -2028,6 +2037,269 @@ export default function App() {
   const [whatsappOrder, setWhatsappOrder] = useState('');
   const [jobCards, setJobCards] = useState<any[]>([]);
   const [cardPrefix, setCardPrefix] = useState<'EP' | 'FP'>('EP');
+
+  // Work Order Creator State
+  const [workOrderInputText, setWorkOrderInputText] = useState('');
+  const [workOrderPrefix, setWorkOrderPrefix] = useState<'EP' | 'FP'>('EP');
+  const [workOrderReview, setWorkOrderReview] = useState<any | null>(null);
+  const [showWorkOrderSuccessModal, setShowWorkOrderSuccessModal] = useState(false);
+  const [successWorkOrderDetails, setSuccessWorkOrderDetails] = useState<any | null>(null);
+
+  const parseWorkOrderText = (text: string) => {
+    let workName = '';
+    let size = '';
+    let gsm = '';
+    let totalGross = '';
+    let company = '';
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    
+    // For single line input
+    if (lines.length === 1) {
+      const line = lines[0];
+      const sizeMatch = line.match(/(\d+\s*[*x×X]\s*\d+(?:\.\d+)?)/);
+      const gsmMatch = line.match(/\b(100|130|150|180|200|230|250|280|300|350)\b/i);
+      const qtyMatch = line.match(/(?:qty|quantity|quandity)[:\-]?\s*(\d+(?:\.\d+)?)/i);
+      const compMatch = line.match(/(?:company|party|customer|client)[:\-]?\s*([A-Za-z0-9\s&.-]+)/i);
+      
+      if (sizeMatch) size = sizeMatch[1].replace(/\s+/g, '');
+      if (gsmMatch) gsm = gsmMatch[1];
+      if (qtyMatch) totalGross = qtyMatch[1];
+      if (compMatch) company = compMatch[1].trim().toUpperCase();
+      
+      // Try to extract workName (first part before size)
+      if (!workName) {
+        const parts = line.split(/(?:size|gsm|qty|quantity|quandity|party|company|client)/i);
+        workName = parts[0].replace(/^(?:item|product|work)[:\-]?\s*/i, '').trim();
+      }
+    } else {
+        for (const line of lines) {
+            const lower = line.toLowerCase();
+            if (lower.startsWith('item') || lower.startsWith('product') || lower.startsWith('work')) {
+                const parts = line.split(/[:\-]/);
+                if (parts.length > 1) workName = parts.slice(1).join(':').trim();
+            } else if (lower.startsWith('company') || lower.startsWith('party') || lower.startsWith('customer') || lower.startsWith('client')) {
+                const parts = line.split(/[:\-]/);
+                if (parts.length > 1) company = parts.slice(1).join(':').trim().toUpperCase();
+            } else if (lower.startsWith('size')) {
+                const parts = line.split(/[:\-]/);
+                if (parts.length > 1) size = parts.slice(1).join(':').trim();
+            } else if (lower.startsWith('gsm')) {
+                const parts = line.split(/[:\-]/);
+                if (parts.length > 1) gsm = parts.slice(1).join(':').trim();
+            } else if (lower.startsWith('qty') || lower.startsWith('quantity') || lower.startsWith('quandity') || lower.startsWith('gross')) {
+                const parts = line.split(/[:\-]/);
+                if (parts.length > 1) totalGross = parts.slice(1).join(':').trim();
+            } else {
+                const sizeMatch = line.match(/(\d+\s*[*x×X]\s*\d+(?:\.\d+)?)/);
+                const gsmMatch = line.match(/\b(100|130|150|180|200|230|250|280|300|350)\b/i);
+                const qtyMatch = line.match(/(\d+(?:\.\d+)?)\s*(?:gross|pcs|sheets|kg)/i);
+                const compMatch = line.match(/(?:company|party|customer|client)[:\-]?\s*([A-Za-z0-9\s&.-]+)/i);
+
+                if (compMatch && !company) company = compMatch[1].trim().toUpperCase();
+                if (sizeMatch && !size) size = sizeMatch[1].replace(/\s+/g, '');
+                if (gsmMatch && !gsm) gsm = gsmMatch[1];
+                if (qtyMatch && !totalGross) totalGross = line.replace(/^(?:qty|quantity|quandity|gross)[:\-]\s*/i, '').trim();
+                else if (!workName) workName = line;
+                else if (!size && sizeMatch) size = sizeMatch[1];
+            }
+        }
+    }
+
+    if (!size) {
+      const m = text.match(/(\d+\s*[*x×X]\s*\d+(?:\.\d+)?)/);
+      if (m) size = m[1].replace(/\s+/g, '');
+    }
+    if (!gsm) {
+      const m = text.match(/\b(100|130|150|180|200|230|250|280|300|350)\b/i);
+      if (m) gsm = m[1];
+    }
+    if (!totalGross) {
+      const m = text.match(/(\d+(?:\.\d+)?)\s*(?:gross|pcs|sheets)/i);
+      if (m) totalGross = m[0];
+    }
+    if (!company) {
+      const compMatch = text.match(/(?:company|party|customer|client)[:\-]?\s*([A-Za-z0-9\s&.-]+)/i);
+      if (compMatch) company = compMatch[1].trim().toUpperCase();
+    }
+
+    if (totalGross) {
+      totalGross = totalGross.replace(/\s*\([^)]*\)/g, '').trim();
+    }
+
+    let itemCode = '';
+    const codeMatch = workName.match(/^([A-Za-z]{1,5}[-_]?\d{3,6}[A-Za-z0-9\-_]*)\s*(?:[-:]\s*)?(.*)$/i);
+    if (codeMatch) {
+      itemCode = codeMatch[1].toUpperCase();
+    }
+
+    return { itemCode, workName, size, gsm, totalGross, company };
+  };
+
+  const parseQuantityToGross = (totalGrossStr: string) => {
+    if (!totalGrossStr) return 0;
+    const numMatch = totalGrossStr.match(/(\d+(?:\.\d+)?)/);
+    if (!numMatch) return 0;
+    const val = parseFloat(numMatch[1]) || 0;
+    const lower = totalGrossStr.toLowerCase();
+    // If it's sheets, convert to gross, if it's gross, return as is
+    if (lower.includes('gross')) {
+      return val;
+    } else if (lower.includes('sheets') || lower.includes('pcs')) {
+      return val / 144;
+    }
+    return val;
+  };
+
+  const findInventoryItem = (targetSize: string, targetGsm: string, inventoryList: any[]) => {
+    const normSize = targetSize.replace(/["\s]/g, '').toLowerCase();
+    const normGsm = targetGsm.toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+
+    for (const section of inventoryList) {
+      if (!section?.subSections) continue;
+      for (const sub of section.subSections) {
+        if (!sub?.items) continue;
+        for (const item of sub.items) {
+          const itemSize = String(item.size || '').replace(/["\s]/g, '').toLowerCase();
+          const itemGsm = String(item.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+          if (itemSize === normSize && itemGsm === normGsm) {
+            return {
+              item,
+              sectionTitle: section.title || '',
+              subTitle: sub.title || '',
+              stock: Number(item.stock) || 0
+            };
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleCheckStockWorkOrder = () => {
+    if (!workOrderInputText.trim()) {
+      toast.error('Please paste a WhatsApp order first.');
+      return;
+    }
+    const parsed = parseWorkOrderText(workOrderInputText);
+    if (!parsed.workName || !parsed.size || !parsed.gsm || !parsed.totalGross) {
+      toast.error('Incomplete order details. Please ensure Work Name, Size, GSM, and Quantity are present.');
+      return;
+    }
+
+    const matchResult = findInventoryItem(parsed.size, parsed.gsm, inventory);
+    
+    // Determine if Double Size (Gross) or Single Size (KG)
+    const isDouble = parsed.size.includes('*');
+    let requiredQty = 0;
+    let availableQty = matchResult ? matchResult.stock : 0;
+    
+    if (isDouble) {
+        // Double size: Process in Gross
+        requiredQty = parseQuantityToGross(parsed.totalGross);
+        // Assuming inventory stores double sizes in Gross as well
+    } else {
+        // Single size: Process in KG
+        // Formula: (GSM * Width * Length * Qty) / 10,000,000
+        const [width, length] = parsed.size.split(/[*x×X]/).map(Number);
+        const gsmVal = Number(parsed.gsm);
+        const grossVal = parseQuantityToGross(parsed.totalGross);
+        const qtyInSheets = grossVal * 144;
+        requiredQty = (gsmVal * width * length * qtyInSheets) / 10000000;
+        // Inventory for single size is stored in KG
+    }
+    
+    const projectedBalance = availableQty - requiredQty;
+    const negativeVariance = Math.max(0, requiredQty - availableQty);
+
+    // Calculate required sheets for Pending Works reference
+    const requiredSheets = parseQuantityToGross(parsed.totalGross) * 144;
+
+    const finalItemCode = parsed.itemCode || matchResult?.item?.itemCode || '';
+    let finalCompany = parsed.company || '';
+    if (!finalCompany && finalItemCode) {
+      const lastLog = stockOutLogs.find(log => log.itemCode === finalItemCode && log.company) ||
+                      pendingWorks.find(w => w.itemCode === finalItemCode && w.company);
+      if (lastLog && lastLog.company) {
+        finalCompany = lastLog.company.toUpperCase();
+      }
+    }
+
+    setWorkOrderReview({
+      itemCode: finalItemCode,
+      company: finalCompany,
+      workName: parsed.workName,
+      size: parsed.size,
+      gsm: parsed.gsm,
+      totalGross: parsed.totalGross,
+      requiredQty,
+      requiredSheets, // Add back
+      matchedItem: matchResult ? matchResult.item : null,
+      sectionTitle: matchResult ? matchResult.sectionTitle : '',
+      subTitle: matchResult ? matchResult.subTitle : '',
+      availableStock: availableQty,
+      projectedBalance,
+      negativeVariance,
+      isDouble,
+      status: matchResult ? 'Matched' : 'Exact Stock Not Found'
+    });
+    toast.success('Stock verified and checked successfully!');
+  };
+
+  const handleProceedWorkOrder = async () => {
+    if (!workOrderReview) {
+      toast.error('Please check stock before proceeding.');
+      return;
+    }
+
+    if (workOrderReview.status !== 'Matched') {
+      toast.error('Cannot proceed: Exact stock not found.');
+      return;
+    }
+
+    try {
+      toast.loading('Processing work order and stock movement...', { id: 'wo-proc' });
+
+      // Determine deduction delta based on unit type
+      // Double sizes in Gross, Single in KG
+      const delta = -workOrderReview.requiredQty; 
+
+      await updateStock(
+        workOrderReview.sectionTitle,
+        workOrderReview.subTitle,
+        workOrderReview.size,
+        workOrderReview.gsm,
+        delta,
+        true
+      );
+
+      await addDoc(collection(db, 'pendingWorks'), {
+        date: new Date().toISOString().split('T')[0],
+        size: workOrderReview.size,
+        gsm: workOrderReview.gsm,
+        qty: workOrderReview.requiredQty,
+        unit: workOrderReview.isDouble ? 'GROSS' : 'KG',
+        company: workOrderReview.workName,
+        itemCode: workOrderReview.matchedItem?.itemCode || '',
+        workName: workOrderReview.workName,
+        cutSize: workOrderReview.size,
+        sheets: workOrderReview.requiredSheets, // Keep sheets for reference
+        priority: 'HIGH',
+        status: 'CUTTING',
+        remarks: `WhatsApp Order Qty: ${workOrderReview.totalGross} (Negative Variance: ${workOrderReview.negativeVariance.toFixed(2)} ${workOrderReview.isDouble ? 'gross' : 'kg'})`,
+        negativeVariance: workOrderReview.negativeVariance,
+        timestamp: Timestamp.now()
+      });
+
+      toast.success('Work order processed and added to Pending Works!', { id: 'wo-proc' });
+      setSuccessWorkOrderDetails(workOrderReview);
+      setShowWorkOrderSuccessModal(true);
+      setWorkOrderInputText('');
+    } catch (error: any) {
+      console.error('Work Order Processing Error:', error);
+      toast.error(error.message || 'Failed to process work order', { id: 'wo-proc' });
+    }
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   const [negativeStockWarning, setNegativeStockWarning] = useState<{
     sectionTitle: string,
@@ -2857,55 +3129,165 @@ export default function App() {
 
   const handleConfirmStockOut = async () => {
     if (!stockOutItem || !stockOutItem.formData.quantity) return;
+    if (isProcessingStockOut) return;
+
+    if (!canEdit) {
+      toast.error('Permission denied: You do not have permission to process stock operations.');
+      return;
+    }
     
-    const quantity = parseInt(stockOutItem.formData.quantity) || 0;
+    const quantity = parseFloat(stockOutItem.formData.quantity) || 0;
+    if (quantity <= 0) {
+      toast.error('Please enter a valid quantity greater than zero.');
+      return;
+    }
+
+    setIsProcessingStockOut(true);
 
     const followUp = async () => {
       try {
         const rawStatus = (stockOutItem.formData.status || 'CUTTING').toString().toUpperCase();
         const pendingStatus = rawStatus === 'DELIVERED' ? 'CUTTING' : rawStatus;
+        
+        // Ensure all fields are defined
+        const sheetsValue = stockOutItem.formData.sheets !== undefined && stockOutItem.formData.sheets !== '' 
+          ? parseInt(stockOutItem.formData.sheets) || 0 
+          : 0;
+        const workNameVal = stockOutItem.formData.workName || stockOutItem.item?.workName || '';
+        const sizeVal = stockOutItem.item?.size || stockOutItem.formData.cuttingSize || '';
+        const cutSizeVal = stockOutItem.formData.cuttingSize || sizeVal;
+        const gsmVal = String(stockOutItem.item?.gsm || '').replace(/GSM/i, '').trim();
+
+        // 1. Add to pendingWorks
         await addDoc(collection(db, 'pendingWorks'), {
-          date: stockOutItem.formData.date,
-          size: stockOutItem.item.size,
-          gsm: stockOutItem.item.gsm,
+          date: stockOutItem.formData.date || new Date().toISOString().split('T')[0],
+          size: sizeVal,
+          gsm: gsmVal,
           qty: quantity,
-          unit: stockOutItem.formData.unit,
-          company: stockOutItem.formData.company,
-          itemCode: stockOutItem.formData.itemCode,
-          workName: stockOutItem.formData.workName,
-          cutSize: stockOutItem.formData.cuttingSize,
-          sheets: parseInt(stockOutItem.formData.sheets) || 0,
-          priority: stockOutItem.formData.priority.toUpperCase(),
+          unit: stockOutItem.formData.unit || 'GROSS',
+          company: stockOutItem.formData.company || '',
+          itemCode: stockOutItem.formData.itemCode || '',
+          workName: workNameVal,
+          cutSize: cutSizeVal,
+          sheets: sheetsValue,
+          priority: (stockOutItem.formData.priority || 'MEDIUM').toUpperCase(),
           status: pendingStatus,
-          remarks: stockOutItem.formData.remarks,
+          remarks: stockOutItem.formData.remarks || '',
           timestamp: Timestamp.now()
         });
-        logAction(`Added new pending work: ${stockOutItem.formData.workName}`);
+
+        // 2. Add to stockOutLogs for historical records
+        await addDoc(collection(db, 'stockOutLogs'), {
+          date: stockOutItem.formData.date || new Date().toISOString().split('T')[0],
+          month: stockOutItem.formData.month || new Date().toLocaleString('default', { month: 'long' }),
+          company: stockOutItem.formData.company || '',
+          itemCode: stockOutItem.formData.itemCode || '',
+          workName: workNameVal,
+          unit: stockOutItem.formData.unit || 'GROSS',
+          cutSize: cutSizeVal,
+          sheets: sheetsValue,
+          status: pendingStatus,
+          priority: (stockOutItem.formData.priority || 'MEDIUM').toUpperCase(),
+          remarks: stockOutItem.formData.remarks || '',
+          size: sizeVal,
+          gsm: gsmVal,
+          out: quantity,
+          timestamp: Timestamp.now()
+        });
+        
+        logAction(`Stock out processed: ${workNameVal} (${quantity} ${stockOutItem.formData.unit || 'GROSS'})`);
+        toast.success('Stock deducted & added to Pending Works successfully!');
+        
+        if (stockOutItem.isWorkOrder) {
+          // Trigger success flow for Work Order
+          setSuccessWorkOrderDetails({
+            workName: workNameVal,
+            size: sizeVal,
+            gsm: gsmVal,
+            totalGross: stockOutItem.formData.quantity + ' ' + (stockOutItem.formData.unit || 'GROSS')
+          });
+          setShowWorkOrderSuccessModal(true);
+        }
+        
         setStockOutItem(null);
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, 'pendingWorks');
+      } finally {
+        setIsProcessingStockOut(false);
       }
     };
     
-    const success = await updateStock(stockOutItem.sectionTitle, stockOutItem.subTitle, stockOutItem.item.size, stockOutItem.item.gsm, -quantity, false, followUp);
-    
-    if (success) {
-      await followUp();
+    try {
+      const success = await updateStock(
+        stockOutItem.sectionTitle, 
+        stockOutItem.subTitle, 
+        stockOutItem.item?.size || stockOutItem.formData.cuttingSize, 
+        stockOutItem.item?.gsm || '', 
+        -quantity, 
+        false, 
+        followUp
+      );
+      
+      if (success) {
+        await followUp();
+      } else {
+        // If updateStock returned false (e.g. negative stock warning dialog opened), release lock so modal action can proceed
+        setIsProcessingStockOut(false);
+      }
+    } catch (err: any) {
+      setIsProcessingStockOut(false);
+      toast.error(err.message || 'Failed to update stock');
     }
   };
 
   const updateStock = async (sectionTitle: string, subTitle: string, size: string, gsm: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>): Promise<boolean> => {
     try {
+      const cleanSize = String(size || '').trim();
+      const cleanGsm = String(gsm || '').toUpperCase().replace('GSM', '').trim();
+      const normSize = cleanSize.replace(/["\s]/g, '').toLowerCase();
+      const normGsm = cleanGsm.replace(/["\s]/g, '').toLowerCase();
+
+      // Query with normalized fallback
       const q = query(
         collection(db, 'inventory'), 
         where('size', '==', size),
         where('gsm', '==', gsm)
       );
-      const snapshot = await getDocs(q);
+      let snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        const qClean = query(
+          collection(db, 'inventory'), 
+          where('size', '==', cleanSize),
+          where('gsm', '==', cleanGsm)
+        );
+        snapshot = await getDocs(qClean);
+      }
+
+      let docRef: any = null;
+      let currentData: any = null;
+
       if (!snapshot.empty) {
-        const docRef = snapshot.docs[0].ref;
-        const currentData = snapshot.docs[0].data();
-        const newStock = (currentData.stock || 0) + delta;
+        docRef = snapshot.docs[0].ref;
+        currentData = snapshot.docs[0].data();
+      } else {
+        // Fallback scan across all docs in inventory collection
+        const allSnap = await getDocs(collection(db, 'inventory'));
+        const matchedDoc = allSnap.docs.find(d => {
+          const data = d.data();
+          const dSize = String(data.size || '').replace(/["\s]/g, '').toLowerCase();
+          const dGsm = String(data.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+          return dSize === normSize && dGsm === normGsm;
+        });
+        if (matchedDoc) {
+          docRef = matchedDoc.ref;
+          currentData = matchedDoc.data();
+        }
+      }
+
+      if (docRef && currentData) {
+        const currentStock = Number(currentData.stock) || 0;
+        const newStock = currentStock + delta;
 
         if (newStock < 0 && !force) {
           setNegativeStockWarning({ sectionTitle, subTitle, size, gsm, delta, onConfirm: onConfirm || (async () => {}) });
@@ -2916,9 +3298,26 @@ export default function App() {
           stock: newStock,
           isLow: newStock < (currentData.minQuantity || 100)
         });
-        return true;
       }
-      return false;
+
+      // Always update local inventory state immediately so all views reflect the deduction
+      setInventory(prev => prev.map(section => ({
+        ...section,
+        subSections: section.subSections.map((sub: any) => ({
+          ...sub,
+          items: sub.items.map((it: any) => {
+            const itSize = String(it.size || '').trim().replace(/["\s]/g, '').toLowerCase();
+            const itGsm = String(it.gsm || '').toUpperCase().replace('GSM', '').trim().replace(/["\s]/g, '').toLowerCase();
+            if (itSize === normSize && itGsm === normGsm) {
+              const newStk = (Number(it.stock) || 0) + delta;
+              return { ...it, stock: newStk, isLow: newStk < (it.minQuantity || 100) };
+            }
+            return it;
+          })
+        }))
+      })));
+
+      return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'inventory');
       return false;
@@ -3474,11 +3873,12 @@ export default function App() {
     ), 0
   );
 
+  const searchTerm = (quickTrackerHistorySearch || '').toLowerCase();
   const filteredQuickTrackerHistory = quickTrackerHistory.filter(entry => {
     const matchesSearch = 
-      entry.size.toLowerCase().includes(quickTrackerHistorySearch.toLowerCase()) ||
-      entry.gsm.toString().toLowerCase().includes(quickTrackerHistorySearch.toLowerCase()) ||
-      entry.type.toLowerCase().includes(quickTrackerHistorySearch.toLowerCase());
+      (entry.size || '').toLowerCase().includes(searchTerm) ||
+      (entry.gsm?.toString() || '').toLowerCase().includes(searchTerm) ||
+      (entry.type || '').toLowerCase().includes(searchTerm);
     
     const matchesDate = 
       (!quickTrackerStartDate || entry.date >= quickTrackerStartDate) &&
@@ -3487,69 +3887,72 @@ export default function App() {
     return matchesSearch && matchesDate;
   });
 
+  const searchLogQueryLower = (searchLogQuery || '').toLowerCase();
   const filteredLogs = stockInLogs.filter(log => {
     const matchesSearch = 
-      log.size.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-      log.company.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-      log.invoice.toLowerCase().includes(searchLogQuery.toLowerCase()) ||
-      log.month.toLowerCase().includes(searchLogQuery.toLowerCase());
+      (log.size || '').toLowerCase().includes(searchLogQueryLower) ||
+      (log.company || '').toLowerCase().includes(searchLogQueryLower) ||
+      (log.invoice || '').toLowerCase().includes(searchLogQueryLower) ||
+      (log.month || '').toLowerCase().includes(searchLogQueryLower);
 
     const matchesFilters = 
-      formatDate(log.date).toLowerCase().includes(logFilters.date.toLowerCase()) &&
-      log.month.toLowerCase().includes(logFilters.month.toLowerCase()) &&
-      log.size.toLowerCase().includes(logFilters.size.toLowerCase()) &&
-      log.gsm.toString().toLowerCase().includes(logFilters.gsm.toLowerCase()) &&
-      log.quantity.toString().toLowerCase().includes(logFilters.quantity.toLowerCase()) &&
-      log.company.toLowerCase().includes(logFilters.company.toLowerCase()) &&
-      log.invoice.toLowerCase().includes(logFilters.invoice.toLowerCase()) &&
-      log.storageLoc.toLowerCase().includes(logFilters.storageLoc.toLowerCase()) &&
-      (log.remarks || '').toLowerCase().includes(logFilters.remarks.toLowerCase());
+      formatDate(log.date || '').toLowerCase().includes((logFilters.date || '').toLowerCase()) &&
+      (log.month || '').toLowerCase().includes((logFilters.month || '').toLowerCase()) &&
+      (log.size || '').toLowerCase().includes((logFilters.size || '').toLowerCase()) &&
+      (log.gsm?.toString() || '').toLowerCase().includes((logFilters.gsm || '').toLowerCase()) &&
+      (log.quantity?.toString() || '').toLowerCase().includes((logFilters.quantity || '').toLowerCase()) &&
+      (log.company || '').toLowerCase().includes((logFilters.company || '').toLowerCase()) &&
+      (log.invoice || '').toLowerCase().includes((logFilters.invoice || '').toLowerCase()) &&
+      (log.storageLoc || '').toLowerCase().includes((logFilters.storageLoc || '').toLowerCase()) &&
+      (log.remarks || '').toLowerCase().includes((logFilters.remarks || '').toLowerCase());
 
     return matchesSearch && matchesFilters;
   });
 
+  const searchStockOutLogQueryLower = (searchStockOutLogQuery || '').toLowerCase();
   const filteredOutLogs = stockOutLogs.filter(log => {
     const matchesSearch = 
-      log.workName.toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      (log.company || '').toLowerCase().includes(searchStockOutLogQuery.toLowerCase()) ||
-      log.itemCode.toLowerCase().includes(searchStockOutLogQuery.toLowerCase());
+      (log.workName || '').toLowerCase().includes(searchStockOutLogQueryLower) ||
+      (log.company || '').toLowerCase().includes(searchStockOutLogQueryLower) ||
+      (log.itemCode || '').toLowerCase().includes(searchStockOutLogQueryLower);
 
     const matchesFilters = 
-      formatDate(log.date).toLowerCase().includes(stockOutFilters.date.toLowerCase()) &&
-      log.size.toLowerCase().includes(stockOutFilters.size.toLowerCase()) &&
-      log.gsm.toString().toLowerCase().includes(stockOutFilters.gsm.toLowerCase()) &&
-      log.out.toString().toLowerCase().includes(stockOutFilters.out.toLowerCase()) &&
-      log.unit.toLowerCase().includes(stockOutFilters.unit.toLowerCase()) &&
-      log.itemCode.toLowerCase().includes(stockOutFilters.itemCode.toLowerCase()) &&
-      log.workName.toLowerCase().includes(stockOutFilters.workName.toLowerCase()) &&
-      log.cutSize.toLowerCase().includes(stockOutFilters.cutSize.toLowerCase()) &&
-      log.sheets.toString().toLowerCase().includes(stockOutFilters.sheets.toLowerCase()) &&
-      log.status.toLowerCase().includes(stockOutFilters.status.toLowerCase()) &&
-      formatDate(log.deliveryDate || log.date).toLowerCase().includes(stockOutFilters.deliveryDate.toLowerCase()) &&
-      log.vehicle.toLowerCase().includes(stockOutFilters.vehicle.toLowerCase()) &&
-      log.location.toLowerCase().includes(stockOutFilters.location.toLowerCase()) &&
-      (log.remarks || '').toLowerCase().includes(stockOutFilters.remarks.toLowerCase());
+      formatDate(log.date || '').toLowerCase().includes((stockOutFilters.date || '').toLowerCase()) &&
+      (log.size || '').toLowerCase().includes((stockOutFilters.size || '').toLowerCase()) &&
+      (log.gsm?.toString() || '').toLowerCase().includes((stockOutFilters.gsm || '').toLowerCase()) &&
+      (log.out?.toString() || '').toLowerCase().includes((stockOutFilters.out || '').toLowerCase()) &&
+      (log.unit || '').toLowerCase().includes((stockOutFilters.unit || '').toLowerCase()) &&
+      (log.itemCode || '').toLowerCase().includes((stockOutFilters.itemCode || '').toLowerCase()) &&
+      (log.workName || '').toLowerCase().includes((stockOutFilters.workName || '').toLowerCase()) &&
+      (log.cutSize || '').toLowerCase().includes((stockOutFilters.cutSize || '').toLowerCase()) &&
+      (log.sheets?.toString() || '').toLowerCase().includes((stockOutFilters.sheets || '').toLowerCase()) &&
+      (log.status || '').toLowerCase().includes((stockOutFilters.status || '').toLowerCase()) &&
+      formatDate(log.deliveryDate || log.date || '').toLowerCase().includes((stockOutFilters.deliveryDate || '').toLowerCase()) &&
+      (log.vehicle || '').toLowerCase().includes((logFilters.vehicle || '').toLowerCase()) &&
+      (log.location || '').toLowerCase().includes((logFilters.location || '').toLowerCase()) &&
+      (log.remarks || '').toLowerCase().includes((logFilters.remarks || '').toLowerCase());
 
     return matchesSearch && matchesFilters;
   });
 
+  const searchPendingQueryLower = (searchPendingQuery || '').toLowerCase();
   const filteredPendingWorks = pendingWorks.filter(work => {
     const matchesSearch = 
-      work.workName.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-      work.company.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-      work.itemCode.toLowerCase().includes(searchPendingQuery.toLowerCase()) ||
-      work.size.toLowerCase().includes(searchPendingQuery.toLowerCase());
+      (work.workName || '').toLowerCase().includes(searchPendingQueryLower) ||
+      (work.company || '').toLowerCase().includes(searchPendingQueryLower) ||
+      (work.itemCode || '').toLowerCase().includes(searchPendingQueryLower) ||
+      (work.size || '').toLowerCase().includes(searchPendingQueryLower);
 
     const matchesFilters = 
-      formatDate(work.date).toLowerCase().includes(pendingWorksFilters.date.toLowerCase()) &&
-      work.size.toLowerCase().includes(pendingWorksFilters.size.toLowerCase()) &&
-      work.gsm.toString().toLowerCase().includes(pendingWorksFilters.gsm.toLowerCase()) &&
-      work.qty.toString().toLowerCase().includes(pendingWorksFilters.qty.toLowerCase()) &&
-      work.company.toLowerCase().includes(pendingWorksFilters.company.toLowerCase()) &&
-      work.itemCode.toLowerCase().includes(pendingWorksFilters.itemCode.toLowerCase()) &&
-      work.workName.toLowerCase().includes(pendingWorksFilters.workName.toLowerCase()) &&
-      work.status.toLowerCase().includes(pendingWorksFilters.status.toLowerCase()) &&
-      (work.remarks || '').toLowerCase().includes(pendingWorksFilters.remarks.toLowerCase());
+      formatDate(work.date || '').toLowerCase().includes((pendingWorksFilters.date || '').toLowerCase()) &&
+      (work.size || '').toLowerCase().includes((pendingWorksFilters.size || '').toLowerCase()) &&
+      (work.gsm?.toString() || '').toLowerCase().includes((pendingWorksFilters.gsm || '').toLowerCase()) &&
+      (work.qty?.toString() || '').toLowerCase().includes((pendingWorksFilters.qty || '').toLowerCase()) &&
+      (work.company || '').toLowerCase().includes((pendingWorksFilters.company || '').toLowerCase()) &&
+      (work.itemCode || '').toLowerCase().includes((pendingWorksFilters.itemCode || '').toLowerCase()) &&
+      (work.workName || '').toLowerCase().includes((pendingWorksFilters.workName || '').toLowerCase()) &&
+      (work.status || '').toLowerCase().includes((pendingWorksFilters.status || '').toLowerCase()) &&
+      (work.remarks || '').toLowerCase().includes((pendingWorksFilters.remarks || '').toLowerCase());
 
     return matchesSearch && matchesFilters;
   });
@@ -4134,6 +4537,12 @@ export default function App() {
                 label="Job Card Generator" 
                 active={activeTab === 'Job Card Generator'}
                 onClick={() => { setActiveTab('Job Card Generator'); setIsSidebarOpen(false); }}
+              />
+              <SidebarItem 
+                icon={ClipboardList} 
+                label="Work Order Creator" 
+                active={activeTab === 'Work Order Creator'}
+                onClick={() => { setActiveTab('Work Order Creator'); setIsSidebarOpen(false); }}
               />
             </>
           )}
@@ -4729,17 +5138,19 @@ export default function App() {
                     <h2 className="text-slate-800 font-bold text-sm sm:text-base tracking-tight uppercase">ENER PACK INVENTORY</h2>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Central Warehouse Terminal</p>
                   </div>
-                  {isAdmin && (
-                    <button 
-                      onClick={() => setShowNewSkuForm(!showNewSkuForm)}
-                      className={cn(
-                        "lg:hidden flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer",
-                        showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
-                      )}
-                    >
-                      {showNewSkuForm ? <Minus size={12} /> : <Plus size={12} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {isAdmin && (
+                      <button 
+                        onClick={() => setShowNewSkuForm(!showNewSkuForm)}
+                        className={cn(
+                          "lg:hidden flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer",
+                          showNewSkuForm ? "bg-slate-800 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+                        )}
+                      >
+                        {showNewSkuForm ? <Minus size={12} /> : <Plus size={12} />} {showNewSkuForm ? "CANCEL" : "NEW SKU"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 w-full lg:max-w-3xl">
@@ -4753,6 +5164,13 @@ export default function App() {
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
+
+                  <button 
+                    onClick={() => setActiveTab('Work Order Creator')}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-white hover:bg-slate-700 transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    <FileText size={12} /> WORK ORDER
+                  </button>
                   
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button
@@ -5104,287 +5522,7 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* Stock Out Modal */}
-              <AnimatePresence>
-                {stockOutItem && (
-                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden"
-                    >
-                      <div className="px-8 py-5 bg-[#dc2626] flex items-center justify-between">
-                        <h3 className="text-xl font-bold text-white tracking-tight">
-                          STOCK OUT - {stockOutItem.item.size} ({stockOutItem.item.gsm})
-                        </h3>
-                        <button onClick={() => setStockOutItem(null)} className="text-white/80 hover:text-white transition-colors">
-                          <X size={24} />
-                        </button>
-                      </div>
-                      
-                      <div className="p-4 lg:p-8 space-y-4 lg:space-y-5">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Date</label>
-                            <div className="relative">
-                              <input 
-                                type="date" 
-                                value={stockOutItem.formData.date || ''}
-                                onChange={(e) => {
-                                  const date = new Date(e.target.value);
-                                  setStockOutItem({
-                                    ...stockOutItem,
-                                    formData: {
-                                      ...stockOutItem.formData,
-                                      date: e.target.value,
-                                      month: date.toLocaleString('default', { month: 'long' })
-                                    }
-                                  });
-                                }}
-                                className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all pr-12"
-                              />
-                              <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                            </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Month</label>
-                            <input 
-                              type="text" 
-                              value={stockOutItem.formData.month || ''}
-                              readOnly
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-500 focus:outline-none"
-                            />
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-                          <div className="space-y-1.5 relative">
-                            <label className="text-sm font-semibold text-slate-600">Company (CAPS)</label>
-                            <input 
-                              type="text" 
-                              placeholder="SREEPATHI"
-                              value={stockOutItem.formData.company || ''}
-                              onFocus={() => setShowCompanySuggestions(true)}
-                              onChange={(e) => {
-                                const val = e.target.value.toUpperCase();
-                                setStockOutItem({
-                                  ...stockOutItem,
-                                  formData: { ...stockOutItem.formData, company: val }
-                                });
-                                setShowCompanySuggestions(true);
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            />
-                            {showCompanySuggestions && (
-                              <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-                                {(() => {
-                                  const set = new Set<string>();
-                                  stockOutLogs.forEach(l => { if (l.company) set.add(l.company.toUpperCase()); });
-                                  pendingWorks.forEach(w => { if (w.company) set.add(w.company.toUpperCase()); });
-                                  const suggestions: string[] = Array.from(set).sort();
-                                  const queryText = (stockOutItem.formData.company || '').toUpperCase();
-                                  const filtered = suggestions.filter(c => c.includes(queryText) || c.startsWith(queryText));
-                                  if (filtered.length === 0) {
-                                    return <div className="px-4 py-2 text-xs text-slate-400 italic">Type to save/add new company</div>;
-                                  }
-                                  return filtered.map((comp: string, idx: number) => (
-                                    <div
-                                      key={idx}
-                                      onClick={() => {
-                                        setStockOutItem({
-                                          ...stockOutItem,
-                                          formData: { ...stockOutItem.formData, company: comp }
-                                        });
-                                        setShowCompanySuggestions(false);
-                                      }}
-                                      className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0"
-                                    >
-                                      {comp}
-                                    </div>
-                                  ));
-                                })()}
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Quantity (Out)</label>
-                            <input 
-                              type="number" 
-                              value={stockOutItem.formData.quantity || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, quantity: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Item Code (CAPS)</label>
-                            <input 
-                              type="text" 
-                              placeholder="ENTER CODE TO AUTO-FILL"
-                              value={stockOutItem.formData.itemCode || ''}
-                              onChange={(e) => {
-                                const newCode = e.target.value.toUpperCase();
-                                const lastLog = stockOutLogs.find(log => log.itemCode === newCode) || pendingWorks.find(w => w.itemCode === newCode);
-                                if (lastLog) {
-                                  const autoStatus = (lastLog.status && lastLog.status.toUpperCase() !== 'DELIVERED') 
-                                    ? lastLog.status 
-                                    : (stockOutItem.formData.status || 'Cutting');
-                                  setStockOutItem({
-                                    ...stockOutItem,
-                                    formData: {
-                                      ...stockOutItem.formData,
-                                      itemCode: newCode,
-                                      company: lastLog.company || stockOutItem.formData.company,
-                                      workName: lastLog.workName || stockOutItem.formData.workName,
-                                      unit: lastLog.unit || stockOutItem.formData.unit,
-                                      cuttingSize: lastLog.cutSize || stockOutItem.formData.cuttingSize,
-                                      status: autoStatus,
-                                      priority: lastLog.priority || stockOutItem.formData.priority,
-                                      remarks: lastLog.remarks || stockOutItem.formData.remarks
-                                    }
-                                  });
-                                } else {
-                                  setStockOutItem({
-                                    ...stockOutItem,
-                                    formData: { ...stockOutItem.formData, itemCode: newCode }
-                                  });
-                                }
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Work Name</label>
-                            <input 
-                              type="text" 
-                              value={stockOutItem.formData.workName || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, workName: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-5">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Unit</label>
-                            <select 
-                              value={stockOutItem.formData.unit || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, unit: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            >
-                              <option value="GROSS">GROSS</option>
-                              <option value="NET">NET</option>
-                              <option value="Cutting">Cutting</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Cutting Size</label>
-                            <input 
-                              type="text" 
-                              value={stockOutItem.formData.cuttingSize || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, cuttingSize: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
-                              <FileSpreadsheet size={14} className="text-blue-500" /> Sheets (Manual)
-                            </label>
-                            <input 
-                              type="text" 
-                              placeholder="Enter sheets..."
-                              value={stockOutItem.formData.sheets || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, sheets: e.target.value }
-                              })}
-                              className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-5">
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Status</label>
-                            <select 
-                              value={stockOutItem.formData.status || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, status: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            >
-                              <option value="Cutting">Cutting</option>
-                              <option value="Printing">Printing</option>
-                              <option value="Packing">Packing</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-600">Priority</label>
-                            <select 
-                              value={stockOutItem.formData.priority || ''}
-                              onChange={(e) => setStockOutItem({
-                                ...stockOutItem,
-                                formData: { ...stockOutItem.formData, priority: e.target.value }
-                              })}
-                              className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
-                            >
-                              <option value="Low">Low</option>
-                              <option value="Medium">Medium</option>
-                              <option value="High">High</option>
-                              <option value="Urgent">Urgent</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-sm font-semibold text-slate-600">Remarks</label>
-                          <textarea 
-                            rows={2}
-                            value={stockOutItem.formData.remarks || ''}
-                            onChange={(e) => setStockOutItem({
-                              ...stockOutItem,
-                              formData: { ...stockOutItem.formData, remarks: e.target.value }
-                            })}
-                            className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-slate-100">
-                          <button 
-                            onClick={() => setStockOutItem(null)}
-                            className="px-8 py-3 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            onClick={handleConfirmStockOut}
-                            className="flex items-center gap-2 bg-[#dc2626] text-white px-10 py-3 rounded-2xl text-sm font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20"
-                          >
-                            <Save size={18} />
-                            Confirm
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
 
               {/* Delete Confirmation Modal */}
               <AnimatePresence>
@@ -5428,49 +5566,7 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* Negative Stock Warning Modal */}
-              <AnimatePresence>
-                {negativeStockWarning && (
-                  <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <motion.div 
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
-                    >
-                      <div className="p-8 text-center space-y-6">
-                        <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
-                          <AlertTriangle size={40} className="text-amber-500" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-bold text-slate-900">Negative Stock Warning</h3>
-                          <p className="text-slate-500 text-sm leading-relaxed">
-                            This action will result in negative stock. Are you sure you want to proceed?
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-3 pt-2">
-                          <button 
-                            onClick={async () => {
-                              await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.gsm, negativeStockWarning.delta, true);
-                              await negativeStockWarning.onConfirm();
-                              setNegativeStockWarning(null);
-                            }}
-                            className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
-                          >
-                            Yes, Proceed
-                          </button>
-                          <button 
-                            onClick={() => setNegativeStockWarning(null)}
-                            className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                )}
-              </AnimatePresence>
+
             </motion.div>
           )}
 
@@ -6975,6 +7071,32 @@ export default function App() {
                             <td className="px-1 py-1 whitespace-nowrap">
                               {canEdit ? (
                                 <div className="flex items-center justify-center gap-1">
+                                  <button 
+                                    onClick={async () => {
+                                      const newCard = {
+                                        workName: work.workName || '',
+                                        size: work.cutSize || work.size || '',
+                                        gsm: String(work.gsm || '').replace(/GSM/i, '').trim(),
+                                        totalGross: `${work.qty} ${work.unit || 'GROSS'}`,
+                                        deliveryLoc: '',
+                                        jobCardNo: generateJobCardNo(workOrderPrefix, jobCards.length),
+                                        date: work.date || new Date().toISOString().split('T')[0],
+                                        loadingDate: '',
+                                        timestamp: Timestamp.now()
+                                      };
+                                      try {
+                                        await addDoc(collection(db, 'jobCards'), newCard);
+                                        toast.success(`Job Card created for "${work.workName}"!`);
+                                        setActiveTab('Job Card Generator');
+                                      } catch (err: any) {
+                                        toast.error('Failed to create Job Card');
+                                      }
+                                    }}
+                                    className="p-1 text-purple-600 hover:bg-purple-50 rounded transition-colors border border-purple-200"
+                                    title="Generate Job Card for this Work"
+                                  >
+                                    <FileText size={12} />
+                                  </button>
                                   <button 
                                     onClick={() => setEditingPendingWork({ ...work })}
                                     className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors border border-slate-200"
@@ -9161,6 +9283,748 @@ export default function App() {
                 </div>
               </div>
             </motion.div>
+          )}
+
+          {activeTab === 'Work Order Creator' && (
+            <motion.div
+              key="work-order-creator"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="min-h-[calc(100vh-120px)] h-auto lg:h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6"
+            >
+              {/* Left Panel: WhatsApp Input & Actions */}
+              <div className="w-full lg:w-96 flex flex-col gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 lg:p-6 flex flex-col gap-6 h-full">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setActiveTab('Full Inventory')}
+                        className="p-1 hover:bg-slate-100 rounded transition-colors"
+                      >
+                        <ChevronRight className="rotate-180" size={16} />
+                      </button>
+                      <h3 className="text-[10px] lg:text-xs font-black text-slate-800 uppercase tracking-widest">WORK ORDER CREATOR</h3>
+                    </div>
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                      <button 
+                        onClick={() => setWorkOrderPrefix('EP')}
+                        className={cn(
+                          "px-3 py-1 text-[10px] font-black rounded-md transition-all",
+                          workOrderPrefix === 'EP' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        EP
+                      </button>
+                      <button 
+                        onClick={() => setWorkOrderPrefix('FP')}
+                        className={cn(
+                          "px-3 py-1 text-[10px] font-black rounded-md transition-all",
+                          workOrderPrefix === 'FP' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                        )}
+                      >
+                        FP
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PASTE WHATSAPP ORDER</label>
+                    <textarea 
+                      placeholder="Paste WhatsApp work-order message here...&#10;Item : FW10004 Fera green&#10;Size : 54*86&#10;Gsm : 280&#10;Quantity : 35 gross ( ener )"
+                      value={workOrderInputText}
+                      onChange={(e) => setWorkOrderInputText(e.target.value)}
+                      className="flex-1 w-full bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 transition-all resize-none min-h-[180px]"
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <button 
+                      onClick={handleCheckStockWorkOrder}
+                      className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md cursor-pointer"
+                    >
+                      <CheckCircle size={16} />
+                      CHECK STOCK & VERIFY
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setWorkOrderInputText('');
+                        setWorkOrderReview(null);
+                        toast.success('Draft cleared');
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <Trash2 size={14} className="text-rose-500" />
+                      CLEAR DRAFT
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel: Review & Stock Verification */}
+              <div className="flex-1 flex flex-col gap-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-full justify-between">
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                          <ClipboardList size={22} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">STOCK AVAILABILITY & VARIANCE REVIEW</h3>
+                          <p className="text-[11px] text-slate-400 font-medium">Verify live inventory and negative stock variance before processing</p>
+                        </div>
+                      </div>
+                      {workOrderReview && (
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase",
+                          workOrderReview.status === 'Matched' ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                        )}>
+                          {workOrderReview.status === 'Matched' ? 'EXACT MATCH FOUND' : 'EXACT STOCK NOT FOUND'}
+                        </span>
+                      )}
+                    </div>
+
+                    {!workOrderReview ? (
+                      <div className="flex flex-col items-center justify-center py-24 text-slate-300 gap-4">
+                        <ClipboardList size={56} strokeWidth={1} />
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Paste an order and click Check Stock</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="bg-white border-2 border-slate-900 w-full lg:w-[500px] mx-auto">
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">JOB CARD NO:</div>
+                            <div className="p-3 font-bold text-xs">PENDING GENERATION</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">DATE:</div>
+                            <div className="p-3 font-bold text-xs">{new Date().toISOString().split('T')[0]}</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">WORK NAME</div>
+                            <div className="p-3 font-bold text-xs">{workOrderReview.workName}</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">SIZE</div>
+                            <div className="p-3 font-bold text-xs">{workOrderReview.size.replace('*', ' * ')}</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">GSM</div>
+                            <div className="p-3 font-bold text-xs">{workOrderReview.gsm}</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">TOTAL GROSS</div>
+                            <div className="p-3 font-bold text-xs">{workOrderReview.totalGross}</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">DELIVERY LOCATION</div>
+                            <div className="p-3 font-bold text-xs">PENDING</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">LOADING DATE:</div>
+                            <div className="p-3 font-bold text-xs">PENDING</div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr] border-b-2 border-slate-900">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">SUPERVISOR SIGN</div>
+                            <div className="p-3 min-h-[40px]"></div>
+                          </div>
+                          <div className="grid grid-cols-[160px_1fr]">
+                            <div className="p-3 font-black text-xs uppercase border-r-2 border-slate-900">ACCOUNTANT SIGN</div>
+                            <div className="p-3 min-h-[40px]"></div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-100 space-y-1">
+                            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">AVAILABLE STOCK</span>
+                            <p className="text-2xl font-black text-blue-900">
+                              {workOrderReview.size.includes('*') 
+                                ? Math.round(workOrderReview.availableStock)
+                                : workOrderReview.availableStock.toLocaleString()} 
+                              <span className="text-xs font-bold text-blue-500"> {workOrderReview.size.includes('*') ? 'gross' : 'kg'}</span>
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-1">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">PROJECTED BALANCE</span>
+                            <p className={cn(
+                              "text-2xl font-black",
+                              workOrderReview.projectedBalance < 0 ? "text-rose-600" : "text-emerald-700"
+                            )}>
+                              {workOrderReview.size.includes('*')
+                                ? Math.round(workOrderReview.projectedBalance)
+                                : workOrderReview.projectedBalance.toLocaleString()} 
+                              <span className="text-xs font-bold"> {workOrderReview.size.includes('*') ? 'gross' : 'kg'}</span>
+                            </p>
+                          </div>
+                          <div className={cn(
+                            "p-5 rounded-2xl border space-y-1",
+                            workOrderReview.negativeVariance > 0 ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200"
+                          )}>
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-widest",
+                              workOrderReview.negativeVariance > 0 ? "text-rose-600" : "text-emerald-600"
+                            )}>
+                              {workOrderReview.negativeVariance > 0 ? 'NEGATIVE VARIANCE / SHORTAGE' : 'VARIANCE STATUS'}
+                            </span>
+                            <p className={cn(
+                              "text-2xl font-black",
+                              workOrderReview.negativeVariance > 0 ? "text-rose-700" : "text-emerald-700"
+                            )}>
+                              {workOrderReview.size.includes('*')
+                                ? Math.round(workOrderReview.negativeVariance)
+                                : workOrderReview.negativeVariance.toLocaleString()} 
+                              <span className="text-xs font-bold"> {workOrderReview.size.includes('*') ? 'gross' : 'kg'}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {workOrderReview.negativeVariance > 0 && (
+                          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800">
+                            <AlertTriangle size={20} className="text-rose-600 shrink-0" />
+                            <p className="text-xs font-bold">
+                              Stock shortage detected! Proceeding will record a negative stock variance of {Math.round(workOrderReview.negativeVariance)} {workOrderReview.size.includes('*') ? 'gross' : 'kg'} in Pending Works and inventory logs.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {workOrderReview && workOrderReview.status === 'Matched' && (
+                    <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+                      <button
+                        onClick={() => {
+                          const now = new Date();
+                          const dateStr = now.toISOString().split('T')[0];
+                          const monthStr = now.toLocaleString('default', { month: 'long' });
+                          const cutSheets = String(Math.round(workOrderReview.requiredSheets || (workOrderReview.requiredQty * 144)));
+
+                          let extractedItemCode = (workOrderReview.itemCode || workOrderReview.matchedItem?.itemCode || '').toUpperCase().trim();
+                          let cleanWorkName = (workOrderReview.workName || '').trim();
+
+                          // Extract item code if workName starts with an item code (e.g. "FW10013 cubix kids 1*4")
+                          const codeMatch = cleanWorkName.match(/^([A-Za-z]{1,5}[-_]?\d{3,6}[A-Za-z0-9\-_]*)\s*(?:[-:]\s*)?(.*)$/i);
+                          if (codeMatch) {
+                            if (!extractedItemCode) {
+                              extractedItemCode = codeMatch[1].toUpperCase();
+                            }
+                            if (codeMatch[2] && codeMatch[2].trim()) {
+                              cleanWorkName = codeMatch[2].trim();
+                            }
+                          }
+
+                          // Capitalize words nicely as per attached snap ("Cubix Kids 1*4")
+                          cleanWorkName = cleanWorkName.replace(/\b[a-z]/g, c => c.toUpperCase());
+
+                          // Determine company
+                          let companyVal = workOrderReview.company || '';
+                          if (!companyVal) {
+                            const companyMatch = workOrderInputText.match(/(?:company|party|customer|client)[:\-]?\s*([A-Za-z0-9\s&.-]+)/i);
+                            if (companyMatch) {
+                              companyVal = companyMatch[1].trim().toUpperCase();
+                            } else if (extractedItemCode) {
+                              const lastLog = stockOutLogs.find(log => log.itemCode === extractedItemCode && log.company) || pendingWorks.find(w => w.itemCode === extractedItemCode && w.company);
+                              if (lastLog && lastLog.company) {
+                                companyVal = lastLog.company.toUpperCase();
+                              }
+                            }
+                          }
+
+                          setStockOutItem({
+                            item: workOrderReview.matchedItem ? {
+                              ...workOrderReview.matchedItem,
+                              size: workOrderReview.matchedItem.size || workOrderReview.size,
+                              gsm: workOrderReview.matchedItem.gsm || workOrderReview.gsm,
+                              itemCode: extractedItemCode || workOrderReview.matchedItem.itemCode || '',
+                              stock: workOrderReview.availableStock
+                            } : {
+                              size: workOrderReview.size,
+                              gsm: workOrderReview.gsm,
+                              itemCode: extractedItemCode,
+                              stock: workOrderReview.availableStock
+                            },
+                            sectionTitle: workOrderReview.sectionTitle,
+                            subTitle: workOrderReview.subTitle,
+                            formData: {
+                              date: dateStr,
+                              month: monthStr,
+                              company: companyVal,
+                              quantity: workOrderReview.requiredQty.toString(),
+                              itemCode: extractedItemCode,
+                              workName: cleanWorkName,
+                              cuttingSize: workOrderReview.size, // Perfectly placed cutting size
+                              sheets: cutSheets, // Valid calculated sheet quantity
+                              unit: workOrderReview.isDouble ? 'GROSS' : 'KG',
+                              status: 'Cutting',
+                              priority: 'Medium',
+                              remarks: ''
+                            },
+                            isWorkOrder: true // Flag to identify this flow
+                          });
+                        }}
+                        className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all cursor-pointer flex items-center gap-2"
+                        title="1. Update Main Inventory, 2. Generate Job Card"
+                      >
+                        <CheckCircle size={16} /> PROCEED & PROCESS STOCK OPERATION
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Work Order Success Modal */}
+          <AnimatePresence>
+            {showWorkOrderSuccessModal && successWorkOrderDetails && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              >
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden p-6 text-center space-y-6 border border-slate-100"
+                >
+                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                    <CheckCircle size={36} />
+                  </div>
+                  <div className="space-y-3">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Stock Out Completed Successfully</h3>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-left space-y-1.5 text-xs text-emerald-800 font-bold">
+                      <p className="flex items-center gap-2">
+                        <Check size={14} className="text-emerald-600 shrink-0" /> Inventory updated
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Check size={14} className="text-emerald-600 shrink-0" /> Work added to Pending Works
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Check size={14} className="text-emerald-600 shrink-0" /> Stock transaction recorded
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl text-left space-y-1 text-xs font-bold text-slate-700 border border-slate-100">
+                    <p><strong>Work Name:</strong> {successWorkOrderDetails.workName}</p>
+                    <p><strong>Size / GSM:</strong> {successWorkOrderDetails.size} • {successWorkOrderDetails.gsm} GSM</p>
+                    <p><strong>Quantity:</strong> {successWorkOrderDetails.totalGross}</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button 
+                      onClick={() => {
+                        setShowWorkOrderSuccessModal(false);
+                        setSuccessWorkOrderDetails(null);
+                        setActiveTab('Pending Works');
+                      }}
+                      className="flex-1 p-3.5 rounded-xl border border-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider hover:bg-slate-50 transition-all cursor-pointer text-center"
+                    >
+                      Return to Pending Works
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        const newCard = {
+                          workName: successWorkOrderDetails.workName,
+                          size: successWorkOrderDetails.size,
+                          gsm: successWorkOrderDetails.gsm,
+                          totalGross: successWorkOrderDetails.totalGross,
+                          deliveryLoc: '',
+                          jobCardNo: generateJobCardNo(workOrderPrefix, jobCards.length),
+                          date: new Date().toISOString().split('T')[0],
+                          loadingDate: '',
+                          timestamp: Timestamp.now()
+                        };
+                        try {
+                          await addDoc(collection(db, 'jobCards'), newCard);
+                          toast.success('Job Card generated successfully!');
+                          setShowWorkOrderSuccessModal(false);
+                          setSuccessWorkOrderDetails(null);
+                          setActiveTab('Job Card Generator');
+                        } catch (err: any) {
+                          toast.error('Failed to generate Job Card');
+                        }
+                      }}
+                      className="flex-1 p-3.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase tracking-wider hover:bg-blue-700 transition-all shadow-lg cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <FileText size={16} /> Generate Job Card
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </AnimatePresence>
+
+        {/* Global Stock Out Modal */}
+        <AnimatePresence>
+          {stockOutItem && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[105] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden"
+              >
+                <div className="px-8 py-5 bg-[#dc2626] flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white tracking-tight">
+                    STOCK OUT - {stockOutItem.item?.size || stockOutItem.formData?.cuttingSize || ''} {stockOutItem.item?.gsm ? `(${stockOutItem.item.gsm})` : ''}
+                  </h3>
+                  <button onClick={() => setStockOutItem(null)} className="text-white/80 hover:text-white transition-colors cursor-pointer">
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="p-4 lg:p-8 space-y-4 lg:space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Date</label>
+                      <div className="relative">
+                        <input 
+                          type="date" 
+                          value={stockOutItem.formData.date || ''}
+                          onChange={(e) => {
+                            const date = new Date(e.target.value);
+                            setStockOutItem({
+                              ...stockOutItem,
+                              formData: {
+                                ...stockOutItem.formData,
+                                date: e.target.value,
+                                month: date.toLocaleString('default', { month: 'long' })
+                              }
+                            });
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all pr-12"
+                        />
+                        <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Month</label>
+                      <input 
+                        type="text" 
+                        value={stockOutItem.formData.month || ''}
+                        readOnly
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
+                    <div className="space-y-1.5 relative">
+                      <label className="text-sm font-semibold text-slate-600">Company (CAPS)</label>
+                      <input 
+                        type="text" 
+                        placeholder="SREEPATHI"
+                        value={stockOutItem.formData.company || ''}
+                        onFocus={() => setShowCompanySuggestions(true)}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase();
+                          setStockOutItem({
+                            ...stockOutItem,
+                            formData: { ...stockOutItem.formData, company: val }
+                          });
+                          setShowCompanySuggestions(true);
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      />
+                      {showCompanySuggestions && (
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                          {(() => {
+                            const set = new Set<string>();
+                            stockOutLogs.forEach(l => { if (l.company) set.add(l.company.toUpperCase()); });
+                            pendingWorks.forEach(w => { if (w.company) set.add(w.company.toUpperCase()); });
+                            const suggestions: string[] = Array.from(set).sort();
+                            const queryText = (stockOutItem.formData.company || '').toUpperCase();
+                            const filtered = suggestions.filter(c => c.includes(queryText) || c.startsWith(queryText));
+                            if (filtered.length === 0) {
+                              return <div className="px-4 py-2 text-xs text-slate-400 italic">Type to save/add new company</div>;
+                            }
+                            return filtered.map((comp: string, idx: number) => (
+                              <div
+                                key={idx}
+                                onClick={() => {
+                                  setStockOutItem({
+                                    ...stockOutItem,
+                                    formData: { ...stockOutItem.formData, company: comp }
+                                  });
+                                  setShowCompanySuggestions(false);
+                                }}
+                                className="px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0"
+                              >
+                                {comp}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Quantity (Out)</label>
+                      <input 
+                        type="number" 
+                        value={stockOutItem.formData.quantity || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, quantity: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Item Code (CAPS)</label>
+                      <input 
+                        type="text" 
+                        placeholder="ENTER CODE TO AUTO-FILL"
+                        value={stockOutItem.formData.itemCode || ''}
+                        onChange={(e) => {
+                          const newCode = e.target.value.toUpperCase();
+                          const lastLog = stockOutLogs.find(log => log.itemCode === newCode) || pendingWorks.find(w => w.itemCode === newCode);
+                          if (lastLog) {
+                            const autoStatus = (lastLog.status && lastLog.status.toUpperCase() !== 'DELIVERED') 
+                              ? lastLog.status 
+                              : (stockOutItem.formData.status || 'Cutting');
+                            setStockOutItem({
+                              ...stockOutItem,
+                              formData: {
+                                ...stockOutItem.formData,
+                                itemCode: newCode,
+                                company: lastLog.company || stockOutItem.formData.company,
+                                workName: lastLog.workName || stockOutItem.formData.workName,
+                                unit: lastLog.unit || stockOutItem.formData.unit,
+                                cuttingSize: lastLog.cutSize || stockOutItem.formData.cuttingSize,
+                                status: autoStatus,
+                                priority: lastLog.priority || stockOutItem.formData.priority,
+                                remarks: lastLog.remarks || stockOutItem.formData.remarks
+                              }
+                            });
+                          } else {
+                            setStockOutItem({
+                              ...stockOutItem,
+                              formData: { ...stockOutItem.formData, itemCode: newCode }
+                            });
+                          }
+                        }}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Work Name</label>
+                      <input 
+                        type="text" 
+                        value={stockOutItem.formData.workName || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, workName: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Unit</label>
+                      <select 
+                        value={stockOutItem.formData.unit || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, unit: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-bold"
+                      >
+                        <option value="GROSS">GROSS</option>
+                        <option value="KG">KG</option>
+                        <option value="NET">NET</option>
+                        <option value="Cutting">Cutting</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Cutting Size</label>
+                      <input 
+                        type="text" 
+                        value={stockOutItem.formData.cuttingSize || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, cuttingSize: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+                        <FileSpreadsheet size={14} className="text-blue-500" /> Sheets (Manual)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter sheets..."
+                        value={stockOutItem.formData.sheets || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, sheets: e.target.value }
+                        })}
+                        className="w-full bg-blue-50/50 border border-blue-100 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Status</label>
+                      <select 
+                        value={stockOutItem.formData.status || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, status: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      >
+                        <option value="Cutting">Cutting</option>
+                        <option value="Printing">Printing</option>
+                        <option value="Packing">Packing</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-600">Priority</label>
+                      <select 
+                        value={stockOutItem.formData.priority || ''}
+                        onChange={(e) => setStockOutItem({
+                          ...stockOutItem,
+                          formData: { ...stockOutItem.formData, priority: e.target.value }
+                        })}
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-600">Remarks</label>
+                    <textarea 
+                      rows={2}
+                      value={stockOutItem.formData.remarks || ''}
+                      onChange={(e) => setStockOutItem({
+                        ...stockOutItem,
+                        formData: { ...stockOutItem.formData, remarks: e.target.value }
+                      })}
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button 
+                      type="button"
+                      onClick={() => setStockOutItem(null)}
+                      className="px-6 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    {stockOutItem.isWorkOrder && (
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          const newCard = {
+                            workName: stockOutItem.formData.workName || stockOutItem.item?.workName || '',
+                            size: stockOutItem.formData.cuttingSize || stockOutItem.item?.size || '',
+                            gsm: String(stockOutItem.item?.gsm || '').replace(/GSM/i, '').trim(),
+                            totalGross: stockOutItem.formData.quantity + ' ' + (stockOutItem.formData.unit || 'GROSS'),
+                            deliveryLoc: '',
+                            jobCardNo: generateJobCardNo(workOrderPrefix, jobCards.length),
+                            date: stockOutItem.formData.date || new Date().toISOString().split('T')[0],
+                            loadingDate: '',
+                            timestamp: Timestamp.now()
+                          };
+                          try {
+                            await addDoc(collection(db, 'jobCards'), newCard);
+                            toast.info('Job Card generated without stock deduction (unprocessed stock).');
+                            setStockOutItem(null);
+                            setActiveTab('Job Card Generator');
+                          } catch (err: any) {
+                            toast.error('Failed to generate Job Card');
+                          }
+                        }}
+                        className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"
+                        title="Generate Job Card directly without deducting inventory"
+                      >
+                        <FileText size={18} className="text-slate-500" />
+                        Generate Job Card
+                      </button>
+                    )}
+                    <button 
+                      type="button"
+                      disabled={isProcessingStockOut}
+                      onClick={handleConfirmStockOut}
+                      className="flex items-center gap-2 bg-[#dc2626] text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 cursor-pointer disabled:opacity-50"
+                    >
+                      {isProcessingStockOut ? (
+                        <>
+                          <Loader2 size={18} className="animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={18} />
+                          Proceed
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Global Negative Stock Warning Modal */}
+        <AnimatePresence>
+          {negativeStockWarning && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[115] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+              >
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto">
+                    <AlertTriangle size={40} className="text-amber-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-slate-900">Negative Stock Warning</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed">
+                      This action will result in negative stock. Are you sure you want to proceed?
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-3 pt-2">
+                    <button 
+                      onClick={async () => {
+                        await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.gsm, negativeStockWarning.delta, true);
+                        await negativeStockWarning.onConfirm();
+                        setNegativeStockWarning(null);
+                      }}
+                      className="w-full bg-amber-500 text-white py-4 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                    >
+                      Yes, Proceed
+                    </button>
+                    <button 
+                      onClick={() => setNegativeStockWarning(null)}
+                      className="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
 
