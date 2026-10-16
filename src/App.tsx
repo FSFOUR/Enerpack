@@ -3928,8 +3928,8 @@ export default function App() {
       (log.sheets?.toString() || '').toLowerCase().includes((stockOutFilters.sheets || '').toLowerCase()) &&
       (log.status || '').toLowerCase().includes((stockOutFilters.status || '').toLowerCase()) &&
       formatDate(log.deliveryDate || log.date || '').toLowerCase().includes((stockOutFilters.deliveryDate || '').toLowerCase()) &&
-      (log.vehicle || '').toLowerCase().includes((logFilters.vehicle || '').toLowerCase()) &&
-      (log.location || '').toLowerCase().includes((logFilters.location || '').toLowerCase()) &&
+      (log.vehicle || '').toLowerCase().includes((stockOutFilters.vehicle || '').toLowerCase()) &&
+      (log.location || '').toLowerCase().includes((stockOutFilters.location || '').toLowerCase()) &&
       (log.remarks || '').toLowerCase().includes((logFilters.remarks || '').toLowerCase());
 
     return matchesSearch && matchesFilters;
@@ -4175,12 +4175,13 @@ export default function App() {
   };
 
   const handleExportReorderAlertXLSX = () => {
+    const alertsQueryLower = (searchAlertsQuery || '').toLowerCase();
     const alertsData = inventory.flatMap(section => 
       section.subSections.flatMap(sub => 
         sub.items.filter(item => 
           item.isLow && (
-            item.size.toLowerCase().includes(searchAlertsQuery.toLowerCase()) ||
-            item.gsm.toLowerCase().includes(searchAlertsQuery.toLowerCase())
+            (item.size || '').toLowerCase().includes(alertsQueryLower) ||
+            (item.gsm?.toString() || '').toLowerCase().includes(alertsQueryLower)
           )
         ).map(item => {
           const key = `${item.size}-${item.gsm}`;
@@ -4214,12 +4215,13 @@ export default function App() {
   };
 
   const handleExportReorderAlertPDF = () => {
+    const alertsQueryLower = (searchAlertsQuery || '').toLowerCase();
     const alertsData = inventory.flatMap(section => 
       section.subSections.flatMap(sub => 
         sub.items.filter(item => 
           item.isLow && (
-            item.size.toLowerCase().includes(searchAlertsQuery.toLowerCase()) ||
-            item.gsm.toLowerCase().includes(searchAlertsQuery.toLowerCase())
+            (item.size || '').toLowerCase().includes(alertsQueryLower) ||
+            (item.gsm?.toString() || '').toLowerCase().includes(alertsQueryLower)
           )
         ).map(item => {
           const key = `${item.size}-${item.gsm}`;
@@ -4439,7 +4441,7 @@ export default function App() {
           <div>
             <p className="text-sm font-bold text-white">{userName}</p>
             <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-              {roles.find(r => r.id.toLowerCase() === userRole?.toLowerCase())?.name || userRole}
+              {roles.find(r => (r.id || '').toLowerCase() === (userRole || '').toLowerCase())?.name || userRole}
             </p>
           </div>
         </div>
@@ -5273,11 +5275,12 @@ export default function App() {
               {/* Inventory Grid Table */}
               <div className="overflow-auto custom-scrollbar flex-1">
                 {inventory.map((section, idx) => {
+                  const searchQueryLower = (searchQuery || '').toLowerCase();
                   const filteredSubSections = section.subSections.map(sub => ({
                     ...sub,
                     items: sub.items.filter(item => 
-                      (item.size.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      item.gsm.toLowerCase().includes(searchQuery.toLowerCase())) &&
+                      ((item.size || '').toLowerCase().includes(searchQueryLower) ||
+                      (item.gsm?.toString() || '').toLowerCase().includes(searchQueryLower)) &&
                       (!isLowStockOnly || item.isLow)
                     )
                   })).filter(sub => sub.items.length > 0);
@@ -5673,10 +5676,13 @@ export default function App() {
                         section.subSections.flatMap(sub => 
                           sub.items.map(item => ({ sectionTitle: section.title, subTitle: sub.title, item }))
                         )
-                      ).filter(entry => 
-                        entry.item.size.toLowerCase().includes(quickTrackerSearch.toLowerCase()) ||
-                        entry.item.gsm.toLowerCase().includes(quickTrackerSearch.toLowerCase())
-                      ).map((entry, idx) => (
+                      ).filter(entry => {
+                        const qtSearchLower = (quickTrackerSearch || '').toLowerCase();
+                        return (
+                          (entry.item.size || '').toLowerCase().includes(qtSearchLower) ||
+                          (entry.item.gsm?.toString() || '').toLowerCase().includes(qtSearchLower)
+                        );
+                      }).map((entry, idx) => (
                         <button
                           key={`${entry.item.size}-${entry.item.gsm}-${idx}`}
                           onClick={() => setSelectedQuickTrackerItem(entry)}
