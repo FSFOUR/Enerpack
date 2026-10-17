@@ -105,7 +105,8 @@ import {
   Timestamp,
   setDoc,
   getDocs,
-  where
+  where,
+  getDoc
 } from 'firebase/firestore';
 import { 
   getAuth, 
@@ -2307,7 +2308,8 @@ export default function App() {
     size: string,
     gsm: string,
     delta: number,
-    onConfirm: () => Promise<void>
+    onConfirm: () => Promise<void>,
+    itemId?: string
   } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -3091,7 +3093,7 @@ export default function App() {
       }
     };
     
-    const success = await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, stockInItem.item.gsm, quantity, false, followUp);
+    const success = await updateStock(stockInItem.sectionTitle, stockInItem.subTitle, stockInItem.item.size, stockInItem.item.gsm, quantity, false, followUp, stockInItem.item.id);
     
     if (success) {
       await followUp();
@@ -3225,7 +3227,8 @@ export default function App() {
         stockOutItem.item?.gsm || '', 
         -quantity, 
         false, 
-        followUp
+        followUp,
+        stockOutItem.item?.id
       );
       
       if (success) {
@@ -3240,48 +3243,82 @@ export default function App() {
     }
   };
 
-  const updateStock = async (sectionTitle: string, subTitle: string, size: string, gsm: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>): Promise<boolean> => {
+  const updateStock = async (sectionTitle: string, subTitle: string, size: string, gsm: string, delta: number, force: boolean = false, onConfirm?: () => Promise<void>, itemId?: string): Promise<boolean> => {
     try {
+      let docRef: any = null;
+      let currentData: any = null;
+
+      if (itemId) {
+        docRef = doc(db, 'inventory', itemId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          currentData = docSnap.data();
+        }
+      }
+
       const cleanSize = String(size || '').trim();
       const cleanGsm = String(gsm || '').toUpperCase().replace('GSM', '').trim();
       const normSize = cleanSize.replace(/["\s]/g, '').toLowerCase();
       const normGsm = cleanGsm.replace(/["\s]/g, '').toLowerCase();
 
-      // Query with normalized fallback
-      const q = query(
-        collection(db, 'inventory'), 
-        where('size', '==', size),
-        where('gsm', '==', gsm)
-      );
-      let snapshot = await getDocs(q);
-
-      if (snapshot.empty) {
-        const qClean = query(
-          collection(db, 'inventory'), 
-          where('size', '==', cleanSize),
-          where('gsm', '==', cleanGsm)
+      if (!docRef || !currentData) {
+        const qExact = query(
+          collection(db, 'inventory'),
+          where('sectionTitle', '==', sectionTitle),
+          where('subSectionTitle', '==', subTitle),
+          where('size', '==', size),
+          where('gsm', '==', gsm)
         );
-        snapshot = await getDocs(qClean);
-      }
+        let snapshot = await getDocs(qExact);
 
-      let docRef: any = null;
-      let currentData: any = null;
+        if (snapshot.empty) {
+          const q = query(
+            collection(db, 'inventory'), 
+            where('size', '==', size),
+            where('gsm', '==', gsm)
+          );
+          snapshot = await getDocs(q);
+        }
 
-      if (!snapshot.empty) {
-        docRef = snapshot.docs[0].ref;
-        currentData = snapshot.docs[0].data();
-      } else {
-        // Fallback scan across all docs in inventory collection
-        const allSnap = await getDocs(collection(db, 'inventory'));
-        const matchedDoc = allSnap.docs.find(d => {
-          const data = d.data();
-          const dSize = String(data.size || '').replace(/["\s]/g, '').toLowerCase();
-          const dGsm = String(data.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
-          return dSize === normSize && dGsm === normGsm;
-        });
-        if (matchedDoc) {
-          docRef = matchedDoc.ref;
-          currentData = matchedDoc.data();
+        if (snapshot.empty) {
+          const qClean = query(
+            collection(db, 'inventory'), 
+            where('size', '==', cleanSize),
+            where('gsm', '==', cleanGsm)
+          );
+          snapshot = await getDocs(qClean);
+        }
+
+        if (!snapshot.empty) {
+          docRef = snapshot.docs[0].ref;
+          currentData = snapshot.docs[0].data();
+        } else {
+          const allSnap = await getDocs(collection(db, 'inventory'));
+          const matchedDoc = allSnap.docs.find(d => {
+            const data = d.data();
+            const dSec = String(data.sectionTitle || '').trim();
+            const dSub = String(data.subSectionTitle || '').trim();
+            const dSize = String(data.size || '').replace(/["\s]/g, '').toLowerCase();
+            const dGsm = String(data.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+            const secMatch = !sectionTitle || dSec === String(sectionTitle || '').trim();
+            const subMatch = !subTitle || dSub === String(subTitle || '').trim();
+            return secMatch && subMatch && dSize === normSize && dGsm === normGsm;
+          });
+          if (matchedDoc) {
+            docRef = matchedDoc.ref;
+            currentData = matchedDoc.data();
+          } else if (allSnap.docs.length > 0) {
+            const matchedDoc2 = allSnap.docs.find(d => {
+              const data = d.data();
+              const dSize = String(data.size || '').replace(/["\s]/g, '').toLowerCase();
+              const dGsm = String(data.gsm || '').toUpperCase().replace('GSM', '').replace(/["\s]/g, '').toLowerCase();
+              return dSize === normSize && dGsm === normGsm;
+            });
+            if (matchedDoc2) {
+              docRef = matchedDoc2.ref;
+              currentData = matchedDoc2.data();
+            }
+          }
         }
       }
 
@@ -3290,7 +3327,7 @@ export default function App() {
         const newStock = currentStock + delta;
 
         if (newStock < 0 && !force) {
-          setNegativeStockWarning({ sectionTitle, subTitle, size, gsm, delta, onConfirm: onConfirm || (async () => {}) });
+          setNegativeStockWarning({ sectionTitle, subTitle, size, gsm, delta, onConfirm: onConfirm || (async () => {}), itemId });
           return false;
         }
 
@@ -3298,24 +3335,34 @@ export default function App() {
           stock: newStock,
           isLow: newStock < (currentData.minQuantity || 100)
         });
+      } else {
+        console.warn(`Could not find inventory item matching section: "${sectionTitle}", sub: "${subTitle}", size: "${size}", gsm: "${gsm}" to adjust stock by ${delta}`);
+        return false;
       }
 
-      // Always update local inventory state immediately so all views reflect the deduction
-      setInventory(prev => prev.map(section => ({
-        ...section,
-        subSections: section.subSections.map((sub: any) => ({
-          ...sub,
-          items: sub.items.map((it: any) => {
-            const itSize = String(it.size || '').trim().replace(/["\s]/g, '').toLowerCase();
-            const itGsm = String(it.gsm || '').toUpperCase().replace('GSM', '').trim().replace(/["\s]/g, '').toLowerCase();
-            if (itSize === normSize && itGsm === normGsm) {
-              const newStk = (Number(it.stock) || 0) + delta;
-              return { ...it, stock: newStk, isLow: newStk < (it.minQuantity || 100) };
-            }
-            return it;
+      // Always update local inventory state immediately so all views reflect the adjustment
+      setInventory(prev => prev.map(section => {
+        if (sectionTitle && section.title !== sectionTitle) return section;
+        return {
+          ...section,
+          subSections: section.subSections.map((sub: any) => {
+            if (subTitle && sub.title !== subTitle) return sub;
+            return {
+              ...sub,
+              items: sub.items.map((it: any) => {
+                const itSize = String(it.size || '').trim().replace(/["\s]/g, '').toLowerCase();
+                const itGsm = String(it.gsm || '').toUpperCase().replace('GSM', '').trim().replace(/["\s]/g, '').toLowerCase();
+                const idMatch = itemId && it.id ? it.id === itemId : true;
+                if (idMatch && itSize === normSize && itGsm === normGsm) {
+                  const newStk = (Number(it.stock) || 0) + delta;
+                  return { ...it, stock: newStk, isLow: newStk < (it.minQuantity || 100) };
+                }
+                return it;
+              })
+            };
           })
-        }))
-      })));
+        };
+      }));
 
       return true;
     } catch (error) {
@@ -10013,7 +10060,7 @@ export default function App() {
                   <div className="flex flex-col gap-3 pt-2">
                     <button 
                       onClick={async () => {
-                        await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.gsm, negativeStockWarning.delta, true);
+                        await updateStock(negativeStockWarning.sectionTitle, negativeStockWarning.subTitle, negativeStockWarning.size, negativeStockWarning.gsm, negativeStockWarning.delta, true, undefined, negativeStockWarning.itemId);
                         await negativeStockWarning.onConfirm();
                         setNegativeStockWarning(null);
                       }}
